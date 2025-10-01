@@ -1,5 +1,6 @@
 const express = require('express');
 const authRoutes = require('./auth');
+const { sendSuccess } = require('../utils/response');
 
 const router = express.Router();
 
@@ -32,10 +33,10 @@ router.use('/auth', authRoutes);
  *                   example: "2023-12-01T10:30:00.000Z"
  */
 router.get('/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'Server is running',
-    timestamp: new Date().toISOString()
+  sendSuccess(res, 200, 'Server is running', {
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 

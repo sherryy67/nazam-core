@@ -6,6 +6,7 @@ const swaggerSpecs = require('./config/swagger');
 const connectDB = require('./config/database');
 const errorHandler = require('./middlewares/errorHandler');
 const routes = require('./routes');
+const { sendSuccess, sendError } = require('./utils/response');
 
 // Load env vars
 dotenv.config();
@@ -37,21 +38,17 @@ app.use('/api', routes);
 
 // Root route
 app.get('/', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'Welcome to Nazam Core API',
+  sendSuccess(res, 200, 'Welcome to Nazam Core API', {
     version: '1.0.0',
     documentation: '/api-docs',
-    health: '/api/health'
+    health: '/api/health',
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
 // Handle 404 routes
 app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: `Route ${req.originalUrl} not found`
-  });
+  sendError(res, 404, `Route ${req.originalUrl} not found`, 'ROUTE_NOT_FOUND');
 });
 
 // Error handler middleware (must be last)

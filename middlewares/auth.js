@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { getRoleName } = require('../utils/roles');
+const { sendAuthError, sendAuthzError } = require('../utils/response');
 
 // Protect routes
 const protect = async (req, res, next) => {
@@ -18,27 +19,18 @@ const protect = async (req, res, next) => {
       req.user = await User.findById(decoded.id).select('-password');
 
       if (!req.user) {
-        return res.status(401).json({
-          success: false,
-          message: 'Not authorized, user not found'
-        });
+        return sendAuthError(res, 'Not authorized, user not found');
       }
 
       next();
     } catch (error) {
       console.error('Token verification error:', error);
-      return res.status(401).json({
-        success: false,
-        message: 'Not authorized, token failed'
-      });
+      return sendAuthError(res, 'Not authorized, token failed');
     }
   }
 
   if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: 'Not authorized, no token'
-    });
+    return sendAuthError(res, 'Not authorized, no token');
   }
 };
 
@@ -46,10 +38,7 @@ const protect = async (req, res, next) => {
 const authorize = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        message: `User role ${getRoleName(req.user.role)} is not authorized to access this route`
-      });
+      return sendAuthzError(res, `User role ${getRoleName(req.user.role)} is not authorized to access this route`);
     }
     next();
   };

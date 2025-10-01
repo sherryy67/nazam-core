@@ -182,14 +182,23 @@ const options = {
               type: 'boolean',
               example: true
             },
-            token: {
+            exception: {
               type: 'string',
-              description: 'JWT token',
-              example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+              nullable: true,
+              example: null
             },
-            data: {
+            description: {
+              type: 'string',
+              example: 'Login successful'
+            },
+            content: {
               type: 'object',
               properties: {
+                access_token: {
+                  type: 'string',
+                  description: 'JWT token',
+                  example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+                },
                 user: {
                   $ref: '#/components/schemas/User'
                 }
@@ -204,15 +213,20 @@ const options = {
               type: 'boolean',
               example: false
             },
-            message: {
+            exception: {
               type: 'string',
-              description: 'Error message',
+              description: 'Exception type',
+              example: 'VALIDATION_ERROR'
+            },
+            description: {
+              type: 'string',
+              description: 'Error description',
               example: 'Invalid credentials'
             },
-            error: {
-              type: 'string',
-              description: 'Detailed error information',
-              example: 'Validation failed'
+            content: {
+              type: 'object',
+              nullable: true,
+              description: 'Additional error data'
             }
           }
         },
@@ -223,13 +237,19 @@ const options = {
               type: 'boolean',
               example: true
             },
-            message: {
+            exception: {
+              type: 'string',
+              nullable: true,
+              example: null
+            },
+            description: {
               type: 'string',
               description: 'Success message',
               example: 'Operation completed successfully'
             },
-            data: {
+            content: {
               type: 'object',
+              nullable: true,
               description: 'Response data'
             }
           }

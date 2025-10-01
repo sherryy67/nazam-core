@@ -1,10 +1,10 @@
-const nodemailer = require('nodemailer');
+const nodemailer = require("nodemailer");
 
 const createTransporter = () => {
   return nodemailer.createTransporter({
     host: process.env.EMAIL_HOST,
     port: process.env.EMAIL_PORT,
-    secure: false, // true for 465, false for other ports
+    secure: true, // true for 465, false for other ports
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
@@ -23,10 +23,10 @@ const sendEmail = async (options) => {
       html: options.html,
     });
 
-    console.log('Email sent: ' + info.messageId);
+    console.log("Email sent: " + info.messageId);
     return info;
   } catch (error) {
-    console.error('Email sending error:', error);
+    console.error("Email sending error:", error);
     throw error;
   }
 };

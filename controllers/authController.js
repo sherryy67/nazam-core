@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const { sendEmail } = require('../config/email');
 const generateToken = require('../utils/generateToken');
+const { sendSuccess, sendError, sendCreated, sendAuthError, sendServerError } = require('../utils/response');
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -34,16 +35,12 @@ const register = async (req, res, next) => {
         message
       });
 
-      res.status(201).json({
-        success: true,
-        message: 'User registered successfully. Please check your email for verification.',
-        data: {
-          user: {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role
-          }
+      sendCreated(res, 'User registered successfully. Please check your email for verification.', {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role
         }
       });
     } catch (error) {
@@ -51,10 +48,7 @@ const register = async (req, res, next) => {
       user.emailVerificationExpire = undefined;
       await user.save();
 
-      return res.status(500).json({
-        success: false,
-        message: 'Email could not be sent'
-      });
+      return sendServerError(res, 'Email could not be sent', 'EMAIL_SEND_FAILED');
     }
   } catch (error) {
     next(error);
@@ -70,38 +64,26 @@ const login = async (req, res, next) => {
 
     // Validate email & password
     if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide an email and password'
-      });
+      return sendError(res, 400, 'Please provide an email and password', 'MISSING_CREDENTIALS');
     }
 
     // Check for user
     const user = await User.findOne({ email }).select('+password');
 
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials'
-      });
+      return sendAuthError(res, 'Invalid credentials');
     }
 
     // Check if password matches
     const isMatch = await user.matchPassword(password);
 
     if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials'
-      });
+      return sendAuthError(res, 'Invalid credentials');
     }
 
     // Check if email is verified
     if (!user.isEmailVerified) {
-      return res.status(401).json({
-        success: false,
-        message: 'Please verify your email before logging in'
-      });
+      return sendAuthError(res, 'Please verify your email before logging in');
     }
 
     sendTokenResponse(user, 200, res);
@@ -114,10 +96,7 @@ const login = async (req, res, next) => {
 // @route   GET /api/auth/logout
 // @access  Private
 const logout = async (req, res, next) => {
-  res.status(200).json({
-    success: true,
-    message: 'User logged out successfully'
-  });
+  sendSuccess(res, 200, 'User logged out successfully');
 };
 
 // @desc    Get current logged in user
@@ -127,10 +106,7 @@ const getMe = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
 
-    res.status(200).json({
-      success: true,
-      data: user
-    });
+    sendSuccess(res, 200, 'User profile retrieved successfully', { user });
   } catch (error) {
     next(error);
   }
@@ -151,10 +127,7 @@ const updateDetails = async (req, res, next) => {
       runValidators: true
     });
 
-    res.status(200).json({
-      success: true,
-      data: user
-    });
+    sendSuccess(res, 200, 'User details updated successfully', { user });
   } catch (error) {
     next(error);
   }
@@ -169,10 +142,7 @@ const updatePassword = async (req, res, next) => {
 
     // Check current password
     if (!(await user.matchPassword(req.body.currentPassword))) {
-      return res.status(401).json({
-        success: false,
-        message: 'Password is incorrect'
-      });
+      return sendAuthError(res, 'Password is incorrect');
     }
 
     user.password = req.body.newPassword;
@@ -192,10 +162,7 @@ const forgotPassword = async (req, res, next) => {
     const user = await User.findOne({ email: req.body.email });
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'There is no user with that email'
-      });
+      return sendError(res, 404, 'There is no user with that email', 'USER_NOT_FOUND');
     }
 
     // Get reset token
@@ -218,20 +185,14 @@ const forgotPassword = async (req, res, next) => {
         message
       });
 
-      res.status(200).json({
-        success: true,
-        message: 'Email sent'
-      });
+      sendSuccess(res, 200, 'Password reset email sent');
     } catch (error) {
       user.resetPasswordToken = undefined;
       user.resetPasswordExpire = undefined;
 
       await user.save({ validateBeforeSave: false });
 
-      return res.status(500).json({
-        success: false,
-        message: 'Email could not be sent'
-      });
+      return sendServerError(res, 'Email could not be sent', 'EMAIL_SEND_FAILED');
     }
   } catch (error) {
     next(error);
@@ -255,10 +216,7 @@ const resetPassword = async (req, res, next) => {
     });
 
     if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid token'
-      });
+      return sendError(res, 400, 'Invalid or expired token', 'INVALID_TOKEN');
     }
 
     // Set new password
@@ -289,10 +247,7 @@ const verifyEmail = async (req, res, next) => {
     });
 
     if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid or expired token'
-      });
+      return sendError(res, 400, 'Invalid or expired token', 'INVALID_TOKEN');
     }
 
     user.isEmailVerified = true;
@@ -300,10 +255,7 @@ const verifyEmail = async (req, res, next) => {
     user.emailVerificationExpire = undefined;
     await user.save();
 
-    res.status(200).json({
-      success: true,
-      message: 'Email verified successfully'
-    });
+    sendSuccess(res, 200, 'Email verified successfully');
   } catch (error) {
     next(error);
   }
@@ -314,16 +266,13 @@ const sendTokenResponse = (user, statusCode, res) => {
   // Create token
   const token = user.getSignedJwtToken();
 
-  res.status(statusCode).json({
-    success: true,
-    token,
-    data: {
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
+  sendSuccess(res, statusCode, 'Login successful', {
+    access_token: token,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role
     }
   });
 };
