@@ -1,47 +1,52 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { getRoleName } = require('../utils/roles');
-const { sendAuthError, sendAuthzError } = require('../utils/response');
+const Vendor = require('../models/Vendor');
+const Admin = require('../models/Admin');
+const { sendError } = require('../utils/response');
 
-// Protect routes
+// Protect routes - verify JWT token
 const protect = async (req, res, next) => {
   let token;
 
+  // Check for token in headers
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    try {
-      // Get token from header
-      token = req.headers.authorization.split(' ')[1];
-
-      // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      // Get user from the token
-      req.user = await User.findById(decoded.id).select('-password');
-
-      if (!req.user) {
-        return sendAuthError(res, 'Not authorized, user not found');
-      }
-
-      next();
-    } catch (error) {
-      console.error('Token verification error:', error);
-      return sendAuthError(res, 'Not authorized, token failed');
-    }
+    token = req.headers.authorization.split(' ')[1];
   }
 
+  // Make sure token exists
   if (!token) {
-    return sendAuthError(res, 'Not authorized, no token');
+    return sendError(res, 401, 'Not authorized to access this route', 'NO_TOKEN');
+  }
+
+  try {
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Get user from appropriate model based on role
+    let user;
+    if (decoded.role === 1) {
+      user = await User.findById(decoded.id);
+    } else if (decoded.role === 2) {
+      user = await Vendor.findById(decoded.id);
+    } else if (decoded.role === 3) {
+      user = await Admin.findById(decoded.id);
+    }
+
+    if (!user) {
+      return sendError(res, 401, 'Not authorized, user not found', 'USER_NOT_FOUND');
+    }
+
+    // Add user info to request
+    req.user = {
+      id: user._id,
+      email: user.email,
+      role: user.role
+    };
+
+    next();
+  } catch (error) {
+    return sendError(res, 401, 'Not authorized, token failed', 'INVALID_TOKEN');
   }
 };
 
-// Grant access to specific roles
-const authorize = (...roles) => {
-  return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return sendAuthzError(res, `User role ${getRoleName(req.user.role)} is not authorized to access this route`);
-    }
-    next();
-  };
-};
-
-module.exports = { protect, authorize };
+module.exports = { protect };

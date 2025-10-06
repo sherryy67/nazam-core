@@ -1,55 +1,72 @@
 const User = require('../models/User');
-const { sendEmail } = require('../config/email');
-const generateToken = require('../utils/generateToken');
-const { sendSuccess, sendError, sendCreated, sendAuthError, sendServerError } = require('../utils/response');
+const Vendor = require('../models/Vendor');
+const Admin = require('../models/Admin');
+const { sendSuccess, sendError } = require('../utils/response');
+const ROLES = require('../constants/roles');
 
 // @desc    Register user
 // @route   POST /api/auth/register
 // @access  Public
 const register = async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { role } = req.body;
 
-    // Create user
-    const user = await User.create({
-      name,
-      email,
-      password,
-      role: role || 1 // Default to user (1) if no role specified
-    });
-
-    // Generate email verification token
-    const { resetToken, hashedToken } = generateToken();
-    user.emailVerificationToken = hashedToken;
-    user.emailVerificationExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
-    await user.save();
-
-    // Send verification email
-    const verifyUrl = `${req.protocol}://${req.get('host')}/api/auth/verify-email/${resetToken}`;
-    const message = `Please click the following link to verify your email: ${verifyUrl}`;
-
-    try {
-      await sendEmail({
-        email: user.email,
-        subject: 'Email Verification',
-        message
-      });
-
-      sendCreated(res, 'User registered successfully. Please check your email for verification.', {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role
-        }
-      });
-    } catch (error) {
-      user.emailVerificationToken = undefined;
-      user.emailVerificationExpire = undefined;
-      await user.save();
-
-      return sendServerError(res, 'Email could not be sent', 'EMAIL_SEND_FAILED');
+    // Only allow user and vendor registration through this endpoint
+    if (role === ROLES.ADMIN) {
+      return sendError(res, 403, 'Admin registration not allowed through this endpoint', 'ADMIN_REGISTRATION_FORBIDDEN');
     }
+
+    let user;
+    
+    if (role === ROLES.VENDOR) {
+      // Create vendor with all required fields
+      const vendorData = {
+        type: req.body.type,
+        firstName: req.body.firstName,
+        lastName: req.body.lastName,
+        coveredCity: req.body.coveredCity,
+        jobService: req.body.jobService,
+        countryCode: req.body.countryCode,
+        mobileNumber: req.body.mobileNumber,
+        email: req.body.email,
+        password: req.body.password,
+        idType: req.body.idType,
+        idNumber: req.body.idNumber,
+        // Optional fields
+        company: req.body.company,
+        gender: req.body.gender,
+        dob: req.body.dob,
+        privilege: req.body.privilege,
+        profilePic: req.body.profilePic,
+        experience: req.body.experience,
+        bankName: req.body.bankName,
+        branchName: req.body.branchName,
+        bankAccountNumber: req.body.bankAccountNumber,
+        iban: req.body.iban,
+        personalIdNumber: req.body.personalIdNumber,
+        address: req.body.address,
+        country: req.body.country,
+        city: req.body.city,
+        pinCode: req.body.pinCode,
+        serviceAvailability: req.body.serviceAvailability,
+        vatRegistration: req.body.vatRegistration,
+        collectTax: req.body.collectTax
+      };
+
+      user = await Vendor.create(vendorData);
+    } else {
+      // Create regular user
+      const { name, email, password } = req.body;
+      user = await User.create({
+        name,
+        email,
+        password,
+        role: ROLES.USER
+      });
+    }
+
+    // Generate JWT token and send response
+    sendTokenResponse(user, 201, res);
   } catch (error) {
     next(error);
   }
@@ -60,30 +77,42 @@ const register = async (req, res, next) => {
 // @access  Public
 const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
     // Validate email & password
     if (!email || !password) {
       return sendError(res, 400, 'Please provide an email and password', 'MISSING_CREDENTIALS');
     }
 
-    // Check for user
-    const user = await User.findOne({ email }).select('+password');
+    let user;
+    let userModel;
+
+    // Determine which model to use based on role
+    if (role === ROLES.ADMIN) {
+      userModel = Admin;
+    } else if (role === ROLES.VENDOR) {
+      userModel = Vendor;
+    } else {
+      userModel = User;
+    }
+
+    // Check for user in the appropriate model
+    user = await userModel.findOne({ email }).select('+password');
 
     if (!user) {
-      return sendAuthError(res, 'Invalid credentials');
+      return sendError(res, 401, 'Invalid credentials', 'INVALID_CREDENTIALS');
     }
 
     // Check if password matches
-    const isMatch = await user.matchPassword(password);
+    const isMatch = await user.comparePassword(password);
 
     if (!isMatch) {
-      return sendAuthError(res, 'Invalid credentials');
+      return sendError(res, 401, 'Invalid credentials', 'INVALID_CREDENTIALS');
     }
 
-    // Check if email is verified
-    if (!user.isEmailVerified) {
-      return sendAuthError(res, 'Please verify your email before logging in');
+    // For vendors, check if they are approved
+    if (role === ROLES.VENDOR && !user.approved) {
+      return sendError(res, 403, 'Your vendor account is pending approval', 'VENDOR_NOT_APPROVED');
     }
 
     sendTokenResponse(user, 200, res);
@@ -104,7 +133,22 @@ const logout = async (req, res, next) => {
 // @access  Private
 const getMe = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id);
+    let user;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Get user from appropriate model based on role
+    if (userRole === ROLES.ADMIN) {
+      user = await Admin.findById(userId);
+    } else if (userRole === ROLES.VENDOR) {
+      user = await Vendor.findById(userId);
+    } else {
+      user = await User.findById(userId);
+    }
+
+    if (!user) {
+      return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
+    }
 
     sendSuccess(res, 200, 'User profile retrieved successfully', { user });
   } catch (error) {
@@ -122,10 +166,40 @@ const updateDetails = async (req, res, next) => {
       email: req.body.email
     };
 
-    const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {
-      new: true,
-      runValidators: true
-    });
+    let user;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Update user in appropriate model based on role
+    if (userRole === ROLES.ADMIN) {
+      user = await Admin.findByIdAndUpdate(userId, fieldsToUpdate, {
+        new: true,
+        runValidators: true
+      });
+    } else if (userRole === ROLES.VENDOR) {
+      // For vendors, allow updating more fields
+      const vendorFields = {
+        ...fieldsToUpdate,
+        firstName: req.body.firstName,
+        lastName: req.body.lastName,
+        coveredCity: req.body.coveredCity,
+        jobService: req.body.jobService,
+        mobileNumber: req.body.mobileNumber,
+        address: req.body.address,
+        city: req.body.city,
+        country: req.body.country
+      };
+      
+      user = await Vendor.findByIdAndUpdate(userId, vendorFields, {
+        new: true,
+        runValidators: true
+      });
+    } else {
+      user = await User.findByIdAndUpdate(userId, fieldsToUpdate, {
+        new: true,
+        runValidators: true
+      });
+    }
 
     sendSuccess(res, 200, 'User details updated successfully', { user });
   } catch (error) {
@@ -138,11 +212,22 @@ const updateDetails = async (req, res, next) => {
 // @access  Private
 const updatePassword = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id).select('+password');
+    let user;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Get user from appropriate model based on role
+    if (userRole === ROLES.ADMIN) {
+      user = await Admin.findById(userId).select('+password');
+    } else if (userRole === ROLES.VENDOR) {
+      user = await Vendor.findById(userId).select('+password');
+    } else {
+      user = await User.findById(userId).select('+password');
+    }
 
     // Check current password
-    if (!(await user.matchPassword(req.body.currentPassword))) {
-      return sendAuthError(res, 'Password is incorrect');
+    if (!(await user.comparePassword(req.body.currentPassword))) {
+      return sendError(res, 401, 'Current password is incorrect', 'INCORRECT_PASSWORD');
     }
 
     user.password = req.body.newPassword;
@@ -154,108 +239,101 @@ const updatePassword = async (req, res, next) => {
   }
 };
 
-// @desc    Forgot password
-// @route   POST /api/auth/forgotpassword
-// @access  Public
-const forgotPassword = async (req, res, next) => {
+// @desc    Admin create vendor
+// @route   POST /api/auth/admin/create-vendor
+// @access  Private (Admin only)
+const adminCreateVendor = async (req, res, next) => {
   try {
-    const user = await User.findOne({ email: req.body.email });
+    const vendorData = {
+      type: req.body.type,
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
+      coveredCity: req.body.coveredCity,
+      jobService: req.body.jobService,
+      countryCode: req.body.countryCode,
+      mobileNumber: req.body.mobileNumber,
+      email: req.body.email,
+      password: req.body.password,
+      idType: req.body.idType,
+      idNumber: req.body.idNumber,
+      approved: true, // Admin created vendors are auto-approved
+      // Optional fields
+      company: req.body.company,
+      gender: req.body.gender,
+      dob: req.body.dob,
+      privilege: req.body.privilege,
+      profilePic: req.body.profilePic,
+      experience: req.body.experience,
+      bankName: req.body.bankName,
+      branchName: req.body.branchName,
+      bankAccountNumber: req.body.bankAccountNumber,
+      iban: req.body.iban,
+      personalIdNumber: req.body.personalIdNumber,
+      address: req.body.address,
+      country: req.body.country,
+      city: req.body.city,
+      pinCode: req.body.pinCode,
+      serviceAvailability: req.body.serviceAvailability,
+      vatRegistration: req.body.vatRegistration,
+      collectTax: req.body.collectTax
+    };
 
-    if (!user) {
-      return sendError(res, 404, 'There is no user with that email', 'USER_NOT_FOUND');
-    }
-
-    // Get reset token
-    const { resetToken, hashedToken } = generateToken();
-
-    user.resetPasswordToken = hashedToken;
-    user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
-
-    await user.save({ validateBeforeSave: false });
-
-    // Create reset url
-    const resetUrl = `${req.protocol}://${req.get('host')}/api/auth/resetpassword/${resetToken}`;
-
-    const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please make a PUT request to: \n\n ${resetUrl}`;
-
-    try {
-      await sendEmail({
-        email: user.email,
-        subject: 'Password reset token',
-        message
-      });
-
-      sendSuccess(res, 200, 'Password reset email sent');
-    } catch (error) {
-      user.resetPasswordToken = undefined;
-      user.resetPasswordExpire = undefined;
-
-      await user.save({ validateBeforeSave: false });
-
-      return sendServerError(res, 'Email could not be sent', 'EMAIL_SEND_FAILED');
-    }
+    const vendor = await Vendor.create(vendorData);
+    sendSuccess(res, 201, 'Vendor created successfully by admin', { vendor });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Reset password
-// @route   PUT /api/auth/resetpassword/:resettoken
-// @access  Public
-const resetPassword = async (req, res, next) => {
+// @desc    Admin approve vendor
+// @route   PUT /api/auth/admin/approve-vendor/:id
+// @access  Private (Admin only)
+const adminApproveVendor = async (req, res, next) => {
   try {
-    // Get hashed token
-    const hashedToken = crypto
-      .createHash('sha256')
-      .update(req.params.resettoken)
-      .digest('hex');
+    const vendor = await Vendor.findByIdAndUpdate(
+      req.params.id,
+      { approved: true },
+      { new: true }
+    );
 
-    const user = await User.findOne({
-      resetPasswordToken: hashedToken,
-      resetPasswordExpire: { $gt: Date.now() }
-    });
-
-    if (!user) {
-      return sendError(res, 400, 'Invalid or expired token', 'INVALID_TOKEN');
+    if (!vendor) {
+      return sendError(res, 404, 'Vendor not found', 'VENDOR_NOT_FOUND');
     }
 
-    // Set new password
-    user.password = req.body.password;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
-    await user.save();
-
-    sendTokenResponse(user, 200, res);
+    sendSuccess(res, 200, 'Vendor approved successfully', { vendor });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Verify email
-// @route   GET /api/auth/verify-email/:token
-// @access  Public
-const verifyEmail = async (req, res, next) => {
+// @desc    Admin reject vendor
+// @route   PUT /api/auth/admin/reject-vendor/:id
+// @access  Private (Admin only)
+const adminRejectVendor = async (req, res, next) => {
   try {
-    const hashedToken = crypto
-      .createHash('sha256')
-      .update(req.params.token)
-      .digest('hex');
+    const vendor = await Vendor.findByIdAndUpdate(
+      req.params.id,
+      { approved: false },
+      { new: true }
+    );
 
-    const user = await User.findOne({
-      emailVerificationToken: hashedToken,
-      emailVerificationExpire: { $gt: Date.now() }
-    });
-
-    if (!user) {
-      return sendError(res, 400, 'Invalid or expired token', 'INVALID_TOKEN');
+    if (!vendor) {
+      return sendError(res, 404, 'Vendor not found', 'VENDOR_NOT_FOUND');
     }
 
-    user.isEmailVerified = true;
-    user.emailVerificationToken = undefined;
-    user.emailVerificationExpire = undefined;
-    await user.save();
+    sendSuccess(res, 200, 'Vendor rejected successfully', { vendor });
+  } catch (error) {
+    next(error);
+  }
+};
 
-    sendSuccess(res, 200, 'Email verified successfully');
+// @desc    Get all pending vendors
+// @route   GET /api/auth/admin/pending-vendors
+// @access  Private (Admin only)
+const getPendingVendors = async (req, res, next) => {
+  try {
+    const vendors = await Vendor.find({ approved: false });
+    sendSuccess(res, 200, 'Pending vendors retrieved successfully', { vendors });
   } catch (error) {
     next(error);
   }
@@ -264,16 +342,31 @@ const verifyEmail = async (req, res, next) => {
 // Helper function to get token from model, create cookie and send response
 const sendTokenResponse = (user, statusCode, res) => {
   // Create token
-  const token = user.getSignedJwtToken();
+  const token = user.generateAuthToken();
+
+  const userData = {
+    id: user._id,
+    email: user.email,
+    role: user.role
+  };
+
+  // Add role-specific fields
+  if (user.role === ROLES.VENDOR) {
+    userData.firstName = user.firstName;
+    userData.lastName = user.lastName;
+    userData.type = user.type;
+    userData.approved = user.approved;
+    userData.jobService = user.jobService;
+    userData.coveredCity = user.coveredCity;
+  } else if (user.role === ROLES.ADMIN) {
+    userData.name = user.name;
+  } else {
+    userData.name = user.name;
+  }
 
   sendSuccess(res, statusCode, 'Login successful', {
     access_token: token,
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role
-    }
+    user: userData
   });
 };
 
@@ -284,7 +377,8 @@ module.exports = {
   getMe,
   updateDetails,
   updatePassword,
-  forgotPassword,
-  resetPassword,
-  verifyEmail
+  adminCreateVendor,
+  adminApproveVendor,
+  adminRejectVendor,
+  getPendingVendors
 };

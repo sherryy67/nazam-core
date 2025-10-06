@@ -7,16 +7,33 @@ const {
   getMe,
   updateDetails,
   updatePassword,
-  forgotPassword,
-  resetPassword,
-  verifyEmail
+  adminCreateVendor,
+  adminApproveVendor,
+  adminRejectVendor,
+  getPendingVendors
 } = require('../controllers/authController');
 const { protect } = require('../middlewares/auth');
+const { authorize, isAdmin } = require('../middlewares/roleAuth');
 
 const router = express.Router();
 
 // Validation rules
 const registerValidation = [
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email'),
+  body('password')
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters long'),
+  body('role')
+    .optional()
+    .isIn([1, 2])
+    .withMessage('Role must be 1 (user) or 2 (vendor)')
+];
+
+// User registration validation
+const userRegisterValidation = [
   body('name')
     .trim()
     .isLength({ min: 2, max: 50 })
@@ -27,11 +44,47 @@ const registerValidation = [
     .withMessage('Please provide a valid email'),
   body('password')
     .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters long')
+];
+
+// Vendor registration validation
+const vendorRegisterValidation = [
+  body('firstName')
+    .trim()
+    .isLength({ min: 2, max: 50 })
+    .withMessage('First name must be between 2 and 50 characters'),
+  body('lastName')
+    .trim()
+    .isLength({ min: 2, max: 50 })
+    .withMessage('Last name must be between 2 and 50 characters'),
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email'),
+  body('password')
+    .isLength({ min: 6 })
     .withMessage('Password must be at least 6 characters long'),
-  body('role')
-    .optional()
-    .isInt({ min: 1, max: 3 })
-    .withMessage('Role must be 1 (user), 2 (vendor), or 3 (admin)')
+  body('type')
+    .isIn(['corporate', 'individual'])
+    .withMessage('Type must be corporate or individual'),
+  body('coveredCity')
+    .notEmpty()
+    .withMessage('Covered city is required'),
+  body('jobService')
+    .notEmpty()
+    .withMessage('Job service is required'),
+  body('countryCode')
+    .notEmpty()
+    .withMessage('Country code is required'),
+  body('mobileNumber')
+    .isMobilePhone()
+    .withMessage('Please provide a valid mobile number'),
+  body('idType')
+    .isIn(['Passport', 'EmiratesID', 'NationalID'])
+    .withMessage('ID type must be Passport, EmiratesID, or NationalID'),
+  body('idNumber')
+    .notEmpty()
+    .withMessage('ID number is required')
 ];
 
 const loginValidation = [
@@ -41,7 +94,10 @@ const loginValidation = [
     .withMessage('Please provide a valid email'),
   body('password')
     .notEmpty()
-    .withMessage('Password is required')
+    .withMessage('Password is required'),
+  body('role')
+    .isIn([1, 2, 3])
+    .withMessage('Role must be 1 (user), 2 (vendor), or 3 (admin)')
 ];
 
 const updatePasswordValidation = [
@@ -53,55 +109,27 @@ const updatePasswordValidation = [
     .withMessage('New password must be at least 6 characters long')
 ];
 
-const forgotPasswordValidation = [
-  body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Please provide a valid email')
-];
-
-const resetPasswordValidation = [
-  body('password')
-    .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters long')
-];
-
 /**
  * @swagger
  * /api/auth/register:
  *   post:
- *     summary: Register a new user
+ *     summary: Register a new user or vendor
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/RegisterRequest'
- *           example:
- *             name: "John Doe"
- *             email: "john@example.com"
- *             password: "password123"
- *             role: 1
+ *             oneOf:
+ *               - $ref: '#/components/schemas/UserRegisterRequest'
+ *               - $ref: '#/components/schemas/VendorRegisterRequest'
  *     responses:
  *       201:
  *         description: User registered successfully
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: "User registered successfully. Please check your email for verification."
- *                 data:
- *                   type: object
- *                   properties:
- *                     user:
- *                       $ref: '#/components/schemas/User'
+ *               $ref: '#/components/schemas/AuthResponse'
  *       400:
  *         description: Bad request - validation error
  *         content:
@@ -129,9 +157,6 @@ router.post('/register', registerValidation, register);
  *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/LoginRequest'
- *           example:
- *             email: "john@example.com"
- *             password: "password123"
  *     responses:
  *       200:
  *         description: Login successful
@@ -204,7 +229,10 @@ router.get('/logout', protect, logout);
  *                   type: boolean
  *                   example: true
  *                 data:
- *                   $ref: '#/components/schemas/User'
+ *                   oneOf:
+ *                     - $ref: '#/components/schemas/User'
+ *                     - $ref: '#/components/schemas/Vendor'
+ *                     - $ref: '#/components/schemas/Admin'
  *       401:
  *         description: Unauthorized - invalid token
  *         content:
@@ -228,9 +256,6 @@ router.get('/me', protect, getMe);
  *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/UpdateDetailsRequest'
- *           example:
- *             name: "John Smith"
- *             email: "johnsmith@example.com"
  *     responses:
  *       200:
  *         description: User details updated successfully
@@ -243,7 +268,10 @@ router.get('/me', protect, getMe);
  *                   type: boolean
  *                   example: true
  *                 data:
- *                   $ref: '#/components/schemas/User'
+ *                   oneOf:
+ *                     - $ref: '#/components/schemas/User'
+ *                     - $ref: '#/components/schemas/Vendor'
+ *                     - $ref: '#/components/schemas/Admin'
  *       401:
  *         description: Unauthorized - invalid token
  *         content:
@@ -273,9 +301,6 @@ router.put('/updatedetails', protect, updateDetails);
  *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/UpdatePasswordRequest'
- *           example:
- *             currentPassword: "oldpassword123"
- *             newPassword: "newpassword123"
  *     responses:
  *       200:
  *         description: Password updated successfully
@@ -300,106 +325,147 @@ router.put('/updatepassword', protect, updatePasswordValidation, updatePassword)
 
 /**
  * @swagger
- * /api/auth/forgotpassword:
+ * /api/auth/admin/create-vendor:
  *   post:
- *     summary: Request password reset
+ *     summary: Admin create vendor
  *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/ForgotPasswordRequest'
- *           example:
- *             email: "john@example.com"
+ *             $ref: '#/components/schemas/VendorRegisterRequest'
  *     responses:
- *       200:
- *         description: Password reset email sent
+ *       201:
+ *         description: Vendor created successfully by admin
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/SuccessResponse'
- *       404:
- *         description: User not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       500:
- *         description: Server error
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Vendor'
+ *       401:
+ *         description: Unauthorized - admin access required
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/forgotpassword', forgotPasswordValidation, forgotPassword);
+router.post('/admin/create-vendor', protect, isAdmin, vendorRegisterValidation, adminCreateVendor);
 
 /**
  * @swagger
- * /api/auth/resetpassword/{resettoken}:
+ * /api/auth/admin/approve-vendor/{id}:
  *   put:
- *     summary: Reset password with token
+ *     summary: Admin approve vendor
  *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: resettoken
+ *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: Password reset token
- *         example: "abc123def456ghi789"
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/ResetPasswordRequest'
- *           example:
- *             password: "newpassword123"
+ *         description: Vendor ID
  *     responses:
  *       200:
- *         description: Password reset successfully
+ *         description: Vendor approved successfully
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/AuthResponse'
- *       400:
- *         description: Bad request - invalid or expired token
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Vendor'
+ *       401:
+ *         description: Unauthorized - admin access required
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.put('/resetpassword/:resettoken', resetPasswordValidation, resetPassword);
+router.put('/admin/approve-vendor/:id', protect, isAdmin, adminApproveVendor);
 
 /**
  * @swagger
- * /api/auth/verify-email/{token}:
- *   get:
- *     summary: Verify user email
+ * /api/auth/admin/reject-vendor/{id}:
+ *   put:
+ *     summary: Admin reject vendor
  *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: token
+ *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: Email verification token
- *         example: "xyz789abc123def456"
+ *         description: Vendor ID
  *     responses:
  *       200:
- *         description: Email verified successfully
+ *         description: Vendor rejected successfully
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/SuccessResponse'
- *       400:
- *         description: Bad request - invalid or expired token
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Vendor'
+ *       401:
+ *         description: Unauthorized - admin access required
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/verify-email/:token', verifyEmail);
+router.put('/admin/reject-vendor/:id', protect, isAdmin, adminRejectVendor);
+
+/**
+ * @swagger
+ * /api/auth/admin/pending-vendors:
+ *   get:
+ *     summary: Get all pending vendors
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Pending vendors retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     vendors:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Vendor'
+ *       401:
+ *         description: Unauthorized - admin access required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get('/admin/pending-vendors', protect, isAdmin, getPendingVendors);
 
 module.exports = router;

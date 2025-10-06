@@ -3,15 +3,15 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const ROLES = require("../constants/roles");
 
-const userSchema = new mongoose.Schema({
+const adminSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  role: { type: Number, enum: [ROLES.USER], default: ROLES.USER }
+  role: { type: Number, enum: [ROLES.ADMIN], default: ROLES.ADMIN }
 }, { timestamps: true });
 
 // Hash password before saving
-userSchema.pre('save', async function(next) {
+adminSchema.pre('save', async function(next) {
   if (!this.isModified('password')) {
     return next();
   }
@@ -26,12 +26,12 @@ userSchema.pre('save', async function(next) {
 });
 
 // Compare password method
-userSchema.methods.comparePassword = async function(candidatePassword) {
+adminSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Generate JWT token
-userSchema.methods.generateAuthToken = function() {
+adminSchema.methods.generateAuthToken = function() {
   return jwt.sign(
     { 
       id: this._id, 
@@ -44,10 +44,10 @@ userSchema.methods.generateAuthToken = function() {
 };
 
 // Transform JSON output to exclude password
-userSchema.methods.toJSON = function() {
-  const userObject = this.toObject();
-  delete userObject.password;
-  return userObject;
+adminSchema.methods.toJSON = function() {
+  const adminObject = this.toObject();
+  delete adminObject.password;
+  return adminObject;
 };
 
-module.exports = mongoose.model("User", userSchema);
+module.exports = mongoose.model("Admin", adminSchema);
