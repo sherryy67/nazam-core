@@ -1,695 +1,726 @@
-const swaggerJsdoc = require('swagger-jsdoc');
+const swaggerJsdoc = require("swagger-jsdoc");
 
 const options = {
   definition: {
-    openapi: '3.0.0',
+    openapi: "3.0.0",
     info: {
-      title: 'Nazam Core API',
-      version: '1.0.0',
-      description: 'A Node.js + Express.js project with MongoDB for building robust web applications',
+      title: "Nazam Core API",
+      version: "1.0.0",
+      description:
+        "A Node.js + Express.js project with MongoDB for building robust web applications",
       contact: {
-        name: 'API Support',
-        email: 'support@nazam-core.com'
+        name: "API Support",
+        email: "support@nazam-core.com",
       },
       license: {
-        name: 'ISC',
-        url: 'https://opensource.org/licenses/ISC'
-      }
+        name: "ISC",
+        url: "https://opensource.org/licenses/ISC",
+      },
     },
     servers: [
       {
-        url: process.env.NODE_ENV === 'production' 
-          ? 'https://your-production-url.com' 
-          : `http://localhost:${process.env.PORT || 3001}`,
-        description: process.env.NODE_ENV === 'production' ? 'Production server' : 'Development server'
-      }
+        url:
+          process.env.NODE_ENV === "production"
+            ? `http://${process.env.HOST || "YOUR_EC2_PUBLIC_IP"}:${
+                process.env.PORT || 3001
+              }`
+            : `http://localhost:${process.env.PORT || 3001}`,
+        description:
+          process.env.NODE_ENV === "production"
+            ? "Production server"
+            : "Development server",
+      },
     ],
     components: {
       securitySchemes: {
         bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT'
-        }
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+        },
       },
       schemas: {
         User: {
-          type: 'object',
-          required: ['name', 'email', 'password'],
+          type: "object",
+          required: ["name", "email", "password"],
           properties: {
             _id: {
-              type: 'string',
-              description: 'User unique identifier'
+              type: "string",
+              description: "User unique identifier",
             },
             name: {
-              type: 'string',
-              description: 'User full name',
-              example: 'John Doe'
+              type: "string",
+              description: "User full name",
+              example: "John Doe",
             },
             email: {
-              type: 'string',
-              format: 'email',
-              description: 'User email address',
-              example: 'john@example.com'
+              type: "string",
+              format: "email",
+              description: "User email address",
+              example: "john@example.com",
             },
             role: {
-              type: 'number',
+              type: "number",
               enum: [1],
-              description: 'User role: 1=user',
-              example: 1
+              description: "User role: 1=user",
+              example: 1,
             },
             createdAt: {
-              type: 'string',
-              format: 'date-time',
-              description: 'User creation timestamp'
+              type: "string",
+              format: "date-time",
+              description: "User creation timestamp",
             },
             updatedAt: {
-              type: 'string',
-              format: 'date-time',
-              description: 'User last update timestamp'
-            }
-          }
+              type: "string",
+              format: "date-time",
+              description: "User last update timestamp",
+            },
+          },
         },
         Vendor: {
-          type: 'object',
-          required: ['type', 'firstName', 'lastName', 'coveredCity', 'jobService', 'countryCode', 'mobileNumber', 'email', 'password', 'idType', 'idNumber'],
+          type: "object",
+          required: [
+            "type",
+            "firstName",
+            "lastName",
+            "coveredCity",
+            "jobService",
+            "countryCode",
+            "mobileNumber",
+            "email",
+            "password",
+            "idType",
+            "idNumber",
+          ],
           properties: {
             _id: {
-              type: 'string',
-              description: 'Vendor unique identifier'
+              type: "string",
+              description: "Vendor unique identifier",
             },
             type: {
-              type: 'string',
-              enum: ['corporate', 'individual'],
-              description: 'Vendor type',
-              example: 'individual'
+              type: "string",
+              enum: ["corporate", "individual"],
+              description: "Vendor type",
+              example: "individual",
             },
             company: {
-              type: 'string',
-              description: 'Company name (only if corporate)',
-              example: 'ABC Company'
+              type: "string",
+              description: "Company name (only if corporate)",
+              example: "ABC Company",
             },
             firstName: {
-              type: 'string',
-              description: 'First name',
-              example: 'John'
+              type: "string",
+              description: "First name",
+              example: "John",
             },
             lastName: {
-              type: 'string',
-              description: 'Last name',
-              example: 'Doe'
+              type: "string",
+              description: "Last name",
+              example: "Doe",
             },
             coveredCity: {
-              type: 'string',
-              description: 'City covered by vendor',
-              example: 'Dubai'
+              type: "string",
+              description: "City covered by vendor",
+              example: "Dubai",
             },
             jobService: {
-              type: 'string',
-              description: 'Service provided',
-              example: 'Plumber'
+              type: "string",
+              description: "Service provided",
+              example: "Plumber",
             },
             gender: {
-              type: 'string',
-              enum: ['Male', 'Female', 'Other'],
-              description: 'Gender',
-              example: 'Male'
+              type: "string",
+              enum: ["Male", "Female", "Other"],
+              description: "Gender",
+              example: "Male",
             },
             dob: {
-              type: 'string',
-              format: 'date',
-              description: 'Date of birth',
-              example: '1990-01-01'
+              type: "string",
+              format: "date",
+              description: "Date of birth",
+              example: "1990-01-01",
             },
             privilege: {
-              type: 'string',
-              enum: ['Beginner', 'Experienced', 'Professional'],
-              description: 'Experience level',
-              example: 'Beginner'
+              type: "string",
+              enum: ["Beginner", "Experienced", "Professional"],
+              description: "Experience level",
+              example: "Beginner",
             },
             profilePic: {
-              type: 'string',
-              description: 'Profile picture URL',
-              example: 'https://example.com/profile.jpg'
+              type: "string",
+              description: "Profile picture URL",
+              example: "https://example.com/profile.jpg",
             },
             countryCode: {
-              type: 'string',
-              description: 'Country code',
-              example: '+971'
+              type: "string",
+              description: "Country code",
+              example: "+971",
             },
             mobileNumber: {
-              type: 'string',
-              description: 'Mobile number',
-              example: '1234567890'
+              type: "string",
+              description: "Mobile number",
+              example: "1234567890",
             },
             email: {
-              type: 'string',
-              format: 'email',
-              description: 'Email address',
-              example: 'vendor@example.com'
+              type: "string",
+              format: "email",
+              description: "Email address",
+              example: "vendor@example.com",
             },
             experience: {
-              type: 'number',
-              description: 'Years of experience',
-              example: 5
+              type: "number",
+              description: "Years of experience",
+              example: 5,
             },
             bankName: {
-              type: 'string',
-              description: 'Bank name',
-              example: 'Emirates NBD'
+              type: "string",
+              description: "Bank name",
+              example: "Emirates NBD",
             },
             branchName: {
-              type: 'string',
-              description: 'Branch name',
-              example: 'Dubai Mall Branch'
+              type: "string",
+              description: "Branch name",
+              example: "Dubai Mall Branch",
             },
             bankAccountNumber: {
-              type: 'string',
-              description: 'Bank account number',
-              example: '1234567890'
+              type: "string",
+              description: "Bank account number",
+              example: "1234567890",
             },
             iban: {
-              type: 'string',
-              description: 'IBAN',
-              example: 'AE070331234567890123456'
+              type: "string",
+              description: "IBAN",
+              example: "AE070331234567890123456",
             },
             idType: {
-              type: 'string',
-              enum: ['Passport', 'EmiratesID', 'NationalID'],
-              description: 'ID type',
-              example: 'EmiratesID'
+              type: "string",
+              enum: ["Passport", "EmiratesID", "NationalID"],
+              description: "ID type",
+              example: "EmiratesID",
             },
             idNumber: {
-              type: 'string',
-              description: 'ID number',
-              example: '784-1234-5678901-2'
+              type: "string",
+              description: "ID number",
+              example: "784-1234-5678901-2",
             },
             personalIdNumber: {
-              type: 'string',
-              description: 'Personal ID number',
-              example: '123456789'
+              type: "string",
+              description: "Personal ID number",
+              example: "123456789",
             },
             address: {
-              type: 'string',
-              description: 'Address',
-              example: '123 Main Street, Dubai'
+              type: "string",
+              description: "Address",
+              example: "123 Main Street, Dubai",
             },
             country: {
-              type: 'string',
-              description: 'Country',
-              example: 'UAE'
+              type: "string",
+              description: "Country",
+              example: "UAE",
             },
             city: {
-              type: 'string',
-              description: 'City',
-              example: 'Dubai'
+              type: "string",
+              description: "City",
+              example: "Dubai",
             },
             pinCode: {
-              type: 'string',
-              description: 'PIN code',
-              example: '12345'
+              type: "string",
+              description: "PIN code",
+              example: "12345",
             },
             serviceAvailability: {
-              type: 'string',
-              enum: ['Full-time', 'Part-time'],
-              description: 'Service availability',
-              example: 'Full-time'
+              type: "string",
+              enum: ["Full-time", "Part-time"],
+              description: "Service availability",
+              example: "Full-time",
             },
             vatRegistration: {
-              type: 'boolean',
-              description: 'VAT registration status',
-              example: false
+              type: "boolean",
+              description: "VAT registration status",
+              example: false,
             },
             collectTax: {
-              type: 'boolean',
-              description: 'Tax collection status',
-              example: false
+              type: "boolean",
+              description: "Tax collection status",
+              example: false,
             },
             approved: {
-              type: 'boolean',
-              description: 'Admin approval status',
-              example: false
+              type: "boolean",
+              description: "Admin approval status",
+              example: false,
             },
             role: {
-              type: 'number',
+              type: "number",
               enum: [2],
-              description: 'Vendor role: 2=vendor',
-              example: 2
+              description: "Vendor role: 2=vendor",
+              example: 2,
             },
             createdAt: {
-              type: 'string',
-              format: 'date-time',
-              description: 'Vendor creation timestamp'
+              type: "string",
+              format: "date-time",
+              description: "Vendor creation timestamp",
             },
             updatedAt: {
-              type: 'string',
-              format: 'date-time',
-              description: 'Vendor last update timestamp'
-            }
-          }
+              type: "string",
+              format: "date-time",
+              description: "Vendor last update timestamp",
+            },
+          },
         },
         Admin: {
-          type: 'object',
-          required: ['name', 'email', 'password'],
+          type: "object",
+          required: ["name", "email", "password"],
           properties: {
             _id: {
-              type: 'string',
-              description: 'Admin unique identifier'
+              type: "string",
+              description: "Admin unique identifier",
             },
             name: {
-              type: 'string',
-              description: 'Admin full name',
-              example: 'Admin User'
+              type: "string",
+              description: "Admin full name",
+              example: "Admin User",
             },
             email: {
-              type: 'string',
-              format: 'email',
-              description: 'Admin email address',
-              example: 'admin@example.com'
+              type: "string",
+              format: "email",
+              description: "Admin email address",
+              example: "admin@example.com",
             },
             role: {
-              type: 'number',
+              type: "number",
               enum: [3],
-              description: 'Admin role: 3=admin',
-              example: 3
+              description: "Admin role: 3=admin",
+              example: 3,
             },
             createdAt: {
-              type: 'string',
-              format: 'date-time',
-              description: 'Admin creation timestamp'
+              type: "string",
+              format: "date-time",
+              description: "Admin creation timestamp",
             },
             updatedAt: {
-              type: 'string',
-              format: 'date-time',
-              description: 'Admin last update timestamp'
-            }
-          }
+              type: "string",
+              format: "date-time",
+              description: "Admin last update timestamp",
+            },
+          },
         },
         UserRegisterRequest: {
-          type: 'object',
-          required: ['name', 'email', 'password'],
+          type: "object",
+          required: ["name", "email", "password"],
           properties: {
             name: {
-              type: 'string',
-              description: 'User full name',
-              example: 'John Doe'
+              type: "string",
+              description: "User full name",
+              example: "John Doe",
             },
             email: {
-              type: 'string',
-              format: 'email',
-              description: 'User email address',
-              example: 'john@example.com'
+              type: "string",
+              format: "email",
+              description: "User email address",
+              example: "john@example.com",
             },
             password: {
-              type: 'string',
-              description: 'User password (minimum 6 characters)',
-              example: 'password123'
+              type: "string",
+              description: "User password (minimum 6 characters)",
+              example: "password123",
             },
             role: {
-              type: 'number',
+              type: "number",
               enum: [1],
-              description: 'User role (defaults to 1)',
-              example: 1
-            }
-          }
+              description: "User role (defaults to 1)",
+              example: 1,
+            },
+          },
         },
         VendorRegisterRequest: {
-          type: 'object',
-          required: ['type', 'firstName', 'lastName', 'coveredCity', 'jobService', 'countryCode', 'mobileNumber', 'email', 'password', 'idType', 'idNumber'],
+          type: "object",
+          required: [
+            "type",
+            "firstName",
+            "lastName",
+            "coveredCity",
+            "jobService",
+            "countryCode",
+            "mobileNumber",
+            "email",
+            "password",
+            "idType",
+            "idNumber",
+          ],
           properties: {
             type: {
-              type: 'string',
-              enum: ['corporate', 'individual'],
-              description: 'Vendor type',
-              example: 'individual'
+              type: "string",
+              enum: ["corporate", "individual"],
+              description: "Vendor type",
+              example: "individual",
             },
             company: {
-              type: 'string',
-              description: 'Company name (only if corporate)',
-              example: 'ABC Company'
+              type: "string",
+              description: "Company name (only if corporate)",
+              example: "ABC Company",
             },
             firstName: {
-              type: 'string',
-              description: 'First name',
-              example: 'John'
+              type: "string",
+              description: "First name",
+              example: "John",
             },
             lastName: {
-              type: 'string',
-              description: 'Last name',
-              example: 'Doe'
+              type: "string",
+              description: "Last name",
+              example: "Doe",
             },
             coveredCity: {
-              type: 'string',
-              description: 'City covered by vendor',
-              example: 'Dubai'
+              type: "string",
+              description: "City covered by vendor",
+              example: "Dubai",
             },
             jobService: {
-              type: 'string',
-              description: 'Service provided',
-              example: 'Plumber'
+              type: "string",
+              description: "Service provided",
+              example: "Plumber",
             },
             gender: {
-              type: 'string',
-              enum: ['Male', 'Female', 'Other'],
-              description: 'Gender',
-              example: 'Male'
+              type: "string",
+              enum: ["Male", "Female", "Other"],
+              description: "Gender",
+              example: "Male",
             },
             dob: {
-              type: 'string',
-              format: 'date',
-              description: 'Date of birth',
-              example: '1990-01-01'
+              type: "string",
+              format: "date",
+              description: "Date of birth",
+              example: "1990-01-01",
             },
             privilege: {
-              type: 'string',
-              enum: ['Beginner', 'Experienced', 'Professional'],
-              description: 'Experience level',
-              example: 'Beginner'
+              type: "string",
+              enum: ["Beginner", "Experienced", "Professional"],
+              description: "Experience level",
+              example: "Beginner",
             },
             profilePic: {
-              type: 'string',
-              description: 'Profile picture URL',
-              example: 'https://example.com/profile.jpg'
+              type: "string",
+              description: "Profile picture URL",
+              example: "https://example.com/profile.jpg",
             },
             countryCode: {
-              type: 'string',
-              description: 'Country code',
-              example: '+971'
+              type: "string",
+              description: "Country code",
+              example: "+971",
             },
             mobileNumber: {
-              type: 'string',
-              description: 'Mobile number',
-              example: '1234567890'
+              type: "string",
+              description: "Mobile number",
+              example: "1234567890",
             },
             email: {
-              type: 'string',
-              format: 'email',
-              description: 'Email address',
-              example: 'vendor@example.com'
+              type: "string",
+              format: "email",
+              description: "Email address",
+              example: "vendor@example.com",
             },
             password: {
-              type: 'string',
-              description: 'Password (minimum 6 characters)',
-              example: 'password123'
+              type: "string",
+              description: "Password (minimum 6 characters)",
+              example: "password123",
             },
             experience: {
-              type: 'number',
-              description: 'Years of experience',
-              example: 5
+              type: "number",
+              description: "Years of experience",
+              example: 5,
             },
             bankName: {
-              type: 'string',
-              description: 'Bank name',
-              example: 'Emirates NBD'
+              type: "string",
+              description: "Bank name",
+              example: "Emirates NBD",
             },
             branchName: {
-              type: 'string',
-              description: 'Branch name',
-              example: 'Dubai Mall Branch'
+              type: "string",
+              description: "Branch name",
+              example: "Dubai Mall Branch",
             },
             bankAccountNumber: {
-              type: 'string',
-              description: 'Bank account number',
-              example: '1234567890'
+              type: "string",
+              description: "Bank account number",
+              example: "1234567890",
             },
             iban: {
-              type: 'string',
-              description: 'IBAN',
-              example: 'AE070331234567890123456'
+              type: "string",
+              description: "IBAN",
+              example: "AE070331234567890123456",
             },
             idType: {
-              type: 'string',
-              enum: ['Passport', 'EmiratesID', 'NationalID'],
-              description: 'ID type',
-              example: 'EmiratesID'
+              type: "string",
+              enum: ["Passport", "EmiratesID", "NationalID"],
+              description: "ID type",
+              example: "EmiratesID",
             },
             idNumber: {
-              type: 'string',
-              description: 'ID number',
-              example: '784-1234-5678901-2'
+              type: "string",
+              description: "ID number",
+              example: "784-1234-5678901-2",
             },
             personalIdNumber: {
-              type: 'string',
-              description: 'Personal ID number',
-              example: '123456789'
+              type: "string",
+              description: "Personal ID number",
+              example: "123456789",
             },
             address: {
-              type: 'string',
-              description: 'Address',
-              example: '123 Main Street, Dubai'
+              type: "string",
+              description: "Address",
+              example: "123 Main Street, Dubai",
             },
             country: {
-              type: 'string',
-              description: 'Country',
-              example: 'UAE'
+              type: "string",
+              description: "Country",
+              example: "UAE",
             },
             city: {
-              type: 'string',
-              description: 'City',
-              example: 'Dubai'
+              type: "string",
+              description: "City",
+              example: "Dubai",
             },
             pinCode: {
-              type: 'string',
-              description: 'PIN code',
-              example: '12345'
+              type: "string",
+              description: "PIN code",
+              example: "12345",
             },
             serviceAvailability: {
-              type: 'string',
-              enum: ['Full-time', 'Part-time'],
-              description: 'Service availability',
-              example: 'Full-time'
+              type: "string",
+              enum: ["Full-time", "Part-time"],
+              description: "Service availability",
+              example: "Full-time",
             },
             vatRegistration: {
-              type: 'boolean',
-              description: 'VAT registration status',
-              example: false
+              type: "boolean",
+              description: "VAT registration status",
+              example: false,
             },
             collectTax: {
-              type: 'boolean',
-              description: 'Tax collection status',
-              example: false
+              type: "boolean",
+              description: "Tax collection status",
+              example: false,
             },
             role: {
-              type: 'number',
+              type: "number",
               enum: [2],
-              description: 'Vendor role',
-              example: 2
-            }
-          }
+              description: "Vendor role",
+              example: 2,
+            },
+          },
         },
         LoginRequest: {
-          type: 'object',
-          required: ['email', 'password', 'role'],
+          type: "object",
+          required: ["email", "password", "role"],
           properties: {
             email: {
-              type: 'string',
-              format: 'email',
-              description: 'User email address',
-              example: 'john@example.com'
+              type: "string",
+              format: "email",
+              description: "User email address",
+              example: "john@example.com",
             },
             password: {
-              type: 'string',
-              description: 'User password',
-              example: 'password123'
+              type: "string",
+              description: "User password",
+              example: "password123",
             },
             role: {
-              type: 'number',
+              type: "number",
               enum: [1, 2, 3],
-              description: 'User role: 1=user, 2=vendor, 3=admin',
-              example: 1
-            }
-          }
+              description: "User role: 1=user, 2=vendor, 3=admin",
+              example: 1,
+            },
+          },
         },
         UpdateDetailsRequest: {
-          type: 'object',
+          type: "object",
           properties: {
             name: {
-              type: 'string',
-              description: 'User full name',
-              example: 'John Doe'
+              type: "string",
+              description: "User full name",
+              example: "John Doe",
             },
             email: {
-              type: 'string',
-              format: 'email',
-              description: 'User email address',
-              example: 'john@example.com'
+              type: "string",
+              format: "email",
+              description: "User email address",
+              example: "john@example.com",
             },
             firstName: {
-              type: 'string',
-              description: 'First name (for vendors)',
-              example: 'John'
+              type: "string",
+              description: "First name (for vendors)",
+              example: "John",
             },
             lastName: {
-              type: 'string',
-              description: 'Last name (for vendors)',
-              example: 'Doe'
+              type: "string",
+              description: "Last name (for vendors)",
+              example: "Doe",
             },
             coveredCity: {
-              type: 'string',
-              description: 'Covered city (for vendors)',
-              example: 'Dubai'
+              type: "string",
+              description: "Covered city (for vendors)",
+              example: "Dubai",
             },
             jobService: {
-              type: 'string',
-              description: 'Job service (for vendors)',
-              example: 'Plumber'
+              type: "string",
+              description: "Job service (for vendors)",
+              example: "Plumber",
             },
             mobileNumber: {
-              type: 'string',
-              description: 'Mobile number (for vendors)',
-              example: '1234567890'
+              type: "string",
+              description: "Mobile number (for vendors)",
+              example: "1234567890",
             },
             address: {
-              type: 'string',
-              description: 'Address (for vendors)',
-              example: '123 Main Street, Dubai'
+              type: "string",
+              description: "Address (for vendors)",
+              example: "123 Main Street, Dubai",
             },
             city: {
-              type: 'string',
-              description: 'City (for vendors)',
-              example: 'Dubai'
+              type: "string",
+              description: "City (for vendors)",
+              example: "Dubai",
             },
             country: {
-              type: 'string',
-              description: 'Country (for vendors)',
-              example: 'UAE'
-            }
-          }
+              type: "string",
+              description: "Country (for vendors)",
+              example: "UAE",
+            },
+          },
         },
         UpdatePasswordRequest: {
-          type: 'object',
-          required: ['currentPassword', 'newPassword'],
+          type: "object",
+          required: ["currentPassword", "newPassword"],
           properties: {
             currentPassword: {
-              type: 'string',
-              description: 'Current password',
-              example: 'oldpassword123'
+              type: "string",
+              description: "Current password",
+              example: "oldpassword123",
             },
             newPassword: {
-              type: 'string',
-              description: 'New password (minimum 6 characters)',
-              example: 'newpassword123'
-            }
-          }
+              type: "string",
+              description: "New password (minimum 6 characters)",
+              example: "newpassword123",
+            },
+          },
         },
         AuthResponse: {
-          type: 'object',
+          type: "object",
           properties: {
             success: {
-              type: 'boolean',
-              example: true
+              type: "boolean",
+              example: true,
             },
             exception: {
-              type: 'string',
+              type: "string",
               nullable: true,
-              example: null
+              example: null,
             },
             description: {
-              type: 'string',
-              example: 'Login successful'
+              type: "string",
+              example: "Login successful",
             },
             content: {
-              type: 'object',
+              type: "object",
               properties: {
                 access_token: {
-                  type: 'string',
-                  description: 'JWT token',
-                  example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+                  type: "string",
+                  description: "JWT token",
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                 },
                 user: {
-                  type: 'object',
+                  type: "object",
                   properties: {
                     id: {
-                      type: 'string',
-                      description: 'User ID'
+                      type: "string",
+                      description: "User ID",
                     },
                     email: {
-                      type: 'string',
-                      description: 'User email'
+                      type: "string",
+                      description: "User email",
                     },
                     role: {
-                      type: 'number',
-                      description: 'User role'
+                      type: "number",
+                      description: "User role",
                     },
                     name: {
-                      type: 'string',
-                      description: 'User name (for users and admins)'
+                      type: "string",
+                      description: "User name (for users and admins)",
                     },
                     firstName: {
-                      type: 'string',
-                      description: 'First name (for vendors)'
+                      type: "string",
+                      description: "First name (for vendors)",
                     },
                     lastName: {
-                      type: 'string',
-                      description: 'Last name (for vendors)'
+                      type: "string",
+                      description: "Last name (for vendors)",
                     },
                     approved: {
-                      type: 'boolean',
-                      description: 'Approval status (for vendors)'
-                    }
-                  }
-                }
-              }
-            }
-          }
+                      type: "boolean",
+                      description: "Approval status (for vendors)",
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
         ErrorResponse: {
-          type: 'object',
+          type: "object",
           properties: {
             success: {
-              type: 'boolean',
-              example: false
+              type: "boolean",
+              example: false,
             },
             exception: {
-              type: 'string',
-              description: 'Exception type',
-              example: 'VALIDATION_ERROR'
+              type: "string",
+              description: "Exception type",
+              example: "VALIDATION_ERROR",
             },
             description: {
-              type: 'string',
-              description: 'Error description',
-              example: 'Invalid credentials'
+              type: "string",
+              description: "Error description",
+              example: "Invalid credentials",
             },
             content: {
-              type: 'object',
+              type: "object",
               nullable: true,
-              description: 'Additional error data'
-            }
-          }
+              description: "Additional error data",
+            },
+          },
         },
         SuccessResponse: {
-          type: 'object',
+          type: "object",
           properties: {
             success: {
-              type: 'boolean',
-              example: true
+              type: "boolean",
+              example: true,
             },
             exception: {
-              type: 'string',
+              type: "string",
               nullable: true,
-              example: null
+              example: null,
             },
             description: {
-              type: 'string',
-              description: 'Success message',
-              example: 'Operation completed successfully'
+              type: "string",
+              description: "Success message",
+              example: "Operation completed successfully",
             },
             content: {
-              type: 'object',
+              type: "object",
               nullable: true,
-              description: 'Response data'
-            }
-          }
-        }
-      }
+              description: "Response data",
+            },
+          },
+        },
+      },
     },
     security: [
       {
-        bearerAuth: []
-      }
-    ]
+        bearerAuth: [],
+      },
+    ],
   },
-  apis: ['./routes/*.js', './server.js'] // paths to files containing OpenAPI definitions
+  apis: ["./routes/*.js", "./server.js"], // paths to files containing OpenAPI definitions
 };
 
 const specs = swaggerJsdoc(options);
