@@ -2,6 +2,8 @@ const express = require('express');
 const authRoutes = require('./auth');
 const adminRoutes = require('./admin');
 const uploadRoutes = require('./upload');
+const serviceRoutes = require('./services');
+const requestRoutes = require('./requests');
 const { sendSuccess } = require('../utils/response');
 
 const router = express.Router();
@@ -10,6 +12,8 @@ const router = express.Router();
 router.use('/auth', authRoutes);
 router.use('/admin', adminRoutes);
 router.use('/upload', uploadRoutes);
+router.use('/services', serviceRoutes);
+router.use('/requests', requestRoutes);
 
 /**
  * @swagger
