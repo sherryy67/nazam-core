@@ -20,9 +20,9 @@ const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Enable CORS
+// Enable CORS - Allow requests from any origin
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: true, // Allow requests from any origin
   credentials: true
 }));
 
