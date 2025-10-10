@@ -96,9 +96,14 @@ const vendorRegisterValidation = [
 
 const loginValidation = [
   body('email')
+    .if(body('role').not().equals(1))
     .isEmail()
     .normalizeEmail()
-    .withMessage('Please provide a valid email'),
+    .withMessage('Please provide a valid email for vendor/admin login'),
+  body('phoneNumber')
+    .if(body('role').equals(1))
+    .isMobilePhone('ar-AE')
+    .withMessage('Please provide a valid UAE phone number for user login'),
   body('password')
     .notEmpty()
     .withMessage('Password is required'),

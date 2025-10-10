@@ -78,11 +78,19 @@ const register = async (req, res, next) => {
 // @access  Public
 const login = async (req, res, next) => {
   try {
-    const { email, password, role } = req.body;
+    const { email, phoneNumber, password, role } = req.body;
 
-    // Validate email & password
-    if (!email || !password) {
-      return sendError(res, 400, 'Please provide an email and password', 'MISSING_CREDENTIALS');
+    // Validate credentials based on role
+    if (role === ROLES.USER) {
+      // For users, use phone number instead of email
+      if (!phoneNumber || !password) {
+        return sendError(res, 400, 'Please provide a phone number and password', 'MISSING_CREDENTIALS');
+      }
+    } else {
+      // For vendors and admins, use email
+      if (!email || !password) {
+        return sendError(res, 400, 'Please provide an email and password', 'MISSING_CREDENTIALS');
+      }
     }
 
     let user;
@@ -97,8 +105,12 @@ const login = async (req, res, next) => {
       userModel = User;
     }
 
-    // Check for user in the appropriate model
-    user = await userModel.findOne({ email }).select('+password');
+    // Check for user in the appropriate model with appropriate field
+    if (role === ROLES.USER) {
+      user = await userModel.findOne({ phoneNumber }).select('+password');
+    } else {
+      user = await userModel.findOne({ email }).select('+password');
+    }
 
     if (!user) {
       return sendError(res, 401, 'Invalid credentials', 'INVALID_CREDENTIALS');

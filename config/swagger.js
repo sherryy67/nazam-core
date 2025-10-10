@@ -520,13 +520,18 @@ const options = {
         },
         LoginRequest: {
           type: "object",
-          required: ["email", "password", "role"],
+          required: ["password", "role"],
           properties: {
             email: {
               type: "string",
               format: "email",
-              description: "User email address",
-              example: "john@example.com",
+              description: "Email address (required for vendor/admin login)",
+              example: "vendor@example.com",
+            },
+            phoneNumber: {
+              type: "string",
+              description: "Phone number (required for user login, UAE format)",
+              example: "+971501234567",
             },
             password: {
               type: "string",
@@ -536,7 +541,7 @@ const options = {
             role: {
               type: "number",
               enum: [1, 2, 3],
-              description: "User role: 1=user, 2=vendor, 3=admin",
+              description: "User role: 1=user (use phoneNumber), 2=vendor (use email), 3=admin (use email)",
               example: 1,
             },
           },
