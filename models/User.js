@@ -6,6 +6,7 @@ const ROLES = require("../constants/roles");
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
+  phoneNumber: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   role: { type: Number, enum: [ROLES.USER], default: ROLES.USER }
 }, { timestamps: true });

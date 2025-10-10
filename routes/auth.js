@@ -29,7 +29,11 @@ const registerValidation = [
   body('role')
     .optional()
     .isIn([1, 2])
-    .withMessage('Role must be 1 (user) or 2 (vendor)')
+    .withMessage('Role must be 1 (user) or 2 (vendor)'),
+  body('phoneNumber')
+    .if(body('role').equals(1))
+    .isMobilePhone('ar-AE')
+    .withMessage('Please provide a valid UAE phone number for user registration')
 ];
 
 // User registration validation
@@ -42,6 +46,9 @@ const userRegisterValidation = [
     .isEmail()
     .normalizeEmail()
     .withMessage('Please provide a valid email'),
+  body('phoneNumber')
+    .isMobilePhone('ar-AE')
+    .withMessage('Please provide a valid UAE phone number'),
   body('password')
     .isLength({ min: 6 })
     .withMessage('Password must be at least 6 characters long')

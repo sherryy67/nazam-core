@@ -42,7 +42,7 @@ const options = {
       schemas: {
         User: {
           type: "object",
-          required: ["name", "email", "password"],
+          required: ["name", "email", "phoneNumber", "password"],
           properties: {
             _id: {
               type: "string",
@@ -58,6 +58,11 @@ const options = {
               format: "email",
               description: "User email address",
               example: "john@example.com",
+            },
+            phoneNumber: {
+              type: "string",
+              description: "User phone number (UAE format)",
+              example: "+971501234567",
             },
             role: {
               type: "number",
@@ -158,8 +163,8 @@ const options = {
             },
             mobileNumber: {
               type: "string",
-              description: "Mobile number",
-              example: "1234567890",
+              description: "Mobile number (UAE format)",
+              example: "501234567",
             },
             email: {
               type: "string",
@@ -306,7 +311,7 @@ const options = {
         },
         UserRegisterRequest: {
           type: "object",
-          required: ["name", "email", "password"],
+          required: ["name", "email", "phoneNumber", "password"],
           properties: {
             name: {
               type: "string",
@@ -318,6 +323,11 @@ const options = {
               format: "email",
               description: "User email address",
               example: "john@example.com",
+            },
+            phoneNumber: {
+              type: "string",
+              description: "User phone number (UAE format)",
+              example: "+971501234567",
             },
             password: {
               type: "string",
@@ -409,8 +419,8 @@ const options = {
             },
             mobileNumber: {
               type: "string",
-              description: "Mobile number",
-              example: "1234567890",
+              description: "Mobile number (UAE format)",
+              example: "501234567",
             },
             email: {
               type: "string",

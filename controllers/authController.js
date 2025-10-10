@@ -56,10 +56,11 @@ const register = async (req, res, next) => {
       user = await Vendor.create(vendorData);
     } else {
       // Create regular user
-      const { name, email, password } = req.body;
+      const { name, email, phoneNumber, password } = req.body;
       user = await User.create({
         name,
         email,
+        phoneNumber,
         password,
         role: ROLES.USER
       });
