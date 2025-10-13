@@ -1,4 +1,25 @@
 const axios = require('axios');
+const path = require('path');
+
+// Load environment variables with multiple fallback strategies
+try {
+  // Try loading from current directory
+  require('dotenv').config();
+} catch (error) {
+  console.log('Failed to load .env from current directory');
+}
+
+try {
+  // Try loading from project root
+  require('dotenv').config({ path: path.resolve(process.cwd(), '.env') });
+} catch (error) {
+  console.log('Failed to load .env from project root');
+}
+
+// Additional fallback for production
+if (process.env.NODE_ENV === 'production') {
+  console.log('Production environment detected, using hardcoded values as fallback');
+}
 
 /**
  * SMS Service for Smart SMS Gateway
@@ -7,10 +28,10 @@ const axios = require('axios');
 class SMSService {
   constructor() {
     this.baseUrl = 'https://smartsmsgateway.com/api/api_http.php';
-    this.username = process.env.SMS_USERNAME||'facaltaasmkt';
-    this.password = process.env.SMS_PASSWORD||'pZcJjDXi7Y';
-    this.senderId = process.env.SMS_SENDER_ID || 'AD-NAZAM';
     
+    this.username = process.env.SMS_USERNAME || 'facaltaasmkt';
+    this.password = process.env.SMS_PASSWORD || 'pZcJjDXi7Y';
+    this.senderId = process.env.SMS_SENDER_ID || 'AD-NAZAM';
   }
 
   /**
