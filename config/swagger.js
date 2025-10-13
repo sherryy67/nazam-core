@@ -19,13 +19,12 @@ const options = {
     },
     servers: [
       {
-        url:
-          process.env.NODE_ENV === "production"
-            ? // ? `http://${process.env.HOST || "YOUR_EC2_PUBLIC_IP"}:${
-              //     process.env.PORT || 3001
-              //   }`
-              "http://18.215.151.243:3001/"
-            : `http://localhost:${process.env.PORT || 3001}`,
+        url: true
+          ? // ? `http://${process.env.HOST || "YOUR_EC2_PUBLIC_IP"}:${
+            //     process.env.PORT || 3001
+            //   }`
+            "http://18.215.151.243:3001/"
+          : `http://localhost:${process.env.PORT || 3001}`,
         description:
           process.env.NODE_ENV === "production"
             ? "Production server"
