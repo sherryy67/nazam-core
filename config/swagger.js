@@ -1,4 +1,8 @@
 const swaggerJsdoc = require("swagger-jsdoc");
+const dotenv = require("dotenv");
+
+// Load environment variables before using them
+dotenv.config();
 
 const options = {
   definition: {
@@ -19,11 +23,8 @@ const options = {
     },
     servers: [
       {
-        url: true
-          ? // ? `http://${process.env.HOST || "YOUR_EC2_PUBLIC_IP"}:${
-            //     process.env.PORT || 3001
-            //   }`
-            "http://18.215.151.243:3001/"
+        url: process.env.NODE_ENV === "production"
+          ? `http://${process.env.HOST || process.env.EC2_PUBLIC_IP || "18.215.151.243"}:${process.env.PORT || 3001}`
           : `http://localhost:${process.env.PORT || 3001}`,
         description:
           process.env.NODE_ENV === "production"
