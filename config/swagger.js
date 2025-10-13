@@ -21,9 +21,10 @@ const options = {
       {
         url:
           process.env.NODE_ENV === "production"
-            ? `http://${process.env.HOST || "YOUR_EC2_PUBLIC_IP"}:${
-                process.env.PORT || 3001
-              }`
+            ? // ? `http://${process.env.HOST || "YOUR_EC2_PUBLIC_IP"}:${
+              //     process.env.PORT || 3001
+              //   }`
+              "http://18.215.151.243:3001/"
             : `http://localhost:${process.env.PORT || 3001}`,
         description:
           process.env.NODE_ENV === "production"
@@ -541,7 +542,8 @@ const options = {
             role: {
               type: "number",
               enum: [1, 2, 3],
-              description: "User role: 1=user (use phoneNumber), 2=vendor (use email), 3=admin (use email)",
+              description:
+                "User role: 1=user (use phoneNumber), 2=vendor (use email), 3=admin (use email)",
               example: 1,
             },
           },
