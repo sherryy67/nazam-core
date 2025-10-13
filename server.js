@@ -1,8 +1,6 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
-const swaggerUi = require("swagger-ui-express");
-const swaggerSpecs = require("./config/swagger");
 const connectDB = require("./config/database");
 const errorHandler = require("./middlewares/errorHandler");
 const routes = require("./routes");
@@ -63,6 +61,15 @@ console.log("PORT:", process.env.PORT);
 console.log("NODE_ENV:", process.env.NODE_ENV);
 console.log("HOST:", process.env.HOST);
 console.log("===========================");
+
+// Import swagger after env vars are loaded
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpecs = require("./config/swagger");
+
+// Debug swagger configuration
+console.log("=== SWAGGER CONFIGURATION ===");
+console.log("Swagger server URL:", swaggerSpecs.servers?.[0]?.url);
+console.log("=============================");
 
 // Connect to database
 connectDB();
