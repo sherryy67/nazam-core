@@ -122,8 +122,22 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 
-const server = app.listen(PORT, process.env.HOST || '0.0.0.0', () => {
-  console.log(`Server running in ${process.env.NODE_ENV} mode on ${process.env.HOST || '0.0.0.0'}:${PORT}`);
+// Determine the correct host for binding
+// In development, always use localhost
+// In production, use the HOST from env or default to 0.0.0.0
+const HOST = process.env.NODE_ENV === 'production' 
+  ? (process.env.HOST || '0.0.0.0') 
+  : 'localhost';
+
+// For local development, ignore the HOST from .env if it's a production IP
+if (process.env.NODE_ENV !== 'production' && process.env.HOST && process.env.HOST !== 'localhost') {
+  console.log(`⚠️  Warning: HOST=${process.env.HOST} is not available locally. Using localhost instead.`);
+}
+
+const server = app.listen(PORT, HOST, () => {
+  console.log(`Server running in ${process.env.NODE_ENV} mode on ${HOST}:${PORT}`);
+  console.log(`Access your API at: http://${HOST}:${PORT}`);
+  console.log(`API Documentation: http://${HOST}:${PORT}/api-docs`);
 });
 
 // Handle unhandled promise rejections
