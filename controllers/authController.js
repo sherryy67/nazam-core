@@ -1,8 +1,10 @@
 const User = require('../models/User');
 const Vendor = require('../models/Vendor');
 const Admin = require('../models/Admin');
+const OTP = require('../models/OTP');
 const { sendSuccess, sendError } = require('../utils/response');
 const ROLES = require('../constants/roles');
+const smsService = require('../utils/smsService');
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -383,6 +385,212 @@ const sendTokenResponse = (user, statusCode, res) => {
   });
 };
 
+// @desc    Send OTP to phone number
+// @route   POST /api/auth/send-otp
+// @access  Public
+const sendOTP = async (req, res, next) => {
+  try {
+    const { phoneNumber } = req.body;
+
+    // Validate phone number
+    if (!phoneNumber) {
+      return sendError(res, 400, 'Phone number is required', 'MISSING_PHONE_NUMBER');
+    }
+
+    // Validate UAE phone number format
+    if (!smsService.isValidUAEPhoneNumber(phoneNumber)) {
+      return sendError(res, 400, 'Please provide a valid UAE phone number', 'INVALID_PHONE_NUMBER');
+    }
+
+    // Check if user already exists with this phone number
+    const existingUser = await User.findOne({ phoneNumber });
+    if (existingUser) {
+      return sendError(res, 409, 'User with this phone number already exists', 'USER_EXISTS');
+    }
+
+    // Generate OTP code
+    const otpCode = smsService.generateOTP();
+    
+    // Set expiration time (5 minutes from now)
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    // Invalidate any existing OTPs for this phone number
+    await OTP.updateMany(
+      { phoneNumber, isUsed: false },
+      { isUsed: true }
+    );
+
+    // Create new OTP record
+    const otpRecord = await OTP.create({
+      phoneNumber,
+      code: otpCode,
+      expiresAt
+    });
+
+    // Send SMS
+    try {
+      await smsService.sendOTP(phoneNumber, otpCode);
+      
+      sendSuccess(res, 200, 'OTP sent successfully to your phone number', {
+        phoneNumber,
+        expiresIn: '5 minutes'
+      });
+    } catch (smsError) {
+      // If SMS fails, delete the OTP record
+      await OTP.findByIdAndDelete(otpRecord._id);
+      
+      return sendError(res, 500, 'Failed to send OTP. Please try again.', 'SMS_SEND_FAILED');
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify OTP and register user
+// @route   POST /api/auth/verify-otp
+// @access  Public
+const verifyOTP = async (req, res, next) => {
+  try {
+    const { phoneNumber, otpCode, name, email, password } = req.body;
+
+    // Validate required fields
+    if (!phoneNumber || !otpCode) {
+      return sendError(res, 400, 'Phone number and OTP code are required', 'MISSING_REQUIRED_FIELDS');
+    }
+
+    if (!name || !email || !password) {
+      return sendError(res, 400, 'Name, email, and password are required for registration', 'MISSING_REGISTRATION_FIELDS');
+    }
+
+    // Validate UAE phone number format
+    if (!smsService.isValidUAEPhoneNumber(phoneNumber)) {
+      return sendError(res, 400, 'Please provide a valid UAE phone number', 'INVALID_PHONE_NUMBER');
+    }
+
+    // Find valid OTP record
+    const otpRecord = await OTP.findOne({
+      phoneNumber,
+      code: otpCode,
+      isUsed: false,
+      expiresAt: { $gt: new Date() }
+    });
+
+    if (!otpRecord) {
+      return sendError(res, 400, 'Invalid or expired OTP code', 'INVALID_OTP');
+    }
+
+    // Check if OTP has exceeded max attempts
+    if (otpRecord.attempts >= otpRecord.maxAttempts) {
+      return sendError(res, 400, 'OTP code has exceeded maximum attempts', 'OTP_MAX_ATTEMPTS_EXCEEDED');
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ 
+      $or: [
+        { phoneNumber },
+        { email }
+      ]
+    });
+
+    if (existingUser) {
+      return sendError(res, 409, 'User with this phone number or email already exists', 'USER_EXISTS');
+    }
+
+    // Mark OTP as used
+    await otpRecord.markAsUsed();
+
+    // Create new user
+    const user = await User.create({
+      name,
+      email,
+      phoneNumber,
+      password,
+      role: ROLES.USER
+    });
+
+    // Generate JWT token and send response
+    sendTokenResponse(user, 201, res);
+  } catch (error) {
+    // If user creation fails, we should increment OTP attempts
+    if (error.name === 'ValidationError' || error.code === 11000) {
+      try {
+        const otpRecord = await OTP.findOne({
+          phoneNumber: req.body.phoneNumber,
+          code: req.body.otpCode,
+          isUsed: false
+        });
+        
+        if (otpRecord) {
+          await otpRecord.incrementAttempts();
+        }
+      } catch (otpError) {
+        console.error('Error updating OTP attempts:', otpError);
+      }
+    }
+    
+    next(error);
+  }
+};
+
+// @desc    Resend OTP
+// @route   POST /api/auth/resend-otp
+// @access  Public
+const resendOTP = async (req, res, next) => {
+  try {
+    const { phoneNumber } = req.body;
+
+    // Validate phone number
+    if (!phoneNumber) {
+      return sendError(res, 400, 'Phone number is required', 'MISSING_PHONE_NUMBER');
+    }
+
+    // Validate UAE phone number format
+    if (!smsService.isValidUAEPhoneNumber(phoneNumber)) {
+      return sendError(res, 400, 'Please provide a valid UAE phone number', 'INVALID_PHONE_NUMBER');
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ phoneNumber });
+    if (existingUser) {
+      return sendError(res, 409, 'User with this phone number already exists', 'USER_EXISTS');
+    }
+
+    // Generate new OTP code
+    const otpCode = smsService.generateOTP();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    // Invalidate any existing OTPs for this phone number
+    await OTP.updateMany(
+      { phoneNumber, isUsed: false },
+      { isUsed: true }
+    );
+
+    // Create new OTP record
+    const otpRecord = await OTP.create({
+      phoneNumber,
+      code: otpCode,
+      expiresAt
+    });
+
+    // Send SMS
+    try {
+      await smsService.sendOTP(phoneNumber, otpCode);
+      
+      sendSuccess(res, 200, 'OTP resent successfully to your phone number', {
+        phoneNumber,
+        expiresIn: '5 minutes'
+      });
+    } catch (smsError) {
+      // If SMS fails, delete the OTP record
+      await OTP.findByIdAndDelete(otpRecord._id);
+      
+      return sendError(res, 500, 'Failed to resend OTP. Please try again.', 'SMS_SEND_FAILED');
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -393,5 +601,8 @@ module.exports = {
   adminCreateVendor,
   adminApproveVendor,
   adminRejectVendor,
-  getPendingVendors
+  getPendingVendors,
+  sendOTP,
+  verifyOTP,
+  resendOTP
 };

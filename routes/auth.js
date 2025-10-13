@@ -10,7 +10,10 @@ const {
   adminCreateVendor,
   adminApproveVendor,
   adminRejectVendor,
-  getPendingVendors
+  getPendingVendors,
+  sendOTP,
+  verifyOTP,
+  resendOTP
 } = require('../controllers/authController');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
@@ -119,6 +122,40 @@ const updatePasswordValidation = [
   body('newPassword')
     .isLength({ min: 6 })
     .withMessage('New password must be at least 6 characters long')
+];
+
+// OTP validation rules
+const sendOTPValidation = [
+  body('phoneNumber')
+    .isMobilePhone('ar-AE')
+    .withMessage('Please provide a valid UAE phone number')
+];
+
+const verifyOTPValidation = [
+  body('phoneNumber')
+    .isMobilePhone('ar-AE')
+    .withMessage('Please provide a valid UAE phone number'),
+  body('otpCode')
+    .isLength({ min: 6, max: 6 })
+    .isNumeric()
+    .withMessage('OTP code must be 6 digits'),
+  body('name')
+    .trim()
+    .isLength({ min: 2, max: 50 })
+    .withMessage('Name must be between 2 and 50 characters'),
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email'),
+  body('password')
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters long')
+];
+
+const resendOTPValidation = [
+  body('phoneNumber')
+    .isMobilePhone('ar-AE')
+    .withMessage('Please provide a valid UAE phone number')
 ];
 
 /**
@@ -479,5 +516,196 @@ router.put('/admin/reject-vendor/:id', protect, isAdmin, adminRejectVendor);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/admin/pending-vendors', protect, isAdmin, getPendingVendors);
+
+/**
+ * @swagger
+ * /api/auth/send-otp:
+ *   post:
+ *     summary: Send OTP to phone number for verification
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 example: "+971501234567"
+ *                 description: UAE phone number with country code
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 description:
+ *                   type: string
+ *                   example: "OTP sent successfully to your phone number"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     phoneNumber:
+ *                       type: string
+ *                     expiresIn:
+ *                       type: string
+ *                       example: "5 minutes"
+ *       400:
+ *         description: Bad request - validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       409:
+ *         description: User already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: SMS sending failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.post('/send-otp', sendOTPValidation, sendOTP);
+
+/**
+ * @swagger
+ * /api/auth/verify-otp:
+ *   post:
+ *     summary: Verify OTP and register user
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *               - otpCode
+ *               - name
+ *               - email
+ *               - password
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 example: "+971501234567"
+ *                 description: UAE phone number with country code
+ *               otpCode:
+ *                 type: string
+ *                 example: "123456"
+ *                 description: 6-digit OTP code
+ *               name:
+ *                 type: string
+ *                 example: "John Doe"
+ *                 description: User's full name
+ *               email:
+ *                 type: string
+ *                 example: "john@example.com"
+ *                 description: User's email address
+ *               password:
+ *                 type: string
+ *                 example: "password123"
+ *                 description: User's password (min 6 characters)
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ *       400:
+ *         description: Bad request - validation error or invalid OTP
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       409:
+ *         description: User already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.post('/verify-otp', verifyOTPValidation, verifyOTP);
+
+/**
+ * @swagger
+ * /api/auth/resend-otp:
+ *   post:
+ *     summary: Resend OTP to phone number
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 example: "+971501234567"
+ *                 description: UAE phone number with country code
+ *     responses:
+ *       200:
+ *         description: OTP resent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 description:
+ *                   type: string
+ *                   example: "OTP resent successfully to your phone number"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     phoneNumber:
+ *                       type: string
+ *                     expiresIn:
+ *                       type: string
+ *                       example: "5 minutes"
+ *       400:
+ *         description: Bad request - validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       409:
+ *         description: User already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: SMS sending failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.post('/resend-otp', resendOTPValidation, resendOTP);
 
 module.exports = router;
