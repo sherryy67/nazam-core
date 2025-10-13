@@ -52,9 +52,17 @@ console.log(
       key.includes("JWT") ||
       key.includes("AWS") ||
       key.includes("PORT") ||
+      key.includes("HOST") ||
       key.includes("SMS")
   )
 );
+
+// Show specific server configuration
+console.log("=== SERVER CONFIGURATION ===");
+console.log("PORT:", process.env.PORT);
+console.log("NODE_ENV:", process.env.NODE_ENV);
+console.log("HOST:", process.env.HOST);
+console.log("===========================");
 
 // Connect to database
 connectDB();
@@ -107,8 +115,8 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 
-const server = app.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+const server = app.listen(PORT, process.env.HOST || '0.0.0.0', () => {
+  console.log(`Server running in ${process.env.NODE_ENV} mode on ${process.env.HOST || '0.0.0.0'}:${PORT}`);
 });
 
 // Handle unhandled promise rejections
