@@ -1,6 +1,7 @@
 const express = require('express');
 const authRoutes = require('./auth');
 const adminRoutes = require('./admin');
+const userRoutes = require('./users');
 const uploadRoutes = require('./upload');
 const serviceRoutes = require('./services');
 const requestRoutes = require('./requests');
@@ -11,6 +12,7 @@ const router = express.Router();
 // Mount routes
 router.use('/auth', authRoutes);
 router.use('/admin', adminRoutes);
+router.use('/users', userRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/services', serviceRoutes);
 router.use('/requests', requestRoutes);

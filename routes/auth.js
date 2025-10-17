@@ -13,7 +13,9 @@ const {
   getPendingVendors,
   sendOTP,
   verifyOTP,
-  resendOTP
+  resendOTP,
+  verifyOTPOnly,
+  createAccount
 } = require('../controllers/authController');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
@@ -157,6 +159,34 @@ const resendOTPValidation = [
     .isMobilePhone('ar-AE')
     .withMessage('Please provide a valid UAE phone number')
 ];
+
+const verifyOTPOnlyValidation = [
+  body('phoneNumber')
+    .isMobilePhone('ar-AE')
+    .withMessage('Please provide a valid UAE phone number'),
+  body('otpCode')
+    .isLength({ min: 6, max: 6 })
+    .isNumeric()
+    .withMessage('OTP code must be 6 digits')
+];
+
+const createAccountValidation = [
+  body('phoneNumber')
+    .isMobilePhone('ar-AE')
+    .withMessage('Please provide a valid UAE phone number'),
+  body('name')
+    .trim()
+    .isLength({ min: 2, max: 50 })
+    .withMessage('Name must be between 2 and 50 characters'),
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email'),
+  body('password')
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters long')
+];
+
 
 /**
  * @swagger
@@ -521,7 +551,8 @@ router.get('/admin/pending-vendors', protect, isAdmin, getPendingVendors);
  * @swagger
  * /api/auth/send-otp:
  *   post:
- *     summary: Send OTP to phone number for verification
+ *     summary: Send OTP to phone number (Step 1 of registration)
+ *     description: Send OTP to phone number for verification. After receiving OTP, use verify-otp endpoint to create account.
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -583,7 +614,8 @@ router.post('/send-otp', sendOTPValidation, sendOTP);
  * @swagger
  * /api/auth/verify-otp:
  *   post:
- *     summary: Verify OTP and register user
+ *     summary: Verify OTP and create user account (Step 2 of registration)
+ *     description: After sending OTP to phone number, use this endpoint to verify OTP and create user account
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -707,5 +739,224 @@ router.post('/verify-otp', verifyOTPValidation, verifyOTP);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/resend-otp', resendOTPValidation, resendOTP);
+
+/**
+ * @swagger
+ * /api/auth/verify-otp-only:
+ *   post:
+ *     summary: Verify OTP only (Step 2 of registration)
+ *     description: Verify OTP code for phone number. Must be called before account creation.
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *               - otpCode
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 example: "+971501234567"
+ *                 description: UAE phone number with country code
+ *               otpCode:
+ *                 type: string
+ *                 example: "123456"
+ *                 description: 6-digit OTP code
+ *     responses:
+ *       200:
+ *         description: OTP verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "OTP verified successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     phoneNumber:
+ *                       type: string
+ *                       example: "+971501234567"
+ *                     verified:
+ *                       type: boolean
+ *                       example: true
+ *                     message:
+ *                       type: string
+ *                       example: "You can now proceed with account creation"
+ *       400:
+ *         description: Bad request - validation error or invalid OTP
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid or expired OTP code"
+ *                 error:
+ *                   type: string
+ *                   example: "INVALID_OTP"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Server error"
+ *                 error:
+ *                   type: string
+ *                   example: "INTERNAL_SERVER_ERROR"
+ */
+router.post('/verify-otp-only', verifyOTPOnlyValidation, verifyOTPOnly);
+
+/**
+ * @swagger
+ * /api/auth/create-account:
+ *   post:
+ *     summary: Create user account (Step 3 of registration)
+ *     description: Create user account after OTP verification. Phone number must be verified first.
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - phoneNumber
+ *               - name
+ *               - email
+ *               - password
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 example: "+971501234567"
+ *                 description: UAE phone number (must be verified with OTP first)
+ *               name:
+ *                 type: string
+ *                 example: "John Doe"
+ *                 description: User's full name
+ *               email:
+ *                 type: string
+ *                 example: "john@example.com"
+ *                 description: User's email address
+ *               password:
+ *                 type: string
+ *                 example: "password123"
+ *                 description: User's password (min 6 characters)
+ *     responses:
+ *       201:
+ *         description: Account created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "User registered successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     access_token:
+ *                       type: string
+ *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           example: "60f7b3b3b3b3b3b3b3b3b3b3"
+ *                         name:
+ *                           type: string
+ *                           example: "John Doe"
+ *                         email:
+ *                           type: string
+ *                           example: "john@example.com"
+ *                         phoneNumber:
+ *                           type: string
+ *                           example: "+971501234567"
+ *                         role:
+ *                           type: number
+ *                           example: 1
+ *                         isActive:
+ *                           type: boolean
+ *                           example: true
+ *                         isOTPVerified:
+ *                           type: boolean
+ *                           example: true
+ *                         profilePic:
+ *                           type: string
+ *                           example: ""
+ *       400:
+ *         description: Bad request - validation error or phone not verified
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Phone number must be verified with OTP before creating account"
+ *                 error:
+ *                   type: string
+ *                   example: "PHONE_NOT_VERIFIED"
+ *       409:
+ *         description: User already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "User with this phone number or email already exists"
+ *                 error:
+ *                   type: string
+ *                   example: "USER_EXISTS"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Server error"
+ *                 error:
+ *                   type: string
+ *                   example: "INTERNAL_SERVER_ERROR"
+ */
+router.post('/create-account', createAccountValidation, createAccount);
 
 module.exports = router;

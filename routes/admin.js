@@ -1,7 +1,7 @@
 const express = require('express');
 const { body } = require('express-validator');
 const { sendSuccess } = require('../utils/response');
-const { adminLogin, createAdmin } = require('../controllers/authController');
+const { adminLogin, createAdmin, adminActivateUser, adminDeactivateUser, getAllUsers } = require('../controllers/authController');
 const { protect } = require('../middlewares/auth');
 const { isAdmin } = require('../middlewares/roleAuth');
 
@@ -289,6 +289,249 @@ router.post('/login', adminLoginValidation, adminLogin);
  *                   example: "INTERNAL_SERVER_ERROR"
  */
 router.post('/create', adminCreateValidation, createAdmin);
+
+/**
+ * @swagger
+ * /api/admin/users:
+ *   get:
+ *     summary: Get all users
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Users retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Users retrieved successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     users:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: string
+ *                             example: "60f7b3b3b3b3b3b3b3b3b3b3"
+ *                           name:
+ *                             type: string
+ *                             example: "John Doe"
+ *                           email:
+ *                             type: string
+ *                             example: "john@example.com"
+ *                           phoneNumber:
+ *                             type: string
+ *                             example: "+971501234567"
+ *                           role:
+ *                             type: number
+ *                             example: 1
+ *                           isActive:
+ *                             type: boolean
+ *                             example: true
+ *                           isOTPVerified:
+ *                             type: boolean
+ *                             example: true
+ *                           profilePic:
+ *                             type: string
+ *                             example: ""
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *                           updatedAt:
+ *                             type: string
+ *                             format: date-time
+ *       401:
+ *         description: Unauthorized - admin access required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Admin access required"
+ *                 error:
+ *                   type: string
+ *                   example: "ADMIN_REQUIRED"
+ */
+router.get('/users', protect, isAdmin, getAllUsers);
+
+/**
+ * @swagger
+ * /api/admin/activate-user/{id}:
+ *   put:
+ *     summary: Activate user
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: User activated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "User activated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                           example: "60f7b3b3b3b3b3b3b3b3b3b3"
+ *                         name:
+ *                           type: string
+ *                           example: "John Doe"
+ *                         email:
+ *                           type: string
+ *                           example: "john@example.com"
+ *                         isActive:
+ *                           type: boolean
+ *                           example: true
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "User not found"
+ *                 error:
+ *                   type: string
+ *                   example: "USER_NOT_FOUND"
+ *       401:
+ *         description: Unauthorized - admin access required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Admin access required"
+ *                 error:
+ *                   type: string
+ *                   example: "ADMIN_REQUIRED"
+ */
+router.put('/activate-user/:id', protect, isAdmin, adminActivateUser);
+
+/**
+ * @swagger
+ * /api/admin/deactivate-user/{id}:
+ *   put:
+ *     summary: Deactivate user
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: User deactivated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "User deactivated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                           example: "60f7b3b3b3b3b3b3b3b3b3b3"
+ *                         name:
+ *                           type: string
+ *                           example: "John Doe"
+ *                         email:
+ *                           type: string
+ *                           example: "john@example.com"
+ *                         isActive:
+ *                           type: boolean
+ *                           example: false
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "User not found"
+ *                 error:
+ *                   type: string
+ *                   example: "USER_NOT_FOUND"
+ *       401:
+ *         description: Unauthorized - admin access required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Admin access required"
+ *                 error:
+ *                   type: string
+ *                   example: "ADMIN_REQUIRED"
+ */
+router.put('/deactivate-user/:id', protect, isAdmin, adminDeactivateUser);
 
 router.get('/status', (req, res) => {
   sendSuccess(res, 200, 'Admin module is available', {

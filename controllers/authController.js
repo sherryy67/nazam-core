@@ -125,6 +125,11 @@ const login = async (req, res, next) => {
       return sendError(res, 401, 'Invalid credentials', 'INVALID_CREDENTIALS');
     }
 
+    // For users, check if they are active
+    if (role === ROLES.USER && !user.isActive) {
+      return sendError(res, 403, 'Your account has been deactivated', 'USER_DEACTIVATED');
+    }
+
     // For vendors, check if they are approved
     if (role === ROLES.VENDOR && !user.approved) {
       return sendError(res, 403, 'Your vendor account is pending approval', 'VENDOR_NOT_APPROVED');
@@ -402,11 +407,8 @@ const sendOTP = async (req, res, next) => {
       return sendError(res, 400, 'Please provide a valid UAE phone number', 'INVALID_PHONE_NUMBER');
     }
 
-    // Check if user already exists with this phone number
-    const existingUser = await User.findOne({ phoneNumber });
-    if (existingUser) {
-      return sendError(res, 409, 'User with this phone number already exists', 'USER_EXISTS');
-    }
+    // Note: We don't check for existing users here since we want to allow
+    // phone verification before account creation
 
     // Generate OTP code
     const otpCode = smsService.generateOTP();
@@ -484,7 +486,7 @@ const verifyOTP = async (req, res, next) => {
       return sendError(res, 400, 'OTP code has exceeded maximum attempts', 'OTP_MAX_ATTEMPTS_EXCEEDED');
     }
 
-    // Check if user already exists
+    // Check if user already exists with this phone number or email
     const existingUser = await User.findOne({ 
       $or: [
         { phoneNumber },
@@ -505,7 +507,8 @@ const verifyOTP = async (req, res, next) => {
       email,
       phoneNumber,
       password,
-      role: ROLES.USER
+      role: ROLES.USER,
+      isOTPVerified: true
     });
 
     // Generate JWT token and send response
@@ -549,11 +552,8 @@ const resendOTP = async (req, res, next) => {
       return sendError(res, 400, 'Please provide a valid UAE phone number', 'INVALID_PHONE_NUMBER');
     }
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ phoneNumber });
-    if (existingUser) {
-      return sendError(res, 409, 'User with this phone number already exists', 'USER_EXISTS');
-    }
+    // Note: We don't check for existing users here since we want to allow
+    // phone verification before account creation
 
     // Generate new OTP code
     const otpCode = smsService.generateOTP();
@@ -658,6 +658,165 @@ const createAdmin = async (req, res, next) => {
   }
 };
 
+// @desc    Admin activate user
+// @route   PUT /api/admin/activate-user/:id
+// @access  Private (Admin only)
+const adminActivateUser = async (req, res, next) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { isActive: true },
+      { new: true }
+    );
+
+    if (!user) {
+      return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    sendSuccess(res, 200, 'User activated successfully', { user });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Admin deactivate user
+// @route   PUT /api/admin/deactivate-user/:id
+// @access  Private (Admin only)
+const adminDeactivateUser = async (req, res, next) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { isActive: false },
+      { new: true }
+    );
+
+    if (!user) {
+      return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    sendSuccess(res, 200, 'User deactivated successfully', { user });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all users
+// @route   GET /api/admin/users
+// @access  Private (Admin only)
+const getAllUsers = async (req, res, next) => {
+  try {
+    const users = await User.find().select('-password');
+    sendSuccess(res, 200, 'Users retrieved successfully', { users });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify OTP only (Step 2 of registration)
+// @route   POST /api/auth/verify-otp-only
+// @access  Public
+const verifyOTPOnly = async (req, res, next) => {
+  try {
+    const { phoneNumber, otpCode } = req.body;
+
+    // Validate required fields
+    if (!phoneNumber || !otpCode) {
+      return sendError(res, 400, 'Phone number and OTP code are required', 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Validate UAE phone number format
+    if (!smsService.isValidUAEPhoneNumber(phoneNumber)) {
+      return sendError(res, 400, 'Please provide a valid UAE phone number', 'INVALID_PHONE_NUMBER');
+    }
+
+    // Find valid OTP record
+    const otpRecord = await OTP.findOne({
+      phoneNumber,
+      code: otpCode,
+      isUsed: false,
+      expiresAt: { $gt: new Date() }
+    });
+
+    if (!otpRecord) {
+      return sendError(res, 400, 'Invalid or expired OTP code', 'INVALID_OTP');
+    }
+
+    // Check if OTP has exceeded max attempts
+    if (otpRecord.attempts >= otpRecord.maxAttempts) {
+      return sendError(res, 400, 'OTP code has exceeded maximum attempts', 'OTP_MAX_ATTEMPTS_EXCEEDED');
+    }
+
+    // Mark OTP as used
+    await otpRecord.markAsUsed();
+
+    // Return success - OTP is verified, user can now create account
+    sendSuccess(res, 200, 'OTP verified successfully', {
+      phoneNumber,
+      verified: true,
+      message: 'You can now proceed with account creation'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Create user account (Step 3 of registration)
+// @route   POST /api/auth/create-account
+// @access  Public
+const createAccount = async (req, res, next) => {
+  try {
+    const { phoneNumber, name, email, password } = req.body;
+
+    // Validate required fields
+    if (!phoneNumber || !name || !email || !password) {
+      return sendError(res, 400, 'Phone number, name, email, and password are required', 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Validate UAE phone number format
+    if (!smsService.isValidUAEPhoneNumber(phoneNumber)) {
+      return sendError(res, 400, 'Please provide a valid UAE phone number', 'INVALID_PHONE_NUMBER');
+    }
+
+    // Check if user already exists with this phone number or email
+    const existingUser = await User.findOne({ 
+      $or: [
+        { phoneNumber },
+        { email }
+      ]
+    });
+
+    if (existingUser) {
+      return sendError(res, 409, 'User with this phone number or email already exists', 'USER_EXISTS');
+    }
+
+    // Check if phone number was verified (OTP was used)
+    const verifiedOTP = await OTP.findOne({
+      phoneNumber,
+      isUsed: true
+    });
+
+    if (!verifiedOTP) {
+      return sendError(res, 400, 'Phone number must be verified with OTP before creating account', 'PHONE_NOT_VERIFIED');
+    }
+
+    // Create new user
+    const user = await User.create({
+      name,
+      email,
+      phoneNumber,
+      password,
+      role: ROLES.USER,
+      isOTPVerified: true
+    });
+
+    // Generate JWT token and send response
+    sendTokenResponse(user, 201, res);
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 module.exports = {
   register,
   login,
@@ -673,5 +832,10 @@ module.exports = {
   verifyOTP,
   resendOTP,
   adminLogin,
-  createAdmin
+  createAdmin,
+  adminActivateUser,
+  adminDeactivateUser,
+  getAllUsers,
+  verifyOTPOnly,
+  createAccount
 };
