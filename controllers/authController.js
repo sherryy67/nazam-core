@@ -591,6 +591,73 @@ const resendOTP = async (req, res, next) => {
   }
 };
 
+// @desc    Admin login
+// @route   POST /api/admin/login
+// @access  Public
+const adminLogin = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate credentials
+    if (!email || !password) {
+      return sendError(res, 400, 'Please provide an email and password', 'MISSING_CREDENTIALS');
+    }
+
+    // Check for admin in Admin model
+    const admin = await Admin.findOne({ email }).select('+password');
+
+    if (!admin) {
+      return sendError(res, 401, 'Invalid credentials', 'INVALID_CREDENTIALS');
+    }
+
+    // Check if password matches
+    const isMatch = await admin.comparePassword(password);
+
+    if (!isMatch) {
+      return sendError(res, 401, 'Invalid credentials', 'INVALID_CREDENTIALS');
+    }
+
+    sendTokenResponse(admin, 200, res);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Create new admin
+// @route   POST /api/admin/create
+// @access  Public
+const createAdmin = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+
+    // Validate required fields
+    if (!name || !email || !password) {
+      return sendError(res, 400, 'Name, email, and password are required', 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Check if admin already exists with this email
+    const existingAdmin = await Admin.findOne({ email });
+    if (existingAdmin) {
+      return sendError(res, 409, 'Admin with this email already exists', 'ADMIN_EXISTS');
+    }
+
+    // Create new admin
+    const admin = await Admin.create({
+      name,
+      email,
+      password,
+      role: ROLES.ADMIN
+    });
+
+    // Remove password from response
+    const adminResponse = admin.toJSON();
+
+    sendSuccess(res, 201, 'Admin created successfully', { admin: adminResponse });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -604,5 +671,7 @@ module.exports = {
   getPendingVendors,
   sendOTP,
   verifyOTP,
-  resendOTP
+  resendOTP,
+  adminLogin,
+  createAdmin
 };
