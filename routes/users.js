@@ -1,6 +1,6 @@
 const express = require('express');
 const { body } = require('express-validator');
-const { getProfile, updateProfile, deleteProfilePicture, upload } = require('../controllers/userController');
+const { getProfile, updateProfile, deleteProfilePicture, testS3, upload } = require('../controllers/userController');
 const { protect } = require('../middlewares/auth');
 const { isUser } = require('../middlewares/roleAuth');
 
@@ -12,12 +12,7 @@ const updateProfileValidation = [
     .optional()
     .trim()
     .isLength({ min: 2, max: 50 })
-    .withMessage('Name must be between 2 and 50 characters'),
-  body('email')
-    .optional()
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Please provide a valid email')
+    .withMessage('Name must be between 2 and 50 characters')
 ];
 
 /**
@@ -116,7 +111,7 @@ router.get('/profile', protect, isUser, getProfile);
 /**
  * @swagger
  * /api/users/profile:
- *   put:
+ *   post:
  *     summary: Update user profile
  *     tags: [Users]
  *     security:
@@ -132,10 +127,6 @@ router.get('/profile', protect, isUser, getProfile);
  *                 type: string
  *                 example: "John Doe"
  *                 description: User's full name
- *               email:
- *                 type: string
- *                 example: "john@example.com"
- *                 description: User's email address
  *               profilePic:
  *                 type: string
  *                 format: binary
@@ -255,7 +246,7 @@ router.get('/profile', protect, isUser, getProfile);
  *                   type: string
  *                   example: "S3_UPLOAD_FAILED"
  */
-router.put('/profile', protect, isUser, upload.single('profilePic'), updateProfileValidation, updateProfile);
+router.post('/profile', protect, isUser, upload.single('profilePic'), updateProfileValidation, updateProfile);
 
 /**
  * @swagger
@@ -349,5 +340,60 @@ router.put('/profile', protect, isUser, upload.single('profilePic'), updateProfi
  *                   example: "USER_NOT_FOUND"
  */
 router.delete('/profile/picture', protect, isUser, deleteProfilePicture);
+
+/**
+ * @swagger
+ * /api/users/test-s3:
+ *   get:
+ *     summary: Test S3 configuration
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: S3 configuration test successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "S3 configuration test successful"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     sdkVersion:
+ *                       type: string
+ *                       example: "v3"
+ *                     bucket:
+ *                       type: string
+ *                       example: "my-bucket"
+ *                     region:
+ *                       type: string
+ *                       example: "us-east-1"
+ *                     result:
+ *                       type: object
+ *       500:
+ *         description: S3 test failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "S3 test failed: Access Denied"
+ *                 error:
+ *                   type: string
+ *                   example: "S3_TEST_FAILED"
+ */
+router.get('/test-s3', protect, isUser, testS3);
 
 module.exports = router;
