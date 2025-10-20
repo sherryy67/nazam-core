@@ -1,5 +1,73 @@
 const Service = require('../models/Service');
 const { sendSuccess, sendError, sendCreated } = require('../utils/response');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Try to use AWS SDK v3, fallback to v2 if needed
+let s3Client, PutObjectCommand, DeleteObjectCommand;
+
+try {
+  const awsS3 = require('@aws-sdk/client-s3');
+  s3Client = new awsS3.S3Client({
+    region: process.env.AWS_REGION || 'us-east-1',
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    }
+  });
+  PutObjectCommand = awsS3.PutObjectCommand;
+  DeleteObjectCommand = awsS3.DeleteObjectCommand;
+  console.log('Using AWS SDK v3 for services');
+} catch (error) {
+  console.log('AWS SDK v3 not available for services, trying v2...');
+  try {
+    const AWS = require('aws-sdk');
+    s3Client = new AWS.S3({
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      region: process.env.AWS_REGION || 'us-east-1'
+    });
+    console.log('Using AWS SDK v2 for services');
+  } catch (v2Error) {
+    console.error('AWS SDK not available for services:', v2Error);
+  }
+}
+
+// Ensure uploads directory exists
+const uploadsDir = 'uploads';
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configure multer for service image upload
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadsDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'service-' + file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only image files (JPEG, JPG, PNG, GIF, WebP) are allowed'));
+    }
+  }
+});
 
 // @desc    Create a new service
 // @route   POST /api/services
@@ -26,15 +94,84 @@ const createService = async (req, res, next) => {
     const serviceData = {
       name,
       description,
-      basePrice,
+      basePrice: parseFloat(basePrice),
       unitType,
       createdBy: req.user.id
     };
+
+    // Handle service image upload if provided
+    if (req.file) {
+      try {
+        console.log('Starting service image upload...');
+        console.log('File path:', req.file.path);
+        console.log('File size:', req.file.size);
+        console.log('File mimetype:', req.file.mimetype);
+        
+        // Upload to S3
+        const fileContent = fs.readFileSync(req.file.path);
+        const key = `service-images/${req.user.id}/${req.file.filename}`;
+        
+        const uploadParams = {
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: key,
+          Body: fileContent,
+          ContentType: req.file.mimetype
+        };
+        
+        console.log('Service upload params:', {
+          Bucket: uploadParams.Bucket,
+          Key: uploadParams.Key,
+          ContentType: uploadParams.ContentType,
+          BodySize: fileContent.length
+        });
+        
+        let result;
+        if (PutObjectCommand) {
+          // AWS SDK v3
+          const command = new PutObjectCommand(uploadParams);
+          result = await s3Client.send(command);
+        } else {
+          // AWS SDK v2
+          result = await s3Client.upload(uploadParams).promise();
+        }
+        
+        console.log('Service S3 upload result:', result);
+        
+        // Construct the S3 URL
+        const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+        serviceData.imageUri = s3Url;
+        
+        console.log('Service S3 URL generated:', s3Url);
+        
+        // Delete local file after S3 upload
+        fs.unlinkSync(req.file.path);
+        console.log('Service local file deleted successfully');
+        
+      } catch (s3Error) {
+        console.error('Service S3 upload error:', s3Error);
+        console.error('Error details:', {
+          message: s3Error.message,
+          code: s3Error.code,
+          statusCode: s3Error.statusCode,
+          requestId: s3Error.requestId
+        });
+        
+        // Clean up local file if S3 upload fails
+        if (req.file && fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+        return sendError(res, 500, `Failed to upload service image: ${s3Error.message}`, 'S3_UPLOAD_FAILED');
+      }
+    }
 
     const service = await Service.create(serviceData);
 
     sendCreated(res, 'Service created successfully', service);
   } catch (error) {
+    // Clean up local file if error occurs
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
     next(error);
   }
 };
@@ -56,5 +193,6 @@ const getServices = async (req, res, next) => {
 
 module.exports = {
   createService,
-  getServices
+  getServices,
+  upload
 };

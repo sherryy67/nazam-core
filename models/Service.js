@@ -5,6 +5,7 @@ const serviceSchema = new mongoose.Schema({
   description: { type: String },
   basePrice: { type: Number, required: true },  // price per unit/hour
   unitType: { type: String, enum: ["per_unit", "per_hour"], required: true },
+  imageUri: { type: String },                   // optional image URL for the service
   isActive: { type: Boolean, default: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" }
 }, { timestamps: true });
