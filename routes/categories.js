@@ -20,7 +20,12 @@ const createCategoryValidation = [
     .isLength({ min: 2, max: 100 })
     .withMessage('Category name must be between 2 and 100 characters')
     .matches(/^[a-zA-Z0-9\s\-&]+$/)
-    .withMessage('Category name can only contain letters, numbers, spaces, hyphens, and ampersands')
+    .withMessage('Category name can only contain letters, numbers, spaces, hyphens, and ampersands'),
+  body('description')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Description must be less than 500 characters')
 ];
 
 // Validation rules for category update
@@ -32,6 +37,11 @@ const updateCategoryValidation = [
     .withMessage('Category name must be between 2 and 100 characters')
     .matches(/^[a-zA-Z0-9\s\-&]+$/)
     .withMessage('Category name can only contain letters, numbers, spaces, hyphens, and ampersands'),
+  body('description')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Description must be less than 500 characters'),
   body('isActive')
     .optional()
     .isBoolean()
@@ -58,6 +68,9 @@ const updateCategoryValidation = [
  *               name:
  *                 type: string
  *                 example: "Home Cleaning"
+ *               description:
+ *                 type: string
+ *                 example: "Professional home cleaning services"
  *     responses:
  *       201:
  *         description: Category created successfully
@@ -73,14 +86,34 @@ const updateCategoryValidation = [
  *                 content:
  *                   type: object
  *                   properties:
- *                     _id:
- *                       type: string
- *                     name:
- *                       type: string
- *                     isActive:
+ *                     success:
  *                       type: boolean
- *                     createdBy:
+ *                     exception:
  *                       type: string
+ *                     description:
+ *                       type: string
+ *                     content:
+ *                       type: object
+ *                       properties:
+ *                         categories:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                             properties:
+ *                               _id:
+ *                                 type: string
+ *                               name:
+ *                                 type: string
+ *                               description:
+ *                                 type: string
+ *                               isActive:
+ *                                 type: boolean
+ *                               createdAt:
+ *                                 type: string
+ *                               updatedAt:
+ *                                 type: string
+ *                         total:
+ *                           type: number
  *       400:
  *         description: Bad request
  *       401:

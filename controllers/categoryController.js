@@ -6,7 +6,7 @@ const { sendSuccess, sendError, sendCreated } = require('../utils/response');
 // @access  Admin only
 const createCategory = async (req, res, next) => {
   try {
-    const { name } = req.body;
+    const { name, description } = req.body;
 
     // Validate required fields
     if (!name || name.trim().length === 0) {
@@ -24,12 +24,33 @@ const createCategory = async (req, res, next) => {
 
     const categoryData = {
       name: name.trim(),
+      description: description ? description.trim() : undefined,
       createdBy: req.user.id
     };
 
     const category = await Category.create(categoryData);
 
-    sendCreated(res, 'Category created successfully', category);
+    // Transform category to match frontend interface
+    const transformedCategory = {
+      _id: category._id,
+      name: category.name,
+      description: category.description || undefined,
+      isActive: category.isActive,
+      createdAt: category.createdAt?.toISOString(),
+      updatedAt: category.updatedAt?.toISOString()
+    };
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Category created successfully',
+      content: {
+        categories: [transformedCategory],
+        total: 1
+      }
+    };
+
+    res.status(201).json(response);
   } catch (error) {
     next(error);
   }
@@ -44,7 +65,27 @@ const getCategories = async (req, res, next) => {
       .populate('createdBy', 'name email')
       .sort({ name: 1 });
 
-    sendSuccess(res, 200, 'Categories retrieved successfully', categories);
+    // Transform categories to match frontend interface
+    const transformedCategories = categories.map(category => ({
+      _id: category._id,
+      name: category.name,
+      description: category.description || undefined,
+      isActive: category.isActive,
+      createdAt: category.createdAt?.toISOString(),
+      updatedAt: category.updatedAt?.toISOString()
+    }));
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Categories retrieved successfully',
+      content: {
+        categories: transformedCategories,
+        total: transformedCategories.length
+      }
+    };
+
+    res.status(200).json(response);
   } catch (error) {
     next(error);
   }
@@ -59,7 +100,27 @@ const getAllCategories = async (req, res, next) => {
       .populate('createdBy', 'name email')
       .sort({ name: 1 });
 
-    sendSuccess(res, 200, 'All categories retrieved successfully', categories);
+    // Transform categories to match frontend interface
+    const transformedCategories = categories.map(category => ({
+      _id: category._id,
+      name: category.name,
+      description: category.description || undefined,
+      isActive: category.isActive,
+      createdAt: category.createdAt?.toISOString(),
+      updatedAt: category.updatedAt?.toISOString()
+    }));
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'All categories retrieved successfully',
+      content: {
+        categories: transformedCategories,
+        total: transformedCategories.length
+      }
+    };
+
+    res.status(200).json(response);
   } catch (error) {
     next(error);
   }
@@ -79,7 +140,27 @@ const getCategoryById = async (req, res, next) => {
       return sendError(res, 404, 'Category not found', 'CATEGORY_NOT_FOUND');
     }
 
-    sendSuccess(res, 200, 'Category retrieved successfully', category);
+    // Transform category to match frontend interface
+    const transformedCategory = {
+      _id: category._id,
+      name: category.name,
+      description: category.description || undefined,
+      isActive: category.isActive,
+      createdAt: category.createdAt?.toISOString(),
+      updatedAt: category.updatedAt?.toISOString()
+    };
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Category retrieved successfully',
+      content: {
+        categories: [transformedCategory],
+        total: 1
+      }
+    };
+
+    res.status(200).json(response);
   } catch (error) {
     next(error);
   }
@@ -91,7 +172,7 @@ const getCategoryById = async (req, res, next) => {
 const updateCategory = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, isActive } = req.body;
+    const { name, description, isActive } = req.body;
 
     const category = await Category.findById(id);
 
@@ -113,6 +194,7 @@ const updateCategory = async (req, res, next) => {
 
     const updateData = {};
     if (name !== undefined) updateData.name = name.trim();
+    if (description !== undefined) updateData.description = description ? description.trim() : undefined;
     if (isActive !== undefined) updateData.isActive = isActive;
 
     const updatedCategory = await Category.findByIdAndUpdate(
@@ -121,7 +203,27 @@ const updateCategory = async (req, res, next) => {
       { new: true, runValidators: true }
     ).populate('createdBy', 'name email');
 
-    sendSuccess(res, 200, 'Category updated successfully', updatedCategory);
+    // Transform category to match frontend interface
+    const transformedCategory = {
+      _id: updatedCategory._id,
+      name: updatedCategory.name,
+      description: updatedCategory.description || undefined,
+      isActive: updatedCategory.isActive,
+      createdAt: updatedCategory.createdAt?.toISOString(),
+      updatedAt: updatedCategory.updatedAt?.toISOString()
+    };
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Category updated successfully',
+      content: {
+        categories: [transformedCategory],
+        total: 1
+      }
+    };
+
+    res.status(200).json(response);
   } catch (error) {
     next(error);
   }
@@ -151,7 +253,17 @@ const deleteCategory = async (req, res, next) => {
     // Soft delete by setting isActive to false
     await Category.findByIdAndUpdate(id, { isActive: false });
 
-    sendSuccess(res, 200, 'Category deleted successfully');
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Category deleted successfully',
+      content: {
+        categories: [],
+        total: 0
+      }
+    };
+
+    res.status(200).json(response);
   } catch (error) {
     next(error);
   }
