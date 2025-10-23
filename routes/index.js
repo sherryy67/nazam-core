@@ -5,6 +5,7 @@ const userRoutes = require('./users');
 const uploadRoutes = require('./upload');
 const serviceRoutes = require('./services');
 const requestRoutes = require('./requests');
+const categoryRoutes = require('./categories');
 const { sendSuccess } = require('../utils/response');
 
 const router = express.Router();
@@ -16,6 +17,7 @@ router.use('/users', userRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/services', serviceRoutes);
 router.use('/requests', requestRoutes);
+router.use('/categories', categoryRoutes);
 
 /**
  * @swagger

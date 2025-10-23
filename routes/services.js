@@ -23,7 +23,35 @@ const createServiceValidation = [
     .withMessage('Base price must be a positive number'),
   body('unitType')
     .isIn(['per_unit', 'per_hour'])
-    .withMessage('Unit type must be either "per_unit" or "per_hour"')
+    .withMessage('Unit type must be either "per_unit" or "per_hour"'),
+  body('category_id')
+    .isMongoId()
+    .withMessage('Category ID must be a valid MongoDB ObjectId'),
+  body('min_time_required')
+    .isInt({ min: 1, max: 1440 })
+    .withMessage('Minimum time required must be between 1 and 1440 minutes'),
+  body('availability')
+    .isArray({ min: 1 })
+    .withMessage('At least one availability day must be selected'),
+  body('availability.*')
+    .isIn(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'])
+    .withMessage('Invalid availability day'),
+  body('job_service_type')
+    .isIn(['OnTime', 'Scheduled', 'Quotation'])
+    .withMessage('Job service type must be OnTime, Scheduled, or Quotation'),
+  body('order_name')
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Order name must be between 2 and 100 characters'),
+  body('price_type')
+    .optional()
+    .isIn(['30min', '1hr', '1day', 'fixed'])
+    .withMessage('Price type must be 30min, 1hr, 1day, or fixed'),
+  body('subservice_type')
+    .optional()
+    .isIn(['single', 'multiple'])
+    .withMessage('Subservice type must be single or multiple')
 ];
 
 /**
@@ -44,6 +72,10 @@ const createServiceValidation = [
  *               - name
  *               - basePrice
  *               - unitType
+ *               - category_id
+ *               - min_time_required
+ *               - availability
+ *               - job_service_type
  *             properties:
  *               name:
  *                 type: string
@@ -58,6 +90,33 @@ const createServiceValidation = [
  *                 type: string
  *                 enum: [per_unit, per_hour]
  *                 example: "per_unit"
+ *               category_id:
+ *                 type: string
+ *                 example: "64a1b2c3d4e5f6789abcdef0"
+ *               min_time_required:
+ *                 type: number
+ *                 example: 120
+ *               availability:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   enum: [Sun, Mon, Tue, Wed, Thu, Fri, Sat]
+ *                 example: ["Mon", "Tue", "Wed", "Thu", "Fri"]
+ *               job_service_type:
+ *                 type: string
+ *                 enum: [OnTime, Scheduled, Quotation]
+ *                 example: "OnTime"
+ *               order_name:
+ *                 type: string
+ *                 example: "Custom Order"
+ *               price_type:
+ *                 type: string
+ *                 enum: [30min, 1hr, 1day, fixed]
+ *                 example: "1hr"
+ *               subservice_type:
+ *                 type: string
+ *                 enum: [single, multiple]
+ *                 example: "single"
  *               serviceImage:
  *                 type: string
  *                 format: binary
@@ -88,6 +147,24 @@ const createServiceValidation = [
  *                     unitType:
  *                       type: string
  *                     imageUri:
+ *                       type: string
+ *                     service_icon:
+ *                       type: string
+ *                     category_id:
+ *                       type: string
+ *                     min_time_required:
+ *                       type: number
+ *                     availability:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     job_service_type:
+ *                       type: string
+ *                     order_name:
+ *                       type: string
+ *                     price_type:
+ *                       type: string
+ *                     subservice_type:
  *                       type: string
  *                     isActive:
  *                       type: boolean
@@ -140,6 +217,29 @@ router.post('/', protect, isAdmin, upload.single('serviceImage'), createServiceV
  *                       unitType:
  *                         type: string
  *                       imageUri:
+ *                         type: string
+ *                       service_icon:
+ *                         type: string
+ *                       category_id:
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                       min_time_required:
+ *                         type: number
+ *                       availability:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                       job_service_type:
+ *                         type: string
+ *                       order_name:
+ *                         type: string
+ *                       price_type:
+ *                         type: string
+ *                       subservice_type:
  *                         type: string
  *                       isActive:
  *                         type: boolean

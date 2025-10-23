@@ -1,4 +1,5 @@
 const Service = require('../models/Service');
+const Category = require('../models/Category');
 const { sendSuccess, sendError, sendCreated } = require('../utils/response');
 const multer = require('multer');
 const path = require('path');
@@ -74,11 +75,23 @@ const upload = multer({
 // @access  Admin only
 const createService = async (req, res, next) => {
   try {
-    const { name, description, basePrice, unitType } = req.body;
+    const { 
+      name, 
+      description, 
+      basePrice, 
+      unitType,
+      category_id,
+      min_time_required,
+      availability,
+      job_service_type,
+      order_name,
+      price_type,
+      subservice_type
+    } = req.body;
 
     // Validate required fields
-    if (!name || !basePrice || !unitType) {
-      return sendError(res, 400, 'Name, basePrice, and unitType are required', 'MISSING_REQUIRED_FIELDS');
+    if (!name || !basePrice || !unitType || !category_id || !min_time_required || !availability || !job_service_type) {
+      return sendError(res, 400, 'Name, basePrice, unitType, category_id, min_time_required, availability, and job_service_type are required', 'MISSING_REQUIRED_FIELDS');
     }
 
     // Validate unitType
@@ -91,13 +104,57 @@ const createService = async (req, res, next) => {
       return sendError(res, 400, 'basePrice must be greater than 0', 'INVALID_BASE_PRICE');
     }
 
+    // Validate category exists
+    const category = await Category.findById(category_id);
+    if (!category || !category.isActive) {
+      return sendError(res, 400, 'Invalid or inactive category', 'INVALID_CATEGORY');
+    }
+
+    // Validate job_service_type
+    if (!['OnTime', 'Scheduled', 'Quotation'].includes(job_service_type)) {
+      return sendError(res, 400, 'job_service_type must be OnTime, Scheduled, or Quotation', 'INVALID_JOB_SERVICE_TYPE');
+    }
+
+    // Validate availability
+    const validDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const availabilityArray = Array.isArray(availability) ? availability : [availability];
+    if (!availabilityArray.every(day => validDays.includes(day))) {
+      return sendError(res, 400, 'Invalid availability days. Must be Sun, Mon, Tue, Wed, Thu, Fri, or Sat', 'INVALID_AVAILABILITY');
+    }
+
+    // Conditional validation based on job_service_type
+    if (job_service_type === 'Quotation') {
+      if (!order_name || order_name.trim().length === 0) {
+        return sendError(res, 400, 'Order name is required for Quotation services', 'MISSING_ORDER_NAME');
+      }
+    } else {
+      if (!price_type || !['30min', '1hr', '1day', 'fixed'].includes(price_type)) {
+        return sendError(res, 400, 'price_type is required and must be 30min, 1hr, 1day, or fixed', 'INVALID_PRICE_TYPE');
+      }
+      if (!subservice_type || !['single', 'multiple'].includes(subservice_type)) {
+        return sendError(res, 400, 'subservice_type is required and must be single or multiple', 'INVALID_SUBSERVICE_TYPE');
+      }
+    }
+
     const serviceData = {
       name,
       description,
       basePrice: parseFloat(basePrice),
       unitType,
+      category_id,
+      min_time_required: parseInt(min_time_required),
+      availability: availabilityArray,
+      job_service_type,
       createdBy: req.user.id
     };
+
+    // Add conditional fields
+    if (job_service_type === 'Quotation') {
+      serviceData.order_name = order_name.trim();
+    } else {
+      serviceData.price_type = price_type;
+      serviceData.subservice_type = subservice_type;
+    }
 
     // Handle service image upload if provided
     if (req.file) {
@@ -140,6 +197,7 @@ const createService = async (req, res, next) => {
         // Construct the S3 URL
         const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
         serviceData.imageUri = s3Url;
+        serviceData.service_icon = s3Url;
         
         console.log('Service S3 URL generated:', s3Url);
         
@@ -183,6 +241,7 @@ const getServices = async (req, res, next) => {
   try {
     const services = await Service.find({ isActive: true })
       .populate('createdBy', 'name email')
+      .populate('category_id', 'name')
       .sort({ createdAt: -1 });
 
     sendSuccess(res, 200, 'Services retrieved successfully', services);
