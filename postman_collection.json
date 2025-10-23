@@ -1,0 +1,96 @@
+{
+    "info": {
+        "name": "Nazam Core API - OTP Testing",
+        "description": "Collection for testing OTP functionality from production server",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Send OTP",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"phoneNumber\": \"+971501234567\"\n}"
+                },
+                "url": {
+                    "raw": "https://zushh.com/api/auth/send-otp",
+                    "protocol": "https",
+                    "host": [
+                        "zushh",
+                        "com"
+                    ],
+                    "path": [
+                        "api",
+                        "auth",
+                        "send-otp"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Resend OTP",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"phoneNumber\": \"+971501234567\"\n}"
+                },
+                "url": {
+                    "raw": "https://zushh.com/api/auth/resend-otp",
+                    "protocol": "https",
+                    "host": [
+                        "zushh",
+                        "com"
+                    ],
+                    "path": [
+                        "api",
+                        "auth",
+                        "resend-otp"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Verify OTP Only",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"phoneNumber\": \"+971501234567\",\n  \"otpCode\": \"123456\"\n}"
+                },
+                "url": {
+                    "raw": "https://zushh.com/api/auth/verify-otp-only",
+                    "protocol": "https",
+                    "host": [
+                        "zushh",
+                        "com"
+                    ],
+                    "path": [
+                        "api",
+                        "auth",
+                        "verify-otp-only"
+                    ]
+                }
+            }
+        }
+    ]
+}

@@ -24,12 +24,11 @@ const options = {
     servers: [
       {
         url: process.env.NODE_ENV === "production"
-          // ? `http://${process.env.HOST || process.env.EC2_PUBLIC_IP || "18.215.151.243"}:${process.env.PORT || 3001}`
-          ?'https://zushh.com/'
+          ? 'https://zushh.com/'
           : `http://localhost:${process.env.PORT || 3001}`,
         description:
           process.env.NODE_ENV === "production"
-            ? "Production server"
+            ? "Production server - Use cURL or Postman for OTP testing (Swagger UI runs from your local machine)"
             : "Development server",
       },
     ],
