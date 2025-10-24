@@ -258,8 +258,79 @@ const updateServiceRequestStatus = async (req, res, next) => {
   }
 };
 
+// @desc    Assign service request to vendor (Admin only)
+// @route   PATCH /api/requests/assign
+// @access  Admin only
+const assignRequest = async (req, res, next) => {
+  try {
+    const { requestId, vendorId } = req.body;
+
+    // Validate required fields
+    if (!requestId || !vendorId) {
+      return sendError(res, 400, 'Request ID and Vendor ID are required', 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Validate request exists
+    const serviceRequest = await ServiceRequest.findById(requestId);
+    if (!serviceRequest) {
+      return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
+    }
+
+    // Validate vendor exists (you might want to add vendor validation here)
+    // const vendor = await Vendor.findById(vendorId);
+    // if (!vendor) {
+    //   return sendError(res, 404, 'Vendor not found', 'VENDOR_NOT_FOUND');
+    // }
+
+    // Update service request with vendor assignment
+    const updatedRequest = await ServiceRequest.findByIdAndUpdate(
+      requestId,
+      { 
+        vendor: vendorId,
+        status: 'Accepted'
+      },
+      { new: true, runValidators: true }
+    ).populate('service_id', 'name description')
+     .populate('category_id', 'name description');
+
+    // Transform response
+    const transformedRequest = {
+      _id: updatedRequest._id,
+      user_name: updatedRequest.user_name,
+      user_phone: updatedRequest.user_phone,
+      user_email: updatedRequest.user_email,
+      address: updatedRequest.address,
+      service_id: updatedRequest.service_id,
+      service_name: updatedRequest.service_name,
+      category_id: updatedRequest.category_id,
+      category_name: updatedRequest.category_name,
+      request_type: updatedRequest.request_type,
+      requested_date: updatedRequest.requested_date.toISOString(),
+      message: updatedRequest.message,
+      status: updatedRequest.status,
+      vendor: updatedRequest.vendor,
+      createdAt: updatedRequest.createdAt.toISOString(),
+      updatedAt: updatedRequest.updatedAt.toISOString()
+    };
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Service request assigned successfully',
+      content: {
+        serviceRequest: transformedRequest
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   submitServiceRequest,
   getServiceRequests,
-  updateServiceRequestStatus
+  updateServiceRequestStatus,
+  assignRequest
 };

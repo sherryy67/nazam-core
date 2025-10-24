@@ -2,7 +2,7 @@ const express = require('express');
 const { protect } = require('../middlewares/auth');
 const { authorize } = require('../middlewares/roleAuth');
 const ROLES = require('../constants/roles');
-const { createRequest, getAllRequests, assignRequest, updateStatus } = require('../controllers/serviceRequestController');
+const { submitServiceRequest, getServiceRequests, updateServiceRequestStatus, assignRequest } = require('../controllers/serviceRequestController');
 
 const router = express.Router();
 
@@ -54,7 +54,7 @@ const router = express.Router();
  *       403:
  *         description: Forbidden - User access required
  */
-router.post('/', protect, authorize(ROLES.USER), createRequest);
+router.post('/', protect, authorize(ROLES.USER), submitServiceRequest);
 
 /**
  * @swagger
@@ -91,7 +91,7 @@ router.post('/', protect, authorize(ROLES.USER), createRequest);
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.get('/', protect, authorize(ROLES.ADMIN), getAllRequests);
+router.get('/', protect, authorize(ROLES.ADMIN), getServiceRequests);
 
 /**
  * @swagger
@@ -171,6 +171,6 @@ router.patch('/assign', protect, authorize(ROLES.ADMIN), assignRequest);
  *       404:
  *         description: Service request not found
  */
-router.patch('/:id/status', protect, authorize(ROLES.VENDOR), updateStatus);
+router.patch('/:id/status', protect, authorize(ROLES.VENDOR), updateServiceRequestStatus);
 
 module.exports = router;
