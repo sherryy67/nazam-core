@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
 const ROLES = require('../constants/roles');
-const { createService, getServices, getServicesPaginated, upload } = require('../controllers/serviceController');
+const { createService, getServices, getServicesPaginated, getServiceById, deleteService, upload } = require('../controllers/serviceController');
 
 const router = express.Router();
 
@@ -209,10 +209,18 @@ router.post('/', protect, isAdmin, upload.single('serviceImage'), createServiceV
  * @swagger
  * /api/services:
  *   get:
- *     summary: Get all active services
+ *     summary: Get all active services with optional category filter
  *     tags: [Services]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: category
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Category ID to filter services
+ *         example: "64a1b2c3d4e5f6789abcdef0"
  *     responses:
  *       200:
  *         description: Services retrieved successfully
@@ -226,53 +234,161 @@ router.post('/', protect, isAdmin, upload.single('serviceImage'), createServiceV
  *                 description:
  *                   type: string
  *                 content:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       _id:
- *                         type: string
- *                       name:
- *                         type: string
- *                       description:
- *                         type: string
- *                       basePrice:
- *                         type: number
- *                       unitType:
- *                         type: string
- *                       imageUri:
- *                         type: string
- *                       service_icon:
- *                         type: string
- *                       category_id:
- *                         type: object
- *                         properties:
- *                           _id:
- *                             type: string
- *                           name:
- *                             type: string
- *                       min_time_required:
- *                         type: number
- *                       availability:
- *                         type: array
- *                         items:
- *                           type: string
- *                       job_service_type:
- *                         type: string
- *                       order_name:
- *                         type: string
- *                       price_type:
- *                         type: string
- *                       subservice_type:
- *                         type: string
- *                       isActive:
- *                         type: boolean
- *                       createdBy:
- *                         type: object
+ *                   type: object
+ *                   properties:
+ *                     success:
+ *                       type: boolean
+ *                     exception:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                     content:
+ *                       type: object
+ *                       properties:
+ *                         services:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                             properties:
+ *                               _id:
+ *                                 type: string
+ *                               name:
+ *                                 type: string
+ *                               description:
+ *                                 type: string
+ *                               basePrice:
+ *                                 type: number
+ *                               unitType:
+ *                                 type: string
+ *                               imageUri:
+ *                                 type: string
+ *                               service_icon:
+ *                                 type: string
+ *                               category_id:
+ *                                 type: object
+ *                                 properties:
+ *                                   _id:
+ *                                     type: string
+ *                                   name:
+ *                                     type: string
+ *                                   description:
+ *                                     type: string
+ *                               min_time_required:
+ *                                 type: number
+ *                               availability:
+ *                                 type: array
+ *                                 items:
+ *                                   type: string
+ *                               job_service_type:
+ *                                 type: string
+ *                               order_name:
+ *                                 type: string
+ *                               price_type:
+ *                                 type: string
+ *                               subservice_type:
+ *                                 type: string
+ *                               isActive:
+ *                                 type: boolean
+ *                               createdBy:
+ *                                 type: object
+ *                               createdAt:
+ *                                 type: string
+ *                               updatedAt:
+ *                                 type: string
+ *                         total:
+ *                           type: number
  *       401:
  *         description: Unauthorized
  */
 router.get('/', protect, getServices);
+
+/**
+ * @swagger
+ * /api/services/{id}:
+ *   get:
+ *     summary: Get service by ID
+ *     tags: [Services]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Service ID
+ *         example: "64a1b2c3d4e5f6789abcdef1"
+ *     responses:
+ *       200:
+ *         description: Service retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 exception:
+ *                   type: string
+ *                 description:
+ *                   type: string
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     service:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         description:
+ *                           type: string
+ *                         basePrice:
+ *                           type: number
+ *                         unitType:
+ *                           type: string
+ *                         imageUri:
+ *                           type: string
+ *                         service_icon:
+ *                           type: string
+ *                         category_id:
+ *                           type: object
+ *                           properties:
+ *                             _id:
+ *                               type: string
+ *                             name:
+ *                               type: string
+ *                             description:
+ *                               type: string
+ *                         min_time_required:
+ *                           type: number
+ *                         availability:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                         job_service_type:
+ *                           type: string
+ *                         order_name:
+ *                           type: string
+ *                         price_type:
+ *                           type: string
+ *                         subservice_type:
+ *                           type: string
+ *                         isActive:
+ *                           type: boolean
+ *                         createdBy:
+ *                           type: object
+ *                         createdAt:
+ *                           type: string
+ *                         updatedAt:
+ *                           type: string
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Service not found
+ */
+router.get('/:id', protect, getServiceById);
 
 /**
  * @swagger
@@ -397,5 +513,72 @@ router.get('/', protect, getServices);
  *         description: Unauthorized
  */
 router.post('/paginated', protect, getServicesPaginatedValidation, getServicesPaginated);
+
+/**
+ * @swagger
+ * /api/services/{id}:
+ *   delete:
+ *     summary: Delete service (Admin only)
+ *     tags: [Services]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Service ID
+ *         example: "64a1b2c3d4e5f6789abcdef1"
+ *     responses:
+ *       200:
+ *         description: Service deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 exception:
+ *                   type: string
+ *                 description:
+ *                   type: string
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     service:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         isActive:
+ *                           type: boolean
+ *       400:
+ *         description: Bad request - Service is in use
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 exception:
+ *                   type: string
+ *                   example: "SERVICE_IN_USE"
+ *                 description:
+ *                   type: string
+ *                   example: "Cannot delete service. It is being used by 5 service request(s)"
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: Service not found
+ */
+router.delete('/:id', protect, isAdmin, deleteService);
 
 module.exports = router;

@@ -239,12 +239,59 @@ const createService = async (req, res, next) => {
 // @access  All users
 const getServices = async (req, res, next) => {
   try {
-    const services = await Service.find({ isActive: true })
+    const { category } = req.query;
+    
+    // Build query
+    const query = { isActive: true };
+    
+    // Add category filter if provided
+    if (category) {
+      // Validate category_id if provided
+      const categoryDoc = await Category.findById(category);
+      if (!categoryDoc || !categoryDoc.isActive) {
+        return sendError(res, 400, 'Invalid or inactive category', 'INVALID_CATEGORY');
+      }
+      query.category_id = category;
+    }
+
+    const services = await Service.find(query)
       .populate('createdBy', 'name email')
-      .populate('category_id', 'name')
+      .populate('category_id', 'name description')
       .sort({ createdAt: -1 });
 
-    sendSuccess(res, 200, 'Services retrieved successfully', services);
+    // Transform services to match frontend interface
+    const transformedServices = services.map(service => ({
+      _id: service._id,
+      name: service.name,
+      description: service.description,
+      basePrice: service.basePrice,
+      unitType: service.unitType,
+      imageUri: service.imageUri,
+      service_icon: service.service_icon,
+      category_id: service.category_id,
+      min_time_required: service.min_time_required,
+      availability: service.availability,
+      job_service_type: service.job_service_type,
+      order_name: service.order_name,
+      price_type: service.price_type,
+      subservice_type: service.subservice_type,
+      isActive: service.isActive,
+      createdBy: service.createdBy,
+      createdAt: service.createdAt?.toISOString(),
+      updatedAt: service.updatedAt?.toISOString()
+    }));
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Services retrieved successfully',
+      content: {
+        services: transformedServices,
+        total: transformedServices.length
+      }
+    };
+
+    res.status(200).json(response);
   } catch (error) {
     next(error);
   }
@@ -354,9 +401,106 @@ const getServicesPaginated = async (req, res, next) => {
   }
 };
 
+// @desc    Get service by ID
+// @route   GET /api/services/:id
+// @access  All users
+const getServiceById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const service = await Service.findById(id)
+      .populate('createdBy', 'name email')
+      .populate('category_id', 'name description');
+
+    if (!service || !service.isActive) {
+      return sendError(res, 404, 'Service not found', 'SERVICE_NOT_FOUND');
+    }
+
+    // Transform service to match frontend interface
+    const transformedService = {
+      _id: service._id,
+      name: service.name,
+      description: service.description,
+      basePrice: service.basePrice,
+      unitType: service.unitType,
+      imageUri: service.imageUri,
+      service_icon: service.service_icon,
+      category_id: service.category_id,
+      min_time_required: service.min_time_required,
+      availability: service.availability,
+      job_service_type: service.job_service_type,
+      order_name: service.order_name,
+      price_type: service.price_type,
+      subservice_type: service.subservice_type,
+      isActive: service.isActive,
+      createdBy: service.createdBy,
+      createdAt: service.createdAt?.toISOString(),
+      updatedAt: service.updatedAt?.toISOString()
+    };
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Service retrieved successfully',
+      content: {
+        service: transformedService
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete service (Admin only)
+// @route   DELETE /api/services/:id
+// @access  Admin only
+const deleteService = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const service = await Service.findById(id);
+
+    if (!service) {
+      return sendError(res, 404, 'Service not found', 'SERVICE_NOT_FOUND');
+    }
+
+    // Check if service is being used by any service requests
+    const ServiceRequest = require('../models/ServiceRequest');
+    const requestsUsingService = await ServiceRequest.countDocuments({ service_id: id });
+
+    if (requestsUsingService > 0) {
+      return sendError(res, 400, `Cannot delete service. It is being used by ${requestsUsingService} service request(s)`, 'SERVICE_IN_USE');
+    }
+
+    // Soft delete by setting isActive to false
+    await Service.findByIdAndUpdate(id, { isActive: false });
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Service deleted successfully',
+      content: {
+        service: {
+          _id: service._id,
+          name: service.name,
+          isActive: false
+        }
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createService,
   getServices,
   getServicesPaginated,
+  getServiceById,
+  deleteService,
   upload
 };
