@@ -250,8 +250,113 @@ const getServices = async (req, res, next) => {
   }
 };
 
+// @desc    Get services with pagination and optional category filter
+// @route   POST /api/services/paginated
+// @access  All users
+const getServicesPaginated = async (req, res, next) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 10, 
+      category_id, 
+      sortBy = 'createdAt', 
+      sortOrder = 'desc' 
+    } = req.body;
+
+    // Validate pagination parameters
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    
+    if (pageNum < 1) {
+      return sendError(res, 400, 'Page number must be greater than 0', 'INVALID_PAGE');
+    }
+    
+    if (limitNum < 1 || limitNum > 100) {
+      return sendError(res, 400, 'Limit must be between 1 and 100', 'INVALID_LIMIT');
+    }
+
+    // Build query
+    const query = { isActive: true };
+    if (category_id) {
+      // Validate category_id if provided
+      const category = await Category.findById(category_id);
+      if (!category || !category.isActive) {
+        return sendError(res, 400, 'Invalid or inactive category', 'INVALID_CATEGORY');
+      }
+      query.category_id = category_id;
+    }
+
+    // Calculate skip value
+    const skip = (pageNum - 1) * limitNum;
+
+    // Build sort object
+    const sort = {};
+    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    // Execute queries in parallel
+    const [services, totalCount] = await Promise.all([
+      Service.find(query)
+        .populate('createdBy', 'name email')
+        .populate('category_id', 'name description')
+        .sort(sort)
+        .skip(skip)
+        .limit(limitNum),
+      Service.countDocuments(query)
+    ]);
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
+
+    // Transform services to match frontend interface
+    const transformedServices = services.map(service => ({
+      _id: service._id,
+      name: service.name,
+      description: service.description,
+      basePrice: service.basePrice,
+      unitType: service.unitType,
+      imageUri: service.imageUri,
+      service_icon: service.service_icon,
+      category_id: service.category_id,
+      min_time_required: service.min_time_required,
+      availability: service.availability,
+      job_service_type: service.job_service_type,
+      order_name: service.order_name,
+      price_type: service.price_type,
+      subservice_type: service.subservice_type,
+      isActive: service.isActive,
+      createdBy: service.createdBy,
+      createdAt: service.createdAt?.toISOString(),
+      updatedAt: service.updatedAt?.toISOString()
+    }));
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Services retrieved successfully',
+      content: {
+        services: transformedServices,
+        pagination: {
+          currentPage: pageNum,
+          totalPages,
+          totalCount,
+          limit: limitNum,
+          hasNextPage,
+          hasPrevPage
+        }
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createService,
   getServices,
+  getServicesPaginated,
   upload
 };

@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
 const ROLES = require('../constants/roles');
-const { createService, getServices, upload } = require('../controllers/serviceController');
+const { createService, getServices, getServicesPaginated, upload } = require('../controllers/serviceController');
 
 const router = express.Router();
 
@@ -52,6 +52,30 @@ const createServiceValidation = [
     .optional()
     .isIn(['single', 'multiple'])
     .withMessage('Subservice type must be single or multiple')
+];
+
+// Validation rules for paginated services
+const getServicesPaginatedValidation = [
+  body('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Page must be a positive integer'),
+  body('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Limit must be between 1 and 100'),
+  body('category_id')
+    .optional()
+    .isMongoId()
+    .withMessage('Category ID must be a valid MongoDB ObjectId'),
+  body('sortBy')
+    .optional()
+    .isIn(['createdAt', 'name', 'basePrice', 'updatedAt'])
+    .withMessage('SortBy must be createdAt, name, basePrice, or updatedAt'),
+  body('sortOrder')
+    .optional()
+    .isIn(['asc', 'desc'])
+    .withMessage('SortOrder must be asc or desc')
 ];
 
 /**
@@ -249,5 +273,129 @@ router.post('/', protect, isAdmin, upload.single('serviceImage'), createServiceV
  *         description: Unauthorized
  */
 router.get('/', protect, getServices);
+
+/**
+ * @swagger
+ * /api/services/paginated:
+ *   post:
+ *     summary: Get services with pagination and optional category filter
+ *     tags: [Services]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               page:
+ *                 type: integer
+ *                 minimum: 1
+ *                 example: 1
+ *               limit:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 100
+ *                 example: 10
+ *               category_id:
+ *                 type: string
+ *                 example: "64a1b2c3d4e5f6789abcdef0"
+ *               sortBy:
+ *                 type: string
+ *                 enum: [createdAt, name, basePrice, updatedAt]
+ *                 example: "createdAt"
+ *               sortOrder:
+ *                 type: string
+ *                 enum: [asc, desc]
+ *                 example: "desc"
+ *     responses:
+ *       200:
+ *         description: Services retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 exception:
+ *                   type: string
+ *                 description:
+ *                   type: string
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     services:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                           basePrice:
+ *                             type: number
+ *                           unitType:
+ *                             type: string
+ *                           imageUri:
+ *                             type: string
+ *                           service_icon:
+ *                             type: string
+ *                           category_id:
+ *                             type: object
+ *                             properties:
+ *                               _id:
+ *                                 type: string
+ *                               name:
+ *                                 type: string
+ *                               description:
+ *                                   type: string
+ *                           min_time_required:
+ *                             type: number
+ *                           availability:
+ *                             type: array
+ *                             items:
+ *                               type: string
+ *                           job_service_type:
+ *                             type: string
+ *                           order_name:
+ *                             type: string
+ *                           price_type:
+ *                             type: string
+ *                           subservice_type:
+ *                             type: string
+ *                           isActive:
+ *                             type: boolean
+ *                           createdBy:
+ *                             type: object
+ *                           createdAt:
+ *                             type: string
+ *                           updatedAt:
+ *                             type: string
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         currentPage:
+ *                           type: integer
+ *                         totalPages:
+ *                           type: integer
+ *                         totalCount:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         hasNextPage:
+ *                           type: boolean
+ *                         hasPrevPage:
+ *                           type: boolean
+ *       400:
+ *         description: Bad request
+ *       401:
+ *         description: Unauthorized
+ */
+router.post('/paginated', protect, getServicesPaginatedValidation, getServicesPaginated);
 
 module.exports = router;
