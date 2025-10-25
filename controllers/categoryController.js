@@ -1,4 +1,5 @@
 const Category = require('../models/Category');
+const Service = require('../models/Service');
 const { sendSuccess, sendError, sendCreated } = require('../utils/response');
 
 // @desc    Create a new category
@@ -269,11 +270,96 @@ const deleteCategory = async (req, res, next) => {
   }
 };
 
+// @desc    Get categories for home page with one service each
+// @route   GET /api/categories/home
+// @access  Public
+const getHomeCategories = async (req, res, next) => {
+  try {
+    // Get all active categories
+    const categories = await Category.find({ isActive: true })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Get one service for each category
+    const categoriesWithServices = await Promise.all(
+      categories.map(async (category) => {
+        // Find one active service for this category
+        const service = await Service.findOne({
+          category_id: category._id,
+          isActive: true
+        })
+          .populate('createdBy', 'name email')
+          .sort({ createdAt: -1 });
+
+        // Transform category
+        const transformedCategory = {
+          _id: category._id,
+          name: category.name,
+          description: category.description || undefined,
+          isActive: category.isActive,
+          createdAt: category.createdAt?.toISOString(),
+          updatedAt: category.updatedAt?.toISOString()
+        };
+
+        // Transform service if it exists
+        let transformedService = null;
+        if (service) {
+          transformedService = {
+            _id: service._id,
+            name: service.name,
+            description: service.description,
+            basePrice: service.basePrice,
+            unitType: service.unitType,
+            imageUri: service.imageUri,
+            service_icon: service.service_icon,
+            category_id: service.category_id,
+            min_time_required: service.min_time_required,
+            availability: service.availability,
+            job_service_type: service.job_service_type,
+            order_name: service.order_name,
+            price_type: service.price_type,
+            subservice_type: service.subservice_type,
+            isActive: service.isActive,
+            createdBy: service.createdBy,
+            createdAt: service.createdAt?.toISOString(),
+            updatedAt: service.updatedAt?.toISOString()
+          };
+        }
+
+        return {
+          category: transformedCategory,
+          service: transformedService
+        };
+      })
+    );
+
+    // Filter out categories that don't have any services
+    const categoriesWithActiveServices = categoriesWithServices.filter(
+      item => item.service !== null
+    );
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Home categories retrieved successfully',
+      content: {
+        categories: categoriesWithActiveServices,
+        total: categoriesWithActiveServices.length
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createCategory,
   getCategories,
   getAllCategories,
   getCategoryById,
   updateCategory,
-  deleteCategory
+  deleteCategory,
+  getHomeCategories
 };

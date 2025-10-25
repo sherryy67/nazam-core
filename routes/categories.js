@@ -8,7 +8,8 @@ const {
   getAllCategories, 
   getCategoryById, 
   updateCategory, 
-  deleteCategory 
+  deleteCategory,
+  getHomeCategories
 } = require('../controllers/categoryController');
 
 const router = express.Router();
@@ -126,6 +127,101 @@ const updateCategoryValidation = [
  *         description: Server error
  */
 router.post('/', protect, isAdmin, createCategoryValidation, createCategory);
+
+/**
+ * @swagger
+ * /api/categories/home:
+ *   get:
+ *     summary: Get categories for home page with one service each
+ *     tags: [Categories]
+ *     responses:
+ *       200:
+ *         description: Home categories retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 exception:
+ *                   type: string
+ *                   example: null
+ *                 description:
+ *                   type: string
+ *                   example: "Home categories retrieved successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     categories:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           category:
+ *                             type: object
+ *                             properties:
+ *                               _id:
+ *                                 type: string
+ *                               name:
+ *                                 type: string
+ *                               description:
+ *                                 type: string
+ *                               isActive:
+ *                                 type: boolean
+ *                               createdAt:
+ *                                 type: string
+ *                               updatedAt:
+ *                                 type: string
+ *                           service:
+ *                             type: object
+ *                             properties:
+ *                               _id:
+ *                                 type: string
+ *                               name:
+ *                                 type: string
+ *                               description:
+ *                                 type: string
+ *                               basePrice:
+ *                                 type: number
+ *                               unitType:
+ *                                 type: string
+ *                               imageUri:
+ *                                 type: string
+ *                               service_icon:
+ *                                 type: string
+ *                               category_id:
+ *                                 type: string
+ *                               min_time_required:
+ *                                 type: number
+ *                               availability:
+ *                                 type: array
+ *                                 items:
+ *                                   type: string
+ *                               job_service_type:
+ *                                 type: string
+ *                               order_name:
+ *                                 type: string
+ *                               price_type:
+ *                                 type: string
+ *                               subservice_type:
+ *                                 type: string
+ *                               isActive:
+ *                                 type: boolean
+ *                               createdBy:
+ *                                 type: object
+ *                               createdAt:
+ *                                 type: string
+ *                               updatedAt:
+ *                                 type: string
+ *                     total:
+ *                       type: number
+ *                       example: 3
+ *       500:
+ *         description: Server error
+ */
+router.get('/home', getHomeCategories);
 
 /**
  * @swagger
