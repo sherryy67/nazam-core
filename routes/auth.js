@@ -15,7 +15,8 @@ const {
   verifyOTP,
   resendOTP,
   verifyOTPOnly,
-  createAccount
+  createAccount,
+  upload
 } = require('../controllers/authController');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
@@ -413,9 +414,117 @@ router.put('/updatepassword', protect, updatePasswordValidation, updatePassword)
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
- *             $ref: '#/components/schemas/VendorRegisterRequest'
+ *             type: object
+ *             required:
+ *               - firstName
+ *               - lastName
+ *               - email
+ *               - password
+ *               - type
+ *               - coveredCity
+ *               - jobService
+ *               - countryCode
+ *               - mobileNumber
+ *               - idType
+ *               - idNumber
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *                 example: "John"
+ *               lastName:
+ *                 type: string
+ *                 example: "Doe"
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "john@example.com"
+ *               password:
+ *                 type: string
+ *                 example: "password123"
+ *               type:
+ *                 type: string
+ *                 enum: [corporate, individual]
+ *                 example: "individual"
+ *               coveredCity:
+ *                 type: string
+ *                 example: "Dubai"
+ *               jobService:
+ *                 type: string
+ *                 example: "Plumber"
+ *               countryCode:
+ *                 type: string
+ *                 example: "+971"
+ *               mobileNumber:
+ *                 type: string
+ *                 example: "501234567"
+ *               idType:
+ *                 type: string
+ *                 enum: [Passport, EmiratesID, NationalID]
+ *                 example: "EmiratesID"
+ *               idNumber:
+ *                 type: string
+ *                 example: "784-1234-5678901-2"
+ *               company:
+ *                 type: string
+ *                 example: "ABC Company"
+ *               gender:
+ *                 type: string
+ *                 enum: [Male, Female, Other]
+ *                 example: "Male"
+ *               dob:
+ *                 type: string
+ *                 format: date
+ *                 example: "1990-01-01"
+ *               privilege:
+ *                 type: string
+ *                 enum: [Beginner, Experienced, Professional]
+ *                 example: "Experienced"
+ *               profilePic:
+ *                 type: string
+ *                 format: binary
+ *                 description: Profile picture file (optional)
+ *               experience:
+ *                 type: number
+ *                 example: 5
+ *               bankName:
+ *                 type: string
+ *                 example: "Emirates NBD"
+ *               branchName:
+ *                 type: string
+ *                 example: "Dubai Mall Branch"
+ *               bankAccountNumber:
+ *                 type: string
+ *                 example: "1234567890"
+ *               iban:
+ *                 type: string
+ *                 example: "AE070331234567890123456"
+ *               personalIdNumber:
+ *                 type: string
+ *                 example: "123456789"
+ *               address:
+ *                 type: string
+ *                 example: "123 Main Street, Dubai"
+ *               country:
+ *                 type: string
+ *                 example: "UAE"
+ *               city:
+ *                 type: string
+ *                 example: "Dubai"
+ *               pinCode:
+ *                 type: string
+ *                 example: "12345"
+ *               serviceAvailability:
+ *                 type: string
+ *                 enum: [Full-time, Part-time]
+ *                 example: "Full-time"
+ *               vatRegistration:
+ *                 type: boolean
+ *                 example: true
+ *               collectTax:
+ *                 type: boolean
+ *                 example: false
  *     responses:
  *       201:
  *         description: Vendor created successfully by admin
@@ -436,7 +545,7 @@ router.put('/updatepassword', protect, updatePasswordValidation, updatePassword)
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/admin/create-vendor', protect, isAdmin, vendorRegisterValidation, adminCreateVendor);
+router.post('/admin/create-vendor', protect, isAdmin, upload.single('profilePic'), vendorRegisterValidation, adminCreateVendor);
 
 /**
  * @swagger

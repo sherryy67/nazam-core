@@ -5,6 +5,44 @@ const OTP = require('../models/OTP');
 const { sendSuccess, sendError } = require('../utils/response');
 const ROLES = require('../constants/roles');
 const smsService = require('../utils/smsService');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Ensure uploads directory exists
+const uploadsDir = 'uploads';
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configure multer for vendor profile picture upload
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadsDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'vendor-profile-' + file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only image files (JPEG, JPG, PNG, GIF, WebP) are allowed'));
+    }
+  }
+});
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -264,6 +302,26 @@ const updatePassword = async (req, res, next) => {
 // @access  Private (Admin only)
 const adminCreateVendor = async (req, res, next) => {
   try {
+    // Validate required fields
+    const requiredFields = ['firstName', 'lastName', 'email', 'password', 'type', 'coveredCity', 'jobService', 'countryCode', 'mobileNumber', 'idType', 'idNumber'];
+    const missingFields = requiredFields.filter(field => !req.body[field]);
+    
+    if (missingFields.length > 0) {
+      return sendError(res, 400, `Missing required fields: ${missingFields.join(', ')}`, 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Check if vendor already exists with this email or mobile number
+    const existingVendor = await Vendor.findOne({
+      $or: [
+        { email: req.body.email },
+        { mobileNumber: req.body.mobileNumber }
+      ]
+    });
+
+    if (existingVendor) {
+      return sendError(res, 409, 'Vendor with this email or mobile number already exists', 'VENDOR_EXISTS');
+    }
+
     const vendorData = {
       type: req.body.type,
       firstName: req.body.firstName,
@@ -282,7 +340,6 @@ const adminCreateVendor = async (req, res, next) => {
       gender: req.body.gender,
       dob: req.body.dob,
       privilege: req.body.privilege,
-      profilePic: req.body.profilePic,
       experience: req.body.experience,
       bankName: req.body.bankName,
       branchName: req.body.branchName,
@@ -294,13 +351,73 @@ const adminCreateVendor = async (req, res, next) => {
       city: req.body.city,
       pinCode: req.body.pinCode,
       serviceAvailability: req.body.serviceAvailability,
-      vatRegistration: req.body.vatRegistration,
-      collectTax: req.body.collectTax
+      vatRegistration: req.body.vatRegistration === 'true',
+      collectTax: req.body.collectTax === 'true'
     };
 
+    // Handle profile picture upload to S3
+    if (req.file) {
+      try {
+        console.log('Starting vendor profile picture upload...');
+        console.log('File path:', req.file.path);
+        console.log('File size:', req.file.size);
+        console.log('File mimetype:', req.file.mimetype);
+        
+        // Upload to S3
+        const fs = require('fs');
+        const fileContent = fs.readFileSync(req.file.path);
+        const key = `vendor-profiles/${req.user.id}/${req.file.filename}`;
+        
+        // Use the existing S3 configuration from serviceController
+        const { createS3Client, uploadToS3 } = require('../config/s3');
+        
+        const s3Client = createS3Client();
+        const uploadParams = {
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: key,
+          Body: fileContent,
+          ContentType: req.file.mimetype
+        };
+        
+        console.log('Vendor profile upload params:', {
+          Bucket: uploadParams.Bucket,
+          Key: uploadParams.Key,
+          ContentType: uploadParams.ContentType,
+          BodySize: fileContent.length
+        });
+        
+        // Upload to S3 using the existing uploadToS3 function
+        const s3Url = await uploadToS3(req.file);
+        vendorData.profilePic = s3Url;
+        
+        console.log('Vendor profile S3 URL generated:', s3Url);
+        
+        // Delete local file after S3 upload
+        fs.unlinkSync(req.file.path);
+        console.log('Vendor profile local file deleted successfully');
+        
+      } catch (s3Error) {
+        console.error('Vendor profile S3 upload error:', s3Error);
+        
+        // Clean up local file if S3 upload fails
+        if (req.file && require('fs').existsSync(req.file.path)) {
+          require('fs').unlinkSync(req.file.path);
+        }
+        return sendError(res, 500, `Failed to upload profile picture: ${s3Error.message}`, 'S3_UPLOAD_FAILED');
+      }
+    }
+
     const vendor = await Vendor.create(vendorData);
-    sendSuccess(res, 201, 'Vendor created successfully by admin', { vendor });
+    
+    // Remove password from response
+    const vendorResponse = vendor.toJSON();
+    
+    sendSuccess(res, 201, 'Vendor created successfully by admin', { vendor: vendorResponse });
   } catch (error) {
+    // Clean up local file if error occurs
+    if (req.file && require('fs').existsSync(req.file.path)) {
+      require('fs').unlinkSync(req.file.path);
+    }
     next(error);
   }
 };
@@ -837,5 +954,6 @@ module.exports = {
   adminDeactivateUser,
   getAllUsers,
   verifyOTPOnly,
-  createAccount
+  createAccount,
+  upload
 };
