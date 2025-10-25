@@ -21,7 +21,7 @@ async function testHomeCategories() {
       console.log(`   - Total categories: ${response.data.content.total}`);
       
       if (response.data.content.categories.length > 0) {
-        console.log('\n📋 Categories with services:');
+        console.log('\n📋 All Categories (with sample services):');
         response.data.content.categories.forEach((item, index) => {
           console.log(`\n   Category ${index + 1}:`);
           console.log(`   - Name: ${item.category.name}`);
@@ -34,11 +34,11 @@ async function testHomeCategories() {
             console.log(`   - Service Type: ${item.service.job_service_type}`);
             console.log(`   - Service Icon: ${item.service.service_icon || 'No icon'}`);
           } else {
-            console.log(`   - Sample Service: No service available`);
+            console.log(`   - Sample Service: No service available for this category`);
           }
         });
       } else {
-        console.log('   - No categories with services found');
+        console.log('   - No categories found');
       }
     } else {
       console.log('❌ Failed to retrieve home categories');

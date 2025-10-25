@@ -333,18 +333,14 @@ const getHomeCategories = async (req, res, next) => {
       })
     );
 
-    // Filter out categories that don't have any services
-    const categoriesWithActiveServices = categoriesWithServices.filter(
-      item => item.service !== null
-    );
-
+    // Return ALL categories (with or without services)
     const response = {
       success: true,
       exception: null,
       description: 'Home categories retrieved successfully',
       content: {
-        categories: categoriesWithActiveServices,
-        total: categoriesWithActiveServices.length
+        categories: categoriesWithServices,
+        total: categoriesWithServices.length
       }
     };
 
