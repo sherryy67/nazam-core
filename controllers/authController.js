@@ -453,55 +453,107 @@ const adminCreateVendor = async (req, res, next) => {
   }
 };
 
-// @desc    Admin approve vendor
-// @route   PUT /api/auth/admin/approve-vendor/:id
+// @desc    Get all vendors (Admin only)
+// @route   GET /api/auth/admin/vendors
 // @access  Private (Admin only)
-const adminApproveVendor = async (req, res, next) => {
+const getAllVendors = async (req, res, next) => {
   try {
-    const vendor = await Vendor.findByIdAndUpdate(
-      req.params.id,
-      { approved: true },
-      { new: true }
-    );
-
-    if (!vendor) {
-      return sendError(res, 404, 'Vendor not found', 'VENDOR_NOT_FOUND');
+    const { page = 1, limit = 10, search, type, coveredCity } = req.query;
+    
+    // Build query
+    const query = {};
+    
+    // Add search filter
+    if (search) {
+      query.$or = [
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { mobileNumber: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    // Add type filter
+    if (type) {
+      query.type = type;
+    }
+    
+    // Add coveredCity filter
+    if (coveredCity) {
+      query.coveredCity = { $regex: coveredCity, $options: 'i' };
     }
 
-    sendSuccess(res, 200, 'Vendor approved successfully', { vendor });
-  } catch (error) {
-    next(error);
-  }
-};
+    // Calculate pagination
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
 
-// @desc    Admin reject vendor
-// @route   PUT /api/auth/admin/reject-vendor/:id
-// @access  Private (Admin only)
-const adminRejectVendor = async (req, res, next) => {
-  try {
-    const vendor = await Vendor.findByIdAndUpdate(
-      req.params.id,
-      { approved: false },
-      { new: true }
-    );
+    // Execute queries in parallel
+    const [vendors, totalCount] = await Promise.all([
+      Vendor.find(query)
+        .populate('serviceId', 'name description basePrice unitType')
+        .select('-password') // Exclude password
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
+      Vendor.countDocuments(query)
+    ]);
 
-    if (!vendor) {
-      return sendError(res, 404, 'Vendor not found', 'VENDOR_NOT_FOUND');
-    }
+    // Transform vendors to match frontend interface
+    const transformedVendors = vendors.map(vendor => ({
+      _id: vendor._id,
+      type: vendor.type,
+      company: vendor.company,
+      firstName: vendor.firstName,
+      lastName: vendor.lastName,
+      coveredCity: vendor.coveredCity,
+      serviceId: vendor.serviceId,
+      gender: vendor.gender,
+      dob: vendor.dob,
+      privilege: vendor.privilege,
+      profilePic: vendor.profilePic,
+      countryCode: vendor.countryCode,
+      mobileNumber: vendor.mobileNumber,
+      email: vendor.email,
+      experience: vendor.experience,
+      bankName: vendor.bankName,
+      branchName: vendor.branchName,
+      bankAccountNumber: vendor.bankAccountNumber,
+      iban: vendor.iban,
+      idType: vendor.idType,
+      idNumber: vendor.idNumber,
+      personalIdNumber: vendor.personalIdNumber,
+      address: vendor.address,
+      country: vendor.country,
+      city: vendor.city,
+      pinCode: vendor.pinCode,
+      serviceAvailability: vendor.serviceAvailability,
+      vatRegistration: vendor.vatRegistration,
+      collectTax: vendor.collectTax,
+      approved: vendor.approved,
+      role: vendor.role,
+      createdAt: vendor.createdAt?.toISOString(),
+      updatedAt: vendor.updatedAt?.toISOString()
+    }));
 
-    sendSuccess(res, 200, 'Vendor rejected successfully', { vendor });
-  } catch (error) {
-    next(error);
-  }
-};
+    const response = {
+      success: true,
+      exception: null,
+      description: 'All vendors retrieved successfully',
+      content: {
+        vendors: transformedVendors,
+        pagination: {
+          currentPage: pageNum,
+          totalPages: Math.ceil(totalCount / limitNum),
+          totalVendors: totalCount,
+          vendorsPerPage: limitNum,
+          hasNextPage: pageNum < Math.ceil(totalCount / limitNum),
+          hasPrevPage: pageNum > 1
+        }
+      }
+    };
 
-// @desc    Get all pending vendors
-// @route   GET /api/auth/admin/pending-vendors
-// @access  Private (Admin only)
-const getPendingVendors = async (req, res, next) => {
-  try {
-    const vendors = await Vendor.find({ approved: false });
-    sendSuccess(res, 200, 'Pending vendors retrieved successfully', { vendors });
+    res.status(200).json(response);
   } catch (error) {
     next(error);
   }
@@ -973,9 +1025,7 @@ module.exports = {
   updateDetails,
   updatePassword,
   adminCreateVendor,
-  adminApproveVendor,
-  adminRejectVendor,
-  getPendingVendors,
+  getAllVendors,
   sendOTP,
   verifyOTP,
   resendOTP,

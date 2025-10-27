@@ -8,9 +8,7 @@ const {
   updateDetails,
   updatePassword,
   adminCreateVendor,
-  adminApproveVendor,
-  adminRejectVendor,
-  getPendingVendors,
+  getAllVendors,
   sendOTP,
   verifyOTP,
   resendOTP,
@@ -549,89 +547,44 @@ router.post('/admin/create-vendor', protect, isAdmin, upload.single('profilePic'
 
 /**
  * @swagger
- * /api/auth/admin/approve-vendor/{id}:
- *   put:
- *     summary: Admin approve vendor
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Vendor ID
- *     responses:
- *       200:
- *         description: Vendor approved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   $ref: '#/components/schemas/Vendor'
- *       401:
- *         description: Unauthorized - admin access required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.put('/admin/approve-vendor/:id', protect, isAdmin, adminApproveVendor);
-
-/**
- * @swagger
- * /api/auth/admin/reject-vendor/{id}:
- *   put:
- *     summary: Admin reject vendor
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Vendor ID
- *     responses:
- *       200:
- *         description: Vendor rejected successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   $ref: '#/components/schemas/Vendor'
- *       401:
- *         description: Unauthorized - admin access required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- */
-router.put('/admin/reject-vendor/:id', protect, isAdmin, adminRejectVendor);
-
-/**
- * @swagger
- * /api/auth/admin/pending-vendors:
+ * /api/auth/admin/vendors:
  *   get:
- *     summary: Get all pending vendors
+ *     summary: Get all vendors (Admin only)
  *     tags: [Authentication]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of vendors per page
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by name, email, or mobile number
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [corporate, individual]
+ *         description: Filter by vendor type
+ *       - in: query
+ *         name: coveredCity
+ *         schema:
+ *           type: string
+ *         description: Filter by covered city
  *     responses:
  *       200:
- *         description: Pending vendors retrieved successfully
+ *         description: All vendors retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -640,21 +593,79 @@ router.put('/admin/reject-vendor/:id', protect, isAdmin, adminRejectVendor);
  *                 success:
  *                   type: boolean
  *                   example: true
- *                 data:
+ *                 exception:
+ *                   type: string
+ *                   example: null
+ *                 description:
+ *                   type: string
+ *                   example: "All vendors retrieved successfully"
+ *                 content:
  *                   type: object
  *                   properties:
  *                     vendors:
  *                       type: array
  *                       items:
- *                         $ref: '#/components/schemas/Vendor'
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: string
+ *                           type:
+ *                             type: string
+ *                             enum: [corporate, individual]
+ *                           company:
+ *                             type: string
+ *                           firstName:
+ *                             type: string
+ *                           lastName:
+ *                             type: string
+ *                           coveredCity:
+ *                             type: string
+ *                           serviceId:
+ *                             type: object
+ *                             properties:
+ *                               _id:
+ *                                 type: string
+ *                               name:
+ *                                 type: string
+ *                               description:
+ *                                 type: string
+ *                               basePrice:
+ *                                 type: number
+ *                               unitType:
+ *                                 type: string
+ *                           email:
+ *                             type: string
+ *                           mobileNumber:
+ *                             type: string
+ *                           profilePic:
+ *                             type: string
+ *                           approved:
+ *                             type: boolean
+ *                           createdAt:
+ *                             type: string
+ *                           updatedAt:
+ *                             type: string
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         currentPage:
+ *                           type: number
+ *                         totalPages:
+ *                           type: number
+ *                         totalVendors:
+ *                           type: number
+ *                         vendorsPerPage:
+ *                           type: number
+ *                         hasNextPage:
+ *                           type: boolean
+ *                         hasPrevPage:
+ *                           type: boolean
  *       401:
  *         description: Unauthorized - admin access required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
  */
-router.get('/admin/pending-vendors', protect, isAdmin, getPendingVendors);
+router.get('/admin/vendors', protect, isAdmin, getAllVendors);
 
 /**
  * @swagger
