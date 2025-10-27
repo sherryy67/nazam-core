@@ -83,9 +83,9 @@ const vendorRegisterValidation = [
   body('coveredCity')
     .notEmpty()
     .withMessage('Covered city is required'),
-  body('jobService')
-    .notEmpty()
-    .withMessage('Job service is required'),
+  body('serviceId')
+    .isMongoId()
+    .withMessage('Service ID must be a valid MongoDB ObjectId'),
   body('countryCode')
     .notEmpty()
     .withMessage('Country code is required'),
@@ -424,7 +424,7 @@ router.put('/updatepassword', protect, updatePasswordValidation, updatePassword)
  *               - password
  *               - type
  *               - coveredCity
- *               - jobService
+ *               - serviceId
  *               - countryCode
  *               - mobileNumber
  *               - idType
@@ -450,9 +450,9 @@ router.put('/updatepassword', protect, updatePasswordValidation, updatePassword)
  *               coveredCity:
  *                 type: string
  *                 example: "Dubai"
- *               jobService:
+ *               serviceId:
  *                 type: string
- *                 example: "Plumber"
+ *                 example: "64a1b2c3d4e5f6789abcdef1"
  *               countryCode:
  *                 type: string
  *                 example: "+971"

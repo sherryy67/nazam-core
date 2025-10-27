@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
 const ROLES = require('../constants/roles');
-const { createService, getServices, getServicesPaginated, getServiceById, deleteService, upload } = require('../controllers/serviceController');
+const { createService, getServices, getServicesPaginated, getServiceById, deleteService, getAllActiveServices, upload } = require('../controllers/serviceController');
 
 const router = express.Router();
 
@@ -301,6 +301,84 @@ router.post('/', protect, isAdmin, upload.single('serviceImage'), createServiceV
  *         description: Unauthorized
  */
 router.get('/', protect, getServices);
+
+/**
+ * @swagger
+ * /api/services/active:
+ *   get:
+ *     summary: Get all active services (Public endpoint)
+ *     tags: [Services]
+ *     responses:
+ *       200:
+ *         description: All active services retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 exception:
+ *                   type: string
+ *                   example: null
+ *                 description:
+ *                   type: string
+ *                   example: "All active services retrieved successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     services:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                           basePrice:
+ *                             type: number
+ *                           unitType:
+ *                             type: string
+ *                             enum: [per_unit, per_hour]
+ *                           imageUri:
+ *                             type: string
+ *                           service_icon:
+ *                             type: string
+ *                           category_id:
+ *                             type: object
+ *                           min_time_required:
+ *                             type: number
+ *                           availability:
+ *                             type: array
+ *                             items:
+ *                               type: string
+ *                           job_service_type:
+ *                             type: string
+ *                           order_name:
+ *                             type: string
+ *                           price_type:
+ *                             type: string
+ *                           subservice_type:
+ *                             type: string
+ *                           isActive:
+ *                             type: boolean
+ *                           createdBy:
+ *                             type: object
+ *                           createdAt:
+ *                             type: string
+ *                           updatedAt:
+ *                             type: string
+ *                     total:
+ *                       type: number
+ *                       example: 15
+ *       500:
+ *         description: Server error
+ */
+router.get('/active', getAllActiveServices);
 
 /**
  * @swagger

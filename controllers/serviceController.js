@@ -496,11 +496,60 @@ const deleteService = async (req, res, next) => {
   }
 };
 
+// @desc    Get all active services (Public endpoint)
+// @route   GET /api/services/active
+// @access  Public
+const getAllActiveServices = async (req, res, next) => {
+  try {
+    const services = await Service.find({ isActive: true })
+      .populate('createdBy', 'name email')
+      .populate('category_id', 'name description')
+      .sort({ createdAt: -1 });
+
+    // Transform services to match frontend interface
+    const transformedServices = services.map(service => ({
+      _id: service._id,
+      name: service.name,
+      description: service.description,
+      basePrice: service.basePrice,
+      unitType: service.unitType,
+      imageUri: service.imageUri,
+      service_icon: service.service_icon,
+      category_id: service.category_id,
+      min_time_required: service.min_time_required,
+      availability: service.availability,
+      job_service_type: service.job_service_type,
+      order_name: service.order_name,
+      price_type: service.price_type,
+      subservice_type: service.subservice_type,
+      isActive: service.isActive,
+      createdBy: service.createdBy,
+      createdAt: service.createdAt?.toISOString(),
+      updatedAt: service.updatedAt?.toISOString()
+    }));
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'All active services retrieved successfully',
+      content: {
+        services: transformedServices,
+        total: transformedServices.length
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createService,
   getServices,
   getServicesPaginated,
   getServiceById,
   deleteService,
+  getAllActiveServices,
   upload
 };

@@ -9,7 +9,7 @@ const vendorSchema = new mongoose.Schema({
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
   coveredCity: { type: String, required: true },
-  jobService: { type: String, required: true }, // plumber, electrician etc.
+  serviceId: { type: mongoose.Schema.Types.ObjectId, ref: "Service", required: true }, // reference to Service model
   gender: { type: String, enum: ["Male", "Female", "Other"] },
   dob: { type: Date },
   privilege: { type: String, enum: ["Beginner", "Experienced", "Professional"], default: "Beginner" },
