@@ -360,17 +360,80 @@ const adminCreateVendor = async (req, res, next) => {
         console.log('File mimetype:', req.file.mimetype);
         console.log('File originalname:', req.file.originalname);
         
-        // Use the existing S3 configuration
-        const { uploadToS3 } = require('../config/s3');
+        // Upload to S3 using the same approach as service controller
+        const fileContent = req.file.buffer; // Using buffer from memory storage
+        const key = `vendor-profiles/${req.user.id}/${Date.now()}-${req.file.originalname}`;
         
-        // Upload to S3 using the existing uploadToS3 function
-        const s3Url = await uploadToS3(req.file);
+        // Try to use AWS SDK v3, fallback to v2 if needed
+        let s3Client, PutObjectCommand;
+        
+        try {
+          const awsS3 = require('@aws-sdk/client-s3');
+          s3Client = new awsS3.S3Client({
+            region: process.env.AWS_REGION || 'us-east-1',
+            credentials: {
+              accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+              secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+            }
+          });
+          PutObjectCommand = awsS3.PutObjectCommand;
+          console.log('Using AWS SDK v3 for vendor profile upload');
+        } catch (error) {
+          console.log('AWS SDK v3 not available for vendor profile upload, trying v2...');
+          try {
+            const AWS = require('aws-sdk');
+            s3Client = new AWS.S3({
+              accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+              secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+              region: process.env.AWS_REGION || 'us-east-1'
+            });
+            console.log('Using AWS SDK v2 for vendor profile upload');
+          } catch (v2Error) {
+            console.error('AWS SDK not available for vendor profile upload:', v2Error);
+            throw new Error('AWS SDK not available');
+          }
+        }
+        
+        const uploadParams = {
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: key,
+          Body: fileContent,
+          ContentType: req.file.mimetype
+        };
+        
+        console.log('Vendor profile upload params:', {
+          Bucket: uploadParams.Bucket,
+          Key: uploadParams.Key,
+          ContentType: uploadParams.ContentType,
+          BodySize: fileContent.length
+        });
+        
+        let result;
+        if (PutObjectCommand) {
+          // AWS SDK v3
+          const command = new PutObjectCommand(uploadParams);
+          result = await s3Client.send(command);
+        } else {
+          // AWS SDK v2
+          result = await s3Client.upload(uploadParams).promise();
+        }
+        
+        console.log('Vendor profile S3 upload result:', result);
+        
+        // Construct the S3 URL
+        const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
         vendorData.profilePic = s3Url;
         
         console.log('Vendor profile S3 URL generated:', s3Url);
         
       } catch (s3Error) {
-        console.error('S3 upload error:', s3Error);
+        console.error('Vendor profile S3 upload error:', s3Error);
+        console.error('Error details:', {
+          message: s3Error.message,
+          code: s3Error.code,
+          statusCode: s3Error.statusCode,
+          requestId: s3Error.requestId
+        });
         return sendError(res, 500, `Failed to upload profile picture: ${s3Error.message}`, 'S3_UPLOAD_FAILED');
       }
     }
