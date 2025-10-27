@@ -42,6 +42,9 @@ const submitServiceRequestValidation = [
   body('requested_date')
     .isISO8601()
     .withMessage('Requested date must be a valid ISO 8601 date'),
+  body('number_of_units')
+    .isInt({ min: 1 })
+    .withMessage('Number of units must be a positive integer'),
   body('message')
     .optional()
     .trim()
@@ -106,6 +109,10 @@ const submitServiceRequestValidation = [
  *                 type: string
  *                 format: date-time
  *                 example: "2024-01-15T10:00:00.000Z"
+ *               number_of_units:
+ *                 type: integer
+ *                 minimum: 1
+ *                 example: 2
  *               message:
  *                 type: string
  *                 example: "Need urgent plumbing service for blocked drain"
@@ -158,6 +165,15 @@ const submitServiceRequestValidation = [
  *                           type: string
  *                         status:
  *                           type: string
+ *                         unit_type:
+ *                           type: string
+ *                           enum: [per_unit, per_hour]
+ *                         unit_price:
+ *                           type: number
+ *                         number_of_units:
+ *                           type: integer
+ *                         total_price:
+ *                           type: number
  *                         createdAt:
  *                           type: string
  *                         updatedAt:

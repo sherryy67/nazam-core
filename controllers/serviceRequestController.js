@@ -19,14 +19,15 @@ const submitServiceRequest = async (req, res, next) => {
       category_name,
       request_type,
       requested_date,
-      message
+      message,
+      number_of_units
     } = req.body;
 
     // Validate required fields
     const requiredFields = [
       'user_name', 'user_phone', 'user_email', 'address',
       'service_id', 'service_name', 'category_id', 'category_name',
-      'request_type', 'requested_date'
+      'request_type', 'requested_date', 'number_of_units'
     ];
 
     const missingFields = requiredFields.filter(field => !req.body[field]);
@@ -51,11 +52,30 @@ const submitServiceRequest = async (req, res, next) => {
       return sendError(res, 400, 'Invalid request_type. Must be Quotation, OnTime, or Scheduled', 'INVALID_REQUEST_TYPE');
     }
 
+    // Validate number_of_units
+    if (!number_of_units || number_of_units <= 0 || !Number.isInteger(Number(number_of_units))) {
+      return sendError(res, 400, 'Number of units must be a positive integer', 'INVALID_NUMBER_OF_UNITS');
+    }
+
     // Validate service exists and is active
     const service = await Service.findById(service_id);
     if (!service || !service.isActive) {
       return sendError(res, 400, 'Invalid or inactive service', 'INVALID_SERVICE');
     }
+
+    // Calculate pricing based on service unit type
+    const unitType = service.unitType; // This should be 'per_unit' or 'per_hour'
+    const basePrice = service.basePrice;
+    const numberOfUnits = Number(number_of_units);
+    
+    // Validate unit type
+    if (!['per_unit', 'per_hour'].includes(unitType)) {
+      return sendError(res, 400, 'Service unit type must be per_unit or per_hour', 'INVALID_UNIT_TYPE');
+    }
+
+    // Calculate total price
+    const unitPrice = basePrice;
+    const totalPrice = unitPrice * numberOfUnits;
 
     // Validate category exists and is active
     const category = await Category.findById(category_id);
@@ -83,7 +103,11 @@ const submitServiceRequest = async (req, res, next) => {
       request_type,
       requested_date: requestedDate,
       message: message ? message.trim() : undefined,
-      status: 'Pending'
+      status: 'Pending',
+      unit_type: unitType,
+      unit_price: unitPrice,
+      number_of_units: numberOfUnits,
+      total_price: totalPrice
     };
 
     // Create the service request
@@ -104,6 +128,10 @@ const submitServiceRequest = async (req, res, next) => {
       requested_date: serviceRequest.requested_date.toISOString(),
       message: serviceRequest.message,
       status: serviceRequest.status,
+      unit_type: serviceRequest.unit_type,
+      unit_price: serviceRequest.unit_price,
+      number_of_units: serviceRequest.number_of_units,
+      total_price: serviceRequest.total_price,
       createdAt: serviceRequest.createdAt.toISOString(),
       updatedAt: serviceRequest.updatedAt.toISOString()
     };
@@ -145,8 +173,8 @@ const getServiceRequests = async (req, res, next) => {
       ServiceRequest.find(query)
         .populate('service_id', 'name description basePrice')
         .populate('category_id', 'name description')
-        .sort({ createdAt: -1 })
-        .skip(skip)
+      .sort({ createdAt: -1 })
+      .skip(skip)
         .limit(limitNum),
       ServiceRequest.countDocuments(query)
     ]);
@@ -167,6 +195,10 @@ const getServiceRequests = async (req, res, next) => {
       message: request.message,
       status: request.status,
       vendor: request.vendor,
+      unit_type: request.unit_type,
+      unit_price: request.unit_price,
+      number_of_units: request.number_of_units,
+      total_price: request.total_price,
       createdAt: request.createdAt.toISOString(),
       updatedAt: request.updatedAt.toISOString()
     }));
@@ -177,7 +209,7 @@ const getServiceRequests = async (req, res, next) => {
       description: 'Service requests retrieved successfully',
       content: {
         serviceRequests: transformedRequests,
-        pagination: {
+      pagination: {
           currentPage: pageNum,
           totalPages: Math.ceil(totalCount / limitNum),
           totalCount,

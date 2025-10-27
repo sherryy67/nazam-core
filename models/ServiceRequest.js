@@ -21,6 +21,16 @@ const serviceRequestSchema = new mongoose.Schema({
   requested_date: { type: Date, required: true },
   message: { type: String, trim: true },
   
+  // Pricing information
+  unit_type: { 
+    type: String, 
+    enum: ["per_unit", "per_hour"], 
+    required: true 
+  },
+  unit_price: { type: Number, required: true }, // Price per unit or per hour
+  number_of_units: { type: Number, required: true }, // Number of units or hours
+  total_price: { type: Number, required: true }, // Calculated total price
+  
   // Status and assignment
   status: { 
     type: String, 
