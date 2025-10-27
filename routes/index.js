@@ -7,6 +7,7 @@ const serviceRoutes = require('./services');
 const requestRoutes = require('./requests');
 const categoryRoutes = require('./categories');
 const serviceRequestRoutes = require('./serviceRequests');
+const submitServiceRequestRoutes = require('./submitServiceRequest');
 const { sendSuccess } = require('../utils/response');
 
 const router = express.Router();
@@ -19,7 +20,8 @@ router.use('/upload', uploadRoutes);
 router.use('/services', serviceRoutes);
 router.use('/requests', requestRoutes);
 router.use('/categories', categoryRoutes);
-router.use('/api', serviceRequestRoutes);
+router.use('/service-requests', serviceRequestRoutes);
+router.use('/submit-service-requests', submitServiceRequestRoutes);
 
 /**
  * @swagger
