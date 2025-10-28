@@ -523,6 +523,55 @@ router.put('/updatepassword', protect, updatePasswordValidation, updatePassword)
  *               collectTax:
  *                 type: boolean
  *                 example: false
+ *               availabilitySchedule:
+ *                 type: array
+ *                 description: Vendor's weekly availability schedule
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     dayOfWeek:
+ *                       type: string
+ *                       enum: [Sun, Mon, Tue, Wed, Thu, Fri, Sat]
+ *                       example: "Mon"
+ *                     startTime:
+ *                       type: string
+ *                       pattern: "^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
+ *                       example: "09:00"
+ *                       description: Start time in HH:MM format (24-hour)
+ *                     endTime:
+ *                       type: string
+ *                       pattern: "^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
+ *                       example: "18:00"
+ *                       description: End time in HH:MM format (24-hour)
+ *                 example:
+ *                   - dayOfWeek: "Mon"
+ *                     startTime: "09:00"
+ *                     endTime: "18:00"
+ *                   - dayOfWeek: "Tue"
+ *                     startTime: "09:00"
+ *                     endTime: "18:00"
+ *                   - dayOfWeek: "Wed"
+ *                     startTime: "09:00"
+ *                     endTime: "18:00"
+ *                   - dayOfWeek: "Thu"
+ *                     startTime: "09:00"
+ *                     endTime: "18:00"
+ *                   - dayOfWeek: "Fri"
+ *                     startTime: "09:00"
+ *                     endTime: "18:00"
+ *               unavailableDates:
+ *                 type: array
+ *                 description: Specific dates when vendor is unavailable
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     date:
+ *                       type: string
+ *                       format: date
+ *                       example: "2024-12-25"
+ *                     reason:
+ *                       type: string
+ *                       example: "Holiday"
  *     responses:
  *       201:
  *         description: Vendor created successfully by admin

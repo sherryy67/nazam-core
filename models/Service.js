@@ -58,7 +58,41 @@ const serviceSchema = new mongoose.Schema({
   },
   
   isActive: { type: Boolean, default: true },
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" }
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
+  
+  // Service assignment and scheduling fields
+  vendorId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: "Vendor",
+    default: null 
+  },
+  scheduledDate: { 
+    type: Date,
+    required: function() {
+      return this.job_service_type === "Scheduled";
+    }
+  },
+  scheduledTime: { 
+    type: String, // Format: "HH:MM" (24-hour format)
+    required: function() {
+      return this.job_service_type === "Scheduled";
+    },
+    validate: {
+      validator: function(v) {
+        if (!v) return true; // Allow empty if not required
+        return /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(v);
+      },
+      message: 'Time must be in HH:MM format (24-hour)'
+    }
+  },
+  isAssigned: { 
+    type: Boolean, 
+    default: false 
+  },
+  assignedAt: { 
+    type: Date 
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model("Service", serviceSchema);
+

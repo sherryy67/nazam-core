@@ -1,0 +1,53 @@
+{
+    "firstName": "John",
+    "lastName": "Doe",
+    "email": "john.doe@example.com",
+    "password": "password123",
+    "type": "individual",
+    "coveredCity": "Dubai",
+    "serviceId": "68fcdf1652f7d1dd9d2b9929",
+    "countryCode": "+971",
+    "mobileNumber": "501234567",
+    "idType": "EmiratesID",
+    "idNumber": "784-1234-5678901-2",
+    "company": "ABC Company",
+    "gender": "Male",
+    "privilege": "Experienced",
+    "experience": 5,
+    "serviceAvailability": "Full-time",
+    "vatRegistration": true,
+    "collectTax": false,
+    "availabilitySchedule": [
+        {
+            "dayOfWeek": "Mon",
+            "startTime": "09:00",
+            "endTime": "18:00"
+        },
+        {
+            "dayOfWeek": "Tue",
+            "startTime": "09:00",
+            "endTime": "18:00"
+        },
+        {
+            "dayOfWeek": "Wed",
+            "startTime": "09:00",
+            "endTime": "18:00"
+        },
+        {
+            "dayOfWeek": "Thu",
+            "startTime": "09:00",
+            "endTime": "18:00"
+        },
+        {
+            "dayOfWeek": "Fri",
+            "startTime": "09:00",
+            "endTime": "18:00"
+        }
+    ],
+    "unavailableDates": [
+        {
+            "date": "2024-12-25",
+            "reason": "Holiday"
+        }
+    ]
+}

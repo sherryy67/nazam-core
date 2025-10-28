@@ -9,7 +9,11 @@ const vendorSchema = new mongoose.Schema({
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
   coveredCity: { type: String, required: true },
-  serviceId: { type: mongoose.Schema.Types.ObjectId, ref: "Service", required: true }, // reference to Service model
+  serviceId: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: "Service",
+    required: true 
+  }, // primary service the vendor handles
   gender: { type: String, enum: ["Male", "Female", "Other"] },
   dob: { type: Date },
   privilege: { type: String, enum: ["Beginner", "Experienced", "Professional"], default: "Beginner" },
@@ -34,7 +38,40 @@ const vendorSchema = new mongoose.Schema({
   vatRegistration: { type: Boolean, default: false },
   collectTax: { type: Boolean, default: false },
   approved: { type: Boolean, default: false }, // must be approved by admin
-  role: { type: Number, enum: [ROLES.VENDOR], default: ROLES.VENDOR }
+  role: { type: Number, enum: [ROLES.VENDOR], default: ROLES.VENDOR },
+  
+  // Availability tracking for service assignment
+  availabilitySchedule: [{
+    dayOfWeek: { 
+      type: String, 
+      enum: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+      required: true 
+    },
+    startTime: { 
+      type: String, 
+      required: true,
+      validate: {
+        validator: function(v) {
+          return /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(v);
+      },
+        message: 'Start time must be in HH:MM format (24-hour)'
+      }
+    },
+    endTime: { 
+      type: String, 
+      required: true,
+      validate: {
+        validator: function(v) {
+          return /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(v);
+        },
+        message: 'End time must be in HH:MM format (24-hour)'
+      }
+    }
+  }],
+  unavailableDates: [{
+    date: { type: Date, required: true },
+    reason: { type: String }
+  }]
 }, { timestamps: true });
 
 // Hash password before saving
@@ -78,3 +115,5 @@ vendorSchema.methods.toJSON = function() {
 };
 
 module.exports = mongoose.model("Vendor", vendorSchema);
+
+

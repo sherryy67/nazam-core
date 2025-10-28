@@ -319,6 +319,75 @@ const adminCreateVendor = async (req, res, next) => {
       return sendError(res, 400, 'Invalid or inactive service', 'INVALID_SERVICE');
     }
 
+    // Validate availabilitySchedule if provided
+    if (req.body.availabilitySchedule) {
+      const validDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const timePattern = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      
+      let availabilitySchedule = req.body.availabilitySchedule;
+      
+      // Try to parse if it's a JSON string
+      if (typeof availabilitySchedule === 'string') {
+        try {
+          availabilitySchedule = JSON.parse(availabilitySchedule);
+        } catch (error) {
+          return sendError(res, 400, 'availabilitySchedule must be a valid JSON array', 'INVALID_AVAILABILITY_SCHEDULE');
+        }
+      }
+      
+      if (!Array.isArray(availabilitySchedule)) {
+        return sendError(res, 400, 'availabilitySchedule must be an array. Received: ' + typeof availabilitySchedule, 'INVALID_AVAILABILITY_SCHEDULE');
+      }
+      
+      for (const schedule of availabilitySchedule) {
+        if (!schedule || typeof schedule !== 'object') {
+          return sendError(res, 400, 'Each availability schedule item must be an object', 'INVALID_AVAILABILITY_SCHEDULE');
+        }
+        if (!schedule.dayOfWeek || !validDays.includes(schedule.dayOfWeek)) {
+          return sendError(res, 400, `Invalid dayOfWeek in availabilitySchedule. Must be one of: ${validDays.join(', ')}`, 'INVALID_DAY_OF_WEEK');
+        }
+        if (!schedule.startTime || !timePattern.test(schedule.startTime)) {
+          return sendError(res, 400, 'Invalid startTime format in availabilitySchedule (use HH:MM format like 09:00)', 'INVALID_START_TIME');
+        }
+        if (!schedule.endTime || !timePattern.test(schedule.endTime)) {
+          return sendError(res, 400, 'Invalid endTime format in availabilitySchedule (use HH:MM format like 18:00)', 'INVALID_END_TIME');
+        }
+      }
+      
+      // Update req.body with parsed data
+      req.body.availabilitySchedule = availabilitySchedule;
+    }
+
+    // Validate unavailableDates if provided
+    if (req.body.unavailableDates) {
+      let unavailableDates = req.body.unavailableDates;
+      
+      // Try to parse if it's a JSON string
+      if (typeof unavailableDates === 'string') {
+        try {
+          unavailableDates = JSON.parse(unavailableDates);
+        } catch (error) {
+          return sendError(res, 400, 'unavailableDates must be a valid JSON array', 'INVALID_UNAVAILABLE_DATES');
+        }
+      }
+      
+      if (!Array.isArray(unavailableDates)) {
+        return sendError(res, 400, 'unavailableDates must be an array. Received: ' + typeof unavailableDates, 'INVALID_UNAVAILABLE_DATES');
+      }
+      
+      for (const unavailable of unavailableDates) {
+        if (!unavailable || typeof unavailable !== 'object') {
+          return sendError(res, 400, 'Each unavailable date item must be an object', 'INVALID_UNAVAILABLE_DATES');
+        }
+        if (!unavailable.date || isNaN(Date.parse(unavailable.date))) {
+          return sendError(res, 400, 'Invalid date format in unavailableDates (use YYYY-MM-DD format)', 'INVALID_DATE_FORMAT');
+        }
+      }
+      
+      // Update req.body with parsed data
+      req.body.unavailableDates = unavailableDates;
+    }
+
     const vendorData = {
       type: req.body.type,
       firstName: req.body.firstName,
@@ -349,7 +418,9 @@ const adminCreateVendor = async (req, res, next) => {
       pinCode: req.body.pinCode,
       serviceAvailability: req.body.serviceAvailability,
       vatRegistration: req.body.vatRegistration === 'true',
-      collectTax: req.body.collectTax === 'true'
+      collectTax: req.body.collectTax === 'true',
+      availabilitySchedule: req.body.availabilitySchedule || [],
+      unavailableDates: req.body.unavailableDates || []
     };
 
     // Handle profile picture upload to S3
