@@ -128,14 +128,33 @@ const updatePasswordValidation = [
 // OTP validation rules
 const sendOTPValidation = [
   body('phoneNumber')
+    .optional()
     .isMobilePhone('ar-AE')
-    .withMessage('Please provide a valid UAE phone number')
+    .withMessage('Please provide a valid UAE phone number'),
+  body('email')
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
+  body()
+    .custom((value, { req }) => {
+      if (!req.body.phoneNumber && !req.body.email) {
+        throw new Error('Either phone number or email is required');
+      }
+      return true;
+    })
 ];
 
 const verifyOTPValidation = [
   body('phoneNumber')
+    .optional()
     .isMobilePhone('ar-AE')
     .withMessage('Please provide a valid UAE phone number'),
+  body('email')
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
   body('otpCode')
     .isLength({ min: 6, max: 6 })
     .isNumeric()
@@ -144,46 +163,84 @@ const verifyOTPValidation = [
     .trim()
     .isLength({ min: 2, max: 50 })
     .withMessage('Name must be between 2 and 50 characters'),
-  body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Please provide a valid email'),
   body('password')
     .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters long')
+    .withMessage('Password must be at least 6 characters long'),
+  body()
+    .custom((value, { req }) => {
+      if (!req.body.phoneNumber && !req.body.email) {
+        throw new Error('Either phone number or email is required');
+      }
+      return true;
+    })
 ];
 
 const resendOTPValidation = [
   body('phoneNumber')
+    .optional()
     .isMobilePhone('ar-AE')
-    .withMessage('Please provide a valid UAE phone number')
+    .withMessage('Please provide a valid UAE phone number'),
+  body('email')
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
+  body()
+    .custom((value, { req }) => {
+      if (!req.body.phoneNumber && !req.body.email) {
+        throw new Error('Either phone number or email is required');
+      }
+      return true;
+    })
 ];
 
 const verifyOTPOnlyValidation = [
   body('phoneNumber')
+    .optional()
     .isMobilePhone('ar-AE')
     .withMessage('Please provide a valid UAE phone number'),
+  body('email')
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
   body('otpCode')
     .isLength({ min: 6, max: 6 })
     .isNumeric()
-    .withMessage('OTP code must be 6 digits')
+    .withMessage('OTP code must be 6 digits'),
+  body()
+    .custom((value, { req }) => {
+      if (!req.body.phoneNumber && !req.body.email) {
+        throw new Error('Either phone number or email is required');
+      }
+      return true;
+    })
 ];
 
 const createAccountValidation = [
   body('phoneNumber')
+    .optional()
     .isMobilePhone('ar-AE')
     .withMessage('Please provide a valid UAE phone number'),
+  body('email')
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
   body('name')
     .trim()
     .isLength({ min: 2, max: 50 })
     .withMessage('Name must be between 2 and 50 characters'),
-  body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Please provide a valid email'),
   body('password')
     .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters long')
+    .withMessage('Password must be at least 6 characters long'),
+  body()
+    .custom((value, { req }) => {
+      if (!req.body.phoneNumber && !req.body.email) {
+        throw new Error('Either phone number or email is required');
+      }
+      return true;
+    })
 ];
 
 
@@ -720,8 +777,8 @@ router.get('/admin/vendors', protect, isAdmin, getAllVendors);
  * @swagger
  * /api/auth/send-otp:
  *   post:
- *     summary: Send OTP to phone number (Step 1 of registration)
- *     description: Send OTP to phone number for verification. After receiving OTP, use verify-otp endpoint to create account.
+ *     summary: Send OTP to phone number or email (Step 1 of registration)
+ *     description: Send OTP to phone number and/or email for verification. After receiving OTP, use verify-otp endpoint to create account.
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -729,13 +786,18 @@ router.get('/admin/vendors', protect, isAdmin, getAllVendors);
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - phoneNumber
  *             properties:
  *               phoneNumber:
  *                 type: string
  *                 example: "+971501234567"
- *                 description: UAE phone number with country code
+ *                 description: UAE phone number with country code (optional if email provided)
+ *               email:
+ *                 type: string
+ *                 example: "user@example.com"
+ *                 description: User's email address (optional if phoneNumber provided)
+ *             anyOf:
+ *               - required: [phoneNumber]
+ *               - required: [email]
  *     responses:
  *       200:
  *         description: OTP sent successfully
@@ -749,29 +811,38 @@ router.get('/admin/vendors', protect, isAdmin, getAllVendors);
  *                   example: true
  *                 description:
  *                   type: string
- *                   example: "OTP sent successfully to your phone number"
+ *                   example: "OTP sent successfully to both your phone number and email"
  *                 content:
  *                   type: object
  *                   properties:
  *                     phoneNumber:
  *                       type: string
+ *                       example: "+971501234567"
+ *                     email:
+ *                       type: string
+ *                       example: "user@example.com"
  *                     expiresIn:
  *                       type: string
  *                       example: "5 minutes"
+ *                     sentVia:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       example: ["SMS", "Email"]
+ *                     smsError:
+ *                       type: string
+ *                       description: Error message if SMS failed (only when both methods provided)
+ *                     emailError:
+ *                       type: string
+ *                       description: Error message if email failed (only when both methods provided)
  *       400:
  *         description: Bad request - validation error
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *       409:
- *         description: User already exists
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
- *         description: SMS sending failed
+ *         description: OTP sending failed
  *         content:
  *           application/json:
  *             schema:
@@ -914,7 +985,7 @@ router.post('/resend-otp', resendOTPValidation, resendOTP);
  * /api/auth/verify-otp-only:
  *   post:
  *     summary: Verify OTP only (Step 2 of registration)
- *     description: Verify OTP code for phone number. Must be called before account creation.
+ *     description: Verify OTP code for phone number or email. Must be called before account creation.
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -922,18 +993,22 @@ router.post('/resend-otp', resendOTPValidation, resendOTP);
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - phoneNumber
- *               - otpCode
  *             properties:
  *               phoneNumber:
  *                 type: string
  *                 example: "+971501234567"
- *                 description: UAE phone number with country code
+ *                 description: UAE phone number with country code (optional if email provided)
+ *               email:
+ *                 type: string
+ *                 example: "user@example.com"
+ *                 description: User's email address (optional if phoneNumber provided)
  *               otpCode:
  *                 type: string
  *                 example: "123456"
  *                 description: 6-digit OTP code
+ *             anyOf:
+ *               - required: [phoneNumber, otpCode]
+ *               - required: [email, otpCode]
  *     responses:
  *       200:
  *         description: OTP verified successfully
@@ -954,6 +1029,11 @@ router.post('/resend-otp', resendOTPValidation, resendOTP);
  *                     phoneNumber:
  *                       type: string
  *                       example: "+971501234567"
+ *                       description: Phone number if verified via SMS
+ *                     email:
+ *                       type: string
+ *                       example: "user@example.com"
+ *                       description: Email if verified via email
  *                     verified:
  *                       type: boolean
  *                       example: true

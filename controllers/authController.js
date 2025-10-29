@@ -5,6 +5,7 @@ const OTP = require('../models/OTP');
 const { sendSuccess, sendError } = require('../utils/response');
 const ROLES = require('../constants/roles');
 const smsService = require('../utils/smsService');
+const emailService = require('../utils/emailService');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -661,25 +662,30 @@ const sendTokenResponse = (user, statusCode, res) => {
   });
 };
 
-// @desc    Send OTP to phone number
+// @desc    Send OTP to phone number or email
 // @route   POST /api/auth/send-otp
 // @access  Public
 const sendOTP = async (req, res, next) => {
   try {
-    const { phoneNumber } = req.body;
+    const { phoneNumber, email } = req.body;
 
-    // Validate phone number
-    if (!phoneNumber) {
-      return sendError(res, 400, 'Phone number is required', 'MISSING_PHONE_NUMBER');
+    // Validate that at least one contact method is provided
+    if (!phoneNumber && !email) {
+      return sendError(res, 400, 'Either phone number or email is required', 'MISSING_CONTACT_INFO');
     }
 
-    // Validate UAE phone number format
-    if (!smsService.isValidUAEPhoneNumber(phoneNumber)) {
+    // Validate phone number format if provided
+    if (phoneNumber && !smsService.isValidUAEPhoneNumber(phoneNumber)) {
       return sendError(res, 400, 'Please provide a valid UAE phone number', 'INVALID_PHONE_NUMBER');
     }
 
+    // Validate email format if provided
+    if (email && !emailService.isValidEmail(email)) {
+      return sendError(res, 400, 'Please provide a valid email address', 'INVALID_EMAIL');
+    }
+
     // Note: We don't check for existing users here since we want to allow
-    // phone verification before account creation
+    // contact verification before account creation
 
     // Generate OTP code
     const otpCode = smsService.generateOTP();
@@ -687,33 +693,117 @@ const sendOTP = async (req, res, next) => {
     // Set expiration time (5 minutes from now)
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-    // Invalidate any existing OTPs for this phone number
-    await OTP.updateMany(
-      { phoneNumber, isUsed: false },
-      { isUsed: true }
-    );
-
-    // Create new OTP record
-    const otpRecord = await OTP.create({
-      phoneNumber,
+    // Prepare OTP record data
+    const otpData = {
       code: otpCode,
       expiresAt
-    });
+    };
 
-    // Send SMS
-    try {
-      await smsService.sendOTP(phoneNumber, otpCode);
-      
-      sendSuccess(res, 200, 'OTP sent successfully to your phone number', {
-        phoneNumber,
-        expiresIn: '5 minutes'
-      });
-    } catch (smsError) {
-      // If SMS fails, delete the OTP record
+    // Add contact method to OTP data
+    if (phoneNumber) {
+      otpData.phoneNumber = phoneNumber;
+    }
+    if (email) {
+      otpData.email = email;
+    }
+
+    // Invalidate any existing OTPs for this contact method
+    const query = { isUsed: false };
+    if (phoneNumber) {
+      query.phoneNumber = phoneNumber;
+    }
+    if (email) {
+      query.email = email;
+    }
+
+    await OTP.updateMany(query, { isUsed: true });
+
+    // Create new OTP record
+    const otpRecord = await OTP.create(otpData);
+
+    // Try to send OTP via both methods if both are provided
+    let smsSuccess = false;
+    let emailSuccess = false;
+    let smsError = null;
+    let emailError = null;
+
+    // Send SMS if phone number is provided
+    if (phoneNumber) {
+      try {
+        await smsService.sendOTP(phoneNumber, otpCode);
+        smsSuccess = true;
+      } catch (error) {
+        smsError = error.message;
+        console.error('SMS sending failed:', error.message);
+      }
+    }
+
+    // Send email if email is provided
+    if (email) {
+      try {
+        await emailService.sendOTP(email, otpCode);
+        emailSuccess = true;
+      } catch (error) {
+        emailError = error.message;
+        console.error('Email sending failed:', error.message);
+      }
+    }
+
+    // Check if at least one method succeeded
+    if (!smsSuccess && !emailSuccess) {
+      // If both methods failed, delete the OTP record
       await OTP.findByIdAndDelete(otpRecord._id);
       
-      return sendError(res, 500, 'Failed to send OTP. Please try again.', 'SMS_SEND_FAILED');
+      let errorMessage = 'Failed to send OTP. ';
+      if (phoneNumber && email) {
+        errorMessage += `SMS error: ${smsError}. Email error: ${emailError}`;
+      } else if (phoneNumber) {
+        errorMessage += `SMS error: ${smsError}`;
+      } else {
+        errorMessage += `Email error: ${emailError}`;
+      }
+      
+      return sendError(res, 500, errorMessage, 'OTP_SEND_FAILED');
     }
+
+    // Prepare success response
+    const responseData = {
+      expiresIn: '5 minutes'
+    };
+
+    let successMessage = 'OTP sent successfully';
+
+    if (phoneNumber && email) {
+      // Both methods provided
+      if (smsSuccess && emailSuccess) {
+        successMessage = 'OTP sent successfully to both your phone number and email';
+        responseData.phoneNumber = phoneNumber;
+        responseData.email = email;
+        responseData.sentVia = ['SMS', 'Email'];
+      } else if (smsSuccess) {
+        successMessage = 'OTP sent successfully to your phone number (email failed)';
+        responseData.phoneNumber = phoneNumber;
+        responseData.sentVia = ['SMS'];
+        responseData.emailError = emailError;
+      } else {
+        successMessage = 'OTP sent successfully to your email (SMS failed)';
+        responseData.email = email;
+        responseData.sentVia = ['Email'];
+        responseData.smsError = smsError;
+      }
+    } else if (phoneNumber) {
+      // Only phone number provided
+      successMessage = 'OTP sent successfully to your phone number';
+      responseData.phoneNumber = phoneNumber;
+      responseData.sentVia = ['SMS'];
+    } else {
+      // Only email provided
+      successMessage = 'OTP sent successfully to your email';
+      responseData.email = email;
+      responseData.sentVia = ['Email'];
+    }
+
+    sendSuccess(res, 200, successMessage, responseData);
   } catch (error) {
     next(error);
   }
@@ -724,29 +814,43 @@ const sendOTP = async (req, res, next) => {
 // @access  Public
 const verifyOTP = async (req, res, next) => {
   try {
-    const { phoneNumber, otpCode, name, email, password } = req.body;
+    const { phoneNumber, email, otpCode, name, password } = req.body;
 
     // Validate required fields
-    if (!phoneNumber || !otpCode) {
-      return sendError(res, 400, 'Phone number and OTP code are required', 'MISSING_REQUIRED_FIELDS');
+    if ((!phoneNumber && !email) || !otpCode) {
+      return sendError(res, 400, 'Either phone number or email, and OTP code are required', 'MISSING_REQUIRED_FIELDS');
     }
 
-    if (!name || !email || !password) {
-      return sendError(res, 400, 'Name, email, and password are required for registration', 'MISSING_REGISTRATION_FIELDS');
+    if (!name || !password) {
+      return sendError(res, 400, 'Name and password are required for registration', 'MISSING_REGISTRATION_FIELDS');
     }
 
-    // Validate UAE phone number format
-    if (!smsService.isValidUAEPhoneNumber(phoneNumber)) {
+    // Validate UAE phone number format if provided
+    if (phoneNumber && !smsService.isValidUAEPhoneNumber(phoneNumber)) {
       return sendError(res, 400, 'Please provide a valid UAE phone number', 'INVALID_PHONE_NUMBER');
     }
 
-    // Find valid OTP record
-    const otpRecord = await OTP.findOne({
-      phoneNumber,
+    // Validate email format if provided
+    if (email && !emailService.isValidEmail(email)) {
+      return sendError(res, 400, 'Please provide a valid email address', 'INVALID_EMAIL');
+    }
+
+    // Build query to find OTP record
+    const otpQuery = {
       code: otpCode,
       isUsed: false,
       expiresAt: { $gt: new Date() }
-    });
+    };
+
+    if (phoneNumber) {
+      otpQuery.phoneNumber = phoneNumber;
+    }
+    if (email) {
+      otpQuery.email = email;
+    }
+
+    // Find valid OTP record
+    const otpRecord = await OTP.findOne(otpQuery);
 
     if (!otpRecord) {
       return sendError(res, 400, 'Invalid or expired OTP code', 'INVALID_OTP');
@@ -757,30 +861,46 @@ const verifyOTP = async (req, res, next) => {
       return sendError(res, 400, 'OTP code has exceeded maximum attempts', 'OTP_MAX_ATTEMPTS_EXCEEDED');
     }
 
+    // Prepare user data
+    const userData = {
+      name,
+      password,
+      role: ROLES.USER,
+      isOTPVerified: true
+    };
+
+    // Add contact information based on what was verified
+    if (phoneNumber) {
+      userData.phoneNumber = phoneNumber;
+    }
+    if (email) {
+      userData.email = email;
+    }
+
     // Check if user already exists with this phone number or email
-    const existingUser = await User.findOne({ 
-      $or: [
+    const existingUserQuery = {};
+    if (phoneNumber && email) {
+      existingUserQuery.$or = [
         { phoneNumber },
         { email }
-      ]
-    });
+      ];
+    } else if (phoneNumber) {
+      existingUserQuery.phoneNumber = phoneNumber;
+    } else {
+      existingUserQuery.email = email;
+    }
+
+    const existingUser = await User.findOne(existingUserQuery);
 
     if (existingUser) {
-      return sendError(res, 409, 'User with this phone number or email already exists', 'USER_EXISTS');
+      return sendError(res, 409, 'User with this contact information already exists', 'USER_EXISTS');
     }
 
     // Mark OTP as used
     await otpRecord.markAsUsed();
 
     // Create new user
-    const user = await User.create({
-      name,
-      email,
-      phoneNumber,
-      password,
-      role: ROLES.USER,
-      isOTPVerified: true
-    });
+    const user = await User.create(userData);
 
     // Generate JWT token and send response
     sendTokenResponse(user, 201, res);
@@ -788,11 +908,19 @@ const verifyOTP = async (req, res, next) => {
     // If user creation fails, we should increment OTP attempts
     if (error.name === 'ValidationError' || error.code === 11000) {
       try {
-        const otpRecord = await OTP.findOne({
-          phoneNumber: req.body.phoneNumber,
+        const otpQuery = {
           code: req.body.otpCode,
           isUsed: false
-        });
+        };
+        
+        if (req.body.phoneNumber) {
+          otpQuery.phoneNumber = req.body.phoneNumber;
+        }
+        if (req.body.email) {
+          otpQuery.email = req.body.email;
+        }
+        
+        const otpRecord = await OTP.findOne(otpQuery);
         
         if (otpRecord) {
           await otpRecord.incrementAttempts();
@@ -811,52 +939,141 @@ const verifyOTP = async (req, res, next) => {
 // @access  Public
 const resendOTP = async (req, res, next) => {
   try {
-    const { phoneNumber } = req.body;
+    const { phoneNumber, email } = req.body;
 
-    // Validate phone number
-    if (!phoneNumber) {
-      return sendError(res, 400, 'Phone number is required', 'MISSING_PHONE_NUMBER');
+    // Validate that at least one contact method is provided
+    if (!phoneNumber && !email) {
+      return sendError(res, 400, 'Either phone number or email is required', 'MISSING_CONTACT_INFO');
     }
 
-    // Validate UAE phone number format
-    if (!smsService.isValidUAEPhoneNumber(phoneNumber)) {
+    // Validate phone number format if provided
+    if (phoneNumber && !smsService.isValidUAEPhoneNumber(phoneNumber)) {
       return sendError(res, 400, 'Please provide a valid UAE phone number', 'INVALID_PHONE_NUMBER');
     }
 
+    // Validate email format if provided
+    if (email && !emailService.isValidEmail(email)) {
+      return sendError(res, 400, 'Please provide a valid email address', 'INVALID_EMAIL');
+    }
+
     // Note: We don't check for existing users here since we want to allow
-    // phone verification before account creation
+    // contact verification before account creation
 
     // Generate new OTP code
     const otpCode = smsService.generateOTP();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-    // Invalidate any existing OTPs for this phone number
-    await OTP.updateMany(
-      { phoneNumber, isUsed: false },
-      { isUsed: true }
-    );
-
-    // Create new OTP record
-    const otpRecord = await OTP.create({
-      phoneNumber,
+    // Prepare OTP record data
+    const otpData = {
       code: otpCode,
       expiresAt
-    });
+    };
 
-    // Send SMS
-    try {
-      await smsService.sendOTP(phoneNumber, otpCode);
-      
-      sendSuccess(res, 200, 'OTP resent successfully to your phone number', {
-        phoneNumber,
-        expiresIn: '5 minutes'
-      });
-    } catch (smsError) {
-      // If SMS fails, delete the OTP record
+    // Add contact method to OTP data
+    if (phoneNumber) {
+      otpData.phoneNumber = phoneNumber;
+    }
+    if (email) {
+      otpData.email = email;
+    }
+
+    // Invalidate any existing OTPs for this contact method
+    const query = { isUsed: false };
+    if (phoneNumber) {
+      query.phoneNumber = phoneNumber;
+    }
+    if (email) {
+      query.email = email;
+    }
+
+    await OTP.updateMany(query, { isUsed: true });
+
+    // Create new OTP record
+    const otpRecord = await OTP.create(otpData);
+
+    // Try to send OTP via both methods if both are provided
+    let smsSuccess = false;
+    let emailSuccess = false;
+    let smsError = null;
+    let emailError = null;
+
+    // Send SMS if phone number is provided
+    if (phoneNumber) {
+      try {
+        await smsService.sendOTP(phoneNumber, otpCode);
+        smsSuccess = true;
+      } catch (error) {
+        smsError = error.message;
+        console.error('SMS sending failed:', error.message);
+      }
+    }
+
+    // Send email if email is provided
+    if (email) {
+      try {
+        await emailService.sendOTP(email, otpCode);
+        emailSuccess = true;
+      } catch (error) {
+        emailError = error.message;
+        console.error('Email sending failed:', error.message);
+      }
+    }
+
+    // Check if at least one method succeeded
+    if (!smsSuccess && !emailSuccess) {
+      // If both methods failed, delete the OTP record
       await OTP.findByIdAndDelete(otpRecord._id);
       
-      return sendError(res, 500, 'Failed to resend OTP. Please try again.', 'SMS_SEND_FAILED');
+      let errorMessage = 'Failed to resend OTP. ';
+      if (phoneNumber && email) {
+        errorMessage += `SMS error: ${smsError}. Email error: ${emailError}`;
+      } else if (phoneNumber) {
+        errorMessage += `SMS error: ${smsError}`;
+      } else {
+        errorMessage += `Email error: ${emailError}`;
+      }
+      
+      return sendError(res, 500, errorMessage, 'OTP_RESEND_FAILED');
     }
+
+    // Prepare success response
+    const responseData = {
+      expiresIn: '5 minutes'
+    };
+
+    let successMessage = 'OTP resent successfully';
+
+    if (phoneNumber && email) {
+      // Both methods provided
+      if (smsSuccess && emailSuccess) {
+        successMessage = 'OTP resent successfully to both your phone number and email';
+        responseData.phoneNumber = phoneNumber;
+        responseData.email = email;
+        responseData.sentVia = ['SMS', 'Email'];
+      } else if (smsSuccess) {
+        successMessage = 'OTP resent successfully to your phone number (email failed)';
+        responseData.phoneNumber = phoneNumber;
+        responseData.sentVia = ['SMS'];
+        responseData.emailError = emailError;
+      } else {
+        successMessage = 'OTP resent successfully to your email (SMS failed)';
+        responseData.email = email;
+        responseData.sentVia = ['Email'];
+        responseData.smsError = smsError;
+      }
+    } else if (phoneNumber) {
+      // Only phone number provided
+      successMessage = 'OTP resent successfully to your phone number';
+      responseData.phoneNumber = phoneNumber;
+      responseData.sentVia = ['SMS'];
+    } else {
+      // Only email provided
+      successMessage = 'OTP resent successfully to your email';
+      responseData.email = email;
+      responseData.sentVia = ['Email'];
+    }
+
+    sendSuccess(res, 200, successMessage, responseData);
   } catch (error) {
     next(error);
   }
@@ -988,25 +1205,39 @@ const getAllUsers = async (req, res, next) => {
 // @access  Public
 const verifyOTPOnly = async (req, res, next) => {
   try {
-    const { phoneNumber, otpCode } = req.body;
+    const { phoneNumber, email, otpCode } = req.body;
 
     // Validate required fields
-    if (!phoneNumber || !otpCode) {
-      return sendError(res, 400, 'Phone number and OTP code are required', 'MISSING_REQUIRED_FIELDS');
+    if ((!phoneNumber && !email) || !otpCode) {
+      return sendError(res, 400, 'Either phone number or email, and OTP code are required', 'MISSING_REQUIRED_FIELDS');
     }
 
-    // Validate UAE phone number format
-    if (!smsService.isValidUAEPhoneNumber(phoneNumber)) {
+    // Validate UAE phone number format if provided
+    if (phoneNumber && !smsService.isValidUAEPhoneNumber(phoneNumber)) {
       return sendError(res, 400, 'Please provide a valid UAE phone number', 'INVALID_PHONE_NUMBER');
     }
 
-    // Find valid OTP record
-    const otpRecord = await OTP.findOne({
-      phoneNumber,
+    // Validate email format if provided
+    if (email && !emailService.isValidEmail(email)) {
+      return sendError(res, 400, 'Please provide a valid email address', 'INVALID_EMAIL');
+    }
+
+    // Build query to find OTP record
+    const otpQuery = {
       code: otpCode,
       isUsed: false,
       expiresAt: { $gt: new Date() }
-    });
+    };
+
+    if (phoneNumber) {
+      otpQuery.phoneNumber = phoneNumber;
+    }
+    if (email) {
+      otpQuery.email = email;
+    }
+
+    // Find valid OTP record
+    const otpRecord = await OTP.findOne(otpQuery);
 
     if (!otpRecord) {
       return sendError(res, 400, 'Invalid or expired OTP code', 'INVALID_OTP');
@@ -1020,12 +1251,21 @@ const verifyOTPOnly = async (req, res, next) => {
     // Mark OTP as used
     await otpRecord.markAsUsed();
 
-    // Return success - OTP is verified, user can now create account
-    sendSuccess(res, 200, 'OTP verified successfully', {
-      phoneNumber,
+    // Prepare response data
+    const responseData = {
       verified: true,
       message: 'You can now proceed with account creation'
-    });
+    };
+
+    if (phoneNumber) {
+      responseData.phoneNumber = phoneNumber;
+    }
+    if (email) {
+      responseData.email = email;
+    }
+
+    // Return success - OTP is verified, user can now create account
+    sendSuccess(res, 200, 'OTP verified successfully', responseData);
   } catch (error) {
     next(error);
   }
@@ -1036,49 +1276,75 @@ const verifyOTPOnly = async (req, res, next) => {
 // @access  Public
 const createAccount = async (req, res, next) => {
   try {
-    const { phoneNumber, name, email, password } = req.body;
+    const { phoneNumber, email, name, password } = req.body;
 
     // Validate required fields
-    if (!phoneNumber || !name || !email || !password) {
-      return sendError(res, 400, 'Phone number, name, email, and password are required', 'MISSING_REQUIRED_FIELDS');
+    if ((!phoneNumber && !email) || !name || !password) {
+      return sendError(res, 400, 'Either phone number or email, name, and password are required', 'MISSING_REQUIRED_FIELDS');
     }
 
-    // Validate UAE phone number format
-    if (!smsService.isValidUAEPhoneNumber(phoneNumber)) {
+    // Validate UAE phone number format if provided
+    if (phoneNumber && !smsService.isValidUAEPhoneNumber(phoneNumber)) {
       return sendError(res, 400, 'Please provide a valid UAE phone number', 'INVALID_PHONE_NUMBER');
     }
 
+    // Validate email format if provided
+    if (email && !emailService.isValidEmail(email)) {
+      return sendError(res, 400, 'Please provide a valid email address', 'INVALID_EMAIL');
+    }
+
     // Check if user already exists with this phone number or email
-    const existingUser = await User.findOne({ 
-      $or: [
+    const existingUserQuery = {};
+    if (phoneNumber && email) {
+      existingUserQuery.$or = [
         { phoneNumber },
         { email }
-      ]
-    });
+      ];
+    } else if (phoneNumber) {
+      existingUserQuery.phoneNumber = phoneNumber;
+    } else {
+      existingUserQuery.email = email;
+    }
+
+    const existingUser = await User.findOne(existingUserQuery);
 
     if (existingUser) {
-      return sendError(res, 409, 'User with this phone number or email already exists', 'USER_EXISTS');
+      return sendError(res, 409, 'User with this contact information already exists', 'USER_EXISTS');
     }
 
-    // Check if phone number was verified (OTP was used)
-    const verifiedOTP = await OTP.findOne({
-      phoneNumber,
-      isUsed: true
-    });
+    // Check if contact method was verified (OTP was used)
+    const verifiedOTPQuery = { isUsed: true };
+    if (phoneNumber) {
+      verifiedOTPQuery.phoneNumber = phoneNumber;
+    }
+    if (email) {
+      verifiedOTPQuery.email = email;
+    }
+
+    const verifiedOTP = await OTP.findOne(verifiedOTPQuery);
 
     if (!verifiedOTP) {
-      return sendError(res, 400, 'Phone number must be verified with OTP before creating account', 'PHONE_NOT_VERIFIED');
+      return sendError(res, 400, 'Contact information must be verified with OTP before creating account', 'CONTACT_NOT_VERIFIED');
     }
 
-    // Create new user
-    const user = await User.create({
+    // Prepare user data
+    const userData = {
       name,
-      email,
-      phoneNumber,
       password,
       role: ROLES.USER,
       isOTPVerified: true
-    });
+    };
+
+    // Add contact information based on what was verified
+    if (phoneNumber) {
+      userData.phoneNumber = phoneNumber;
+    }
+    if (email) {
+      userData.email = email;
+    }
+
+    // Create new user
+    const user = await User.create(userData);
 
     // Generate JWT token and send response
     sendTokenResponse(user, 201, res);

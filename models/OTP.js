@@ -3,8 +3,19 @@ const mongoose = require("mongoose");
 const otpSchema = new mongoose.Schema({
   phoneNumber: { 
     type: String, 
-    required: true,
+    required: function() {
+      return !this.email; // Required if email is not provided
+    },
     index: true
+  },
+  email: {
+    type: String,
+    required: function() {
+      return !this.phoneNumber; // Required if phoneNumber is not provided
+    },
+    index: true,
+    lowercase: true,
+    trim: true
   },
   code: { 
     type: String, 
@@ -35,6 +46,7 @@ const otpSchema = new mongoose.Schema({
 
 // Index for efficient queries
 otpSchema.index({ phoneNumber: 1, isUsed: 1 });
+otpSchema.index({ email: 1, isUsed: 1 });
 
 // Method to check if OTP is valid
 otpSchema.methods.isValid = function() {
