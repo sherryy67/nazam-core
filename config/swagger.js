@@ -24,7 +24,7 @@ const options = {
     servers: [
       {
         url: process.env.NODE_ENV === "production"
-          ? 'https://zushh.com/'
+          ? 'https://api.zushh.com/'
           : `http://localhost:${process.env.PORT || 3001}`,
         description:
           process.env.NODE_ENV === "production"
