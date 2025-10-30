@@ -357,5 +357,44 @@ module.exports = {
   getCategoryById,
   updateCategory,
   deleteCategory,
-  getHomeCategories
+  getHomeCategories,
+  // New: summarized categories with limited services and counts
+  getCategoryServiceSummary: async (req, res, next) => {
+    try {
+      // Fetch active categories
+      const categories = await Category.find({ isActive: true }).sort({ name: 1 }).lean();
+
+      // For each category, fetch service count and up to 3 services
+      const results = await Promise.all(categories.map(async (category) => {
+        const [totalServices, services] = await Promise.all([
+          Service.countDocuments({ category_id: category._id, isActive: true }),
+          Service.find({ category_id: category._id, isActive: true })
+            .sort({ createdAt: -1 })
+            .limit(3)
+            .select({ _id: 1, name: 1, service_icon: 1, basePrice: 1 })
+            .lean()
+        ]);
+
+        return {
+          id: category._id,
+          name: category.name,
+          totalServices,
+          services: services.map(svc => ({
+            id: svc._id,
+            name: svc.name,
+            icon: svc.service_icon || null,
+            price: svc.basePrice
+          }))
+        };
+      }));
+
+      // Sort by totalServices desc
+      results.sort((a, b) => b.totalServices - a.totalServices);
+
+      // Use generic response model; content is the array as requested
+      return sendSuccess(res, 200, 'Category service summary retrieved successfully', results);
+    } catch (error) {
+      return next(error);
+    }
+  }
 };
