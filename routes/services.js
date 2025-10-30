@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
 const ROLES = require('../constants/roles');
-const { createService, getServices, getServicesPaginated, getServiceById, deleteService, getAllActiveServices, upload } = require('../controllers/serviceController');
+const { createService, getServices, getServicesPaginated, getServiceById, deleteService, getAllActiveServices, getHomeCategoryServices, upload } = require('../controllers/serviceController');
 
 const router = express.Router();
 
@@ -379,6 +379,50 @@ router.get('/', protect, getServices);
  *         description: Server error
  */
 router.get('/active', getAllActiveServices);
+
+/**
+ * @swagger
+ * /api/services/home:
+ *   get:
+ *     summary: Get services of the Home category
+ *     description: Returns all active services that belong to the Home (or Home Cleaning) category.
+ *     tags: [Services]
+ *     responses:
+ *       200:
+ *         description: Home category services retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 exception:
+ *                   type: string
+ *                   nullable: true
+ *                   example: null
+ *                 description:
+ *                   type: string
+ *                   example: Home category services retrieved successfully
+ *                 content:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       icon:
+ *                         type: string
+ *                         nullable: true
+ *                       price:
+ *                         type: number
+ *       500:
+ *         description: Server error
+ */
+router.get('/home', protect, getHomeCategoryServices);
 
 /**
  * @swagger
