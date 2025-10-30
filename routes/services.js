@@ -422,7 +422,7 @@ router.get('/active', getAllActiveServices);
  *       500:
  *         description: Server error
  */
-router.get('/home', protect, getHomeCategoryServices);
+router.get('/home', getHomeCategoryServices);
 
 /**
  * @swagger
