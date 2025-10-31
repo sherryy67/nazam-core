@@ -62,14 +62,6 @@ class SMSService {
 
       const response = await axios.get(this.baseUrl, { params });
       
-      // Log full response for debugging
-      console.log('SMS Gateway Response:', {
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data,
-        headers: response.headers
-      });
-      
       // Parse response based on Smart SMS Gateway format
       const result = this.parseSMSResponse(response.data);
       
@@ -80,45 +72,10 @@ class SMSService {
           message: 'OTP sent successfully'
         };
       } else {
-        // Check for IP whitelist errors specifically
-        const errorMsg = result.error || 'Failed to send SMS';
-        if (errorMsg.toLowerCase().includes('ip') || 
-            errorMsg.toLowerCase().includes('whitelist') ||
-            errorMsg.toLowerCase().includes('not allowed')) {
-          console.error('⚠️ IP Whitelist Error Detected!');
-          console.error('Full error response:', errorMsg);
-          console.error('Please check that your EC2 outbound IP is whitelisted with the SMS provider.');
-          console.error('You can use the check-outbound-ip.js script to find your actual outbound IP.');
-        }
-        throw new Error(errorMsg);
+        throw new Error(result.error || 'Failed to send SMS');
       }
     } catch (error) {
-      // Enhanced error logging
-      console.error('SMS Service Error Details:');
-      console.error('Error Message:', error.message);
-      if (error.response) {
-        console.error('Response Status:', error.response.status);
-        console.error('Response Data:', error.response.data);
-        console.error('Response Headers:', error.response.headers);
-      }
-      if (error.request) {
-        console.error('Request made but no response received');
-        console.error('Request details:', {
-          url: error.config?.url,
-          method: error.config?.method,
-          params: error.config?.params
-        });
-      }
-      
-      // Check for IP-related errors in the full error chain
-      const fullError = JSON.stringify(error, null, 2);
-      if (fullError.toLowerCase().includes('ip') || 
-          fullError.toLowerCase().includes('whitelist') ||
-          error.message.toLowerCase().includes('ip') ||
-          error.message.toLowerCase().includes('whitelist')) {
-        throw new Error(`IP Whitelist Error: ${error.message}. Please ensure your EC2 outbound IP is whitelisted with the SMS provider.`);
-      }
-      
+      console.error('SMS Service Error:', error.message);
       throw new Error(`Failed to send OTP: ${error.message}`);
     }
   }
@@ -146,14 +103,6 @@ class SMSService {
       };
 
       const response = await axios.get(this.baseUrl, { params });
-      
-      // Log full response for debugging
-      console.log('SMS Gateway Response (Notification):', {
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data
-      });
-      
       const result = this.parseSMSResponse(response.data);
       
       if (result.success) {
@@ -163,33 +112,10 @@ class SMSService {
           message: 'Notification sent successfully'
         };
       } else {
-        // Check for IP whitelist errors specifically
-        const errorMsg = result.error || 'Failed to send SMS';
-        if (errorMsg.toLowerCase().includes('ip') || 
-            errorMsg.toLowerCase().includes('whitelist') ||
-            errorMsg.toLowerCase().includes('not allowed')) {
-          console.error('⚠️ IP Whitelist Error Detected!');
-          console.error('Full error response:', errorMsg);
-        }
-        throw new Error(errorMsg);
+        throw new Error(result.error || 'Failed to send SMS');
       }
     } catch (error) {
-      console.error('SMS Service Error Details (Notification):');
-      console.error('Error Message:', error.message);
-      if (error.response) {
-        console.error('Response Status:', error.response.status);
-        console.error('Response Data:', error.response.data);
-      }
-      
-      // Check for IP-related errors
-      const fullError = JSON.stringify(error, null, 2);
-      if (fullError.toLowerCase().includes('ip') || 
-          fullError.toLowerCase().includes('whitelist') ||
-          error.message.toLowerCase().includes('ip') ||
-          error.message.toLowerCase().includes('whitelist')) {
-        throw new Error(`IP Whitelist Error: ${error.message}. Please ensure your EC2 outbound IP is whitelisted with the SMS provider.`);
-      }
-      
+      console.error('SMS Service Error:', error.message);
       throw new Error(`Failed to send notification: ${error.message}`);
     }
   }
@@ -295,43 +221,6 @@ class SMSService {
    */
   generateOTP() {
     return Math.floor(100000 + Math.random() * 900000).toString();
-  }
-
-  /**
-   * Get the actual outbound IP address that external services see
-   * This is useful for whitelisting with SMS providers
-   * @returns {Promise<string>} - Outbound IP address
-   */
-  async getOutboundIP() {
-    try {
-      // Use multiple IP checking services for reliability
-      const ipCheckServices = [
-        'https://api.ipify.org?format=json',
-        'https://api.myip.com',
-        'https://ipinfo.io/json'
-      ];
-
-      for (const service of ipCheckServices) {
-        try {
-          const response = await axios.get(service, { timeout: 5000 });
-          if (service.includes('ipify')) {
-            return response.data.ip;
-          } else if (service.includes('myip')) {
-            return response.data.ip || response.data.IPv4;
-          } else if (service.includes('ipinfo')) {
-            return response.data.ip;
-          }
-        } catch (error) {
-          console.warn(`Failed to get IP from ${service}:`, error.message);
-          continue;
-        }
-      }
-      
-      throw new Error('Could not determine outbound IP from any service');
-    } catch (error) {
-      console.error('Error getting outbound IP:', error.message);
-      throw error;
-    }
   }
 }
 
