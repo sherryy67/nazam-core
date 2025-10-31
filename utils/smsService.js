@@ -57,7 +57,7 @@ class SMSService {
         password: this.password,
         senderid: this.senderId,
         to: formattedNumber,
-        sms: message
+        text: message
       };
 
       const response = await axios.get(this.baseUrl, { params });
@@ -99,7 +99,7 @@ class SMSService {
         password: this.password,
         senderid: this.senderId,
         to: formattedNumber,
-        sms: message
+        text: message
       };
 
       const response = await axios.get(this.baseUrl, { params });
