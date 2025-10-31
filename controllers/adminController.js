@@ -27,10 +27,10 @@ const getEligibleVendors = async (req, res, next) => {
       return sendNotFoundError(res, 'Service not found');
     }
 
-    // Check if service is already assigned
-    if (service.isAssigned && service.vendorId) {
-      return sendError(res, 400, 'Service is already assigned to a vendor', 'SERVICE_ALREADY_ASSIGNED');
-    }
+    // Check if service is already assigned to a different vendor
+    // This check is mainly informational - we allow getting eligible vendors even if service is assigned
+    // The assignment will be handled by the assign endpoint
+    // Removed the check here to allow viewing eligible vendors even for assigned services
 
     // Find all approved vendors with their primary service populated
     const vendors = await Vendor.find({ approved: true })
@@ -119,8 +119,9 @@ const assignServiceToVendor = async (req, res, next) => {
       return sendError(res, 400, 'Vendor is not approved', 'VENDOR_NOT_APPROVED');
     }
 
-    // Check if service is already assigned
-    if (service.isAssigned && service.vendorId) {
+    // Check if service is already assigned to a different vendor
+    // Allow reassignment to the same vendor or if vendorId is null/undefined
+    if (service.isAssigned && service.vendorId && service.vendorId.toString() !== vendorId.toString()) {
       return sendError(res, 400, 'Service is already assigned to another vendor', 'SERVICE_ALREADY_ASSIGNED');
     }
 
@@ -131,13 +132,20 @@ const assignServiceToVendor = async (req, res, next) => {
     }
 
     // Update service with vendor assignment
+    // Clear assignedAt if reassigning to the same vendor, otherwise set new date
+    const updateData = {
+      vendorId: vendorId,
+      isAssigned: true
+    };
+    
+    // Only update assignedAt if this is a new assignment (different vendor)
+    if (!service.vendorId || service.vendorId.toString() !== vendorId.toString()) {
+      updateData.assignedAt = new Date();
+    }
+    
     const updatedService = await Service.findByIdAndUpdate(
       serviceId,
-      {
-        vendorId: vendorId,
-        isAssigned: true,
-        assignedAt: new Date()
-      },
+      updateData,
       { new: true, runValidators: true }
     ).populate('vendorId', 'firstName lastName email mobileNumber')
      .populate('category_id', 'name description');
