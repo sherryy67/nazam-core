@@ -173,6 +173,7 @@ const getServiceRequests = async (req, res, next) => {
       ServiceRequest.find(query)
         .populate('service_id', 'name description basePrice')
         .populate('category_id', 'name description')
+        .populate('vendor', 'firstName lastName email mobileNumber')
       .sort({ createdAt: -1 })
       .skip(skip)
         .limit(limitNum),
@@ -246,7 +247,14 @@ const updateServiceRequestStatus = async (req, res, next) => {
 
     // Update service request
     const updateData = { status };
-    if (vendor) updateData.vendor = vendor;
+    if (vendor) {
+      updateData.vendor = vendor;
+      // When assigning a vendor to a Pending request, automatically change status to 'Assigned'
+      // This ensures assignments always reflect the correct status
+      if (serviceRequest.status === 'Pending' && status === 'Pending') {
+        updateData.status = 'Assigned';
+      }
+    }
 
     const updatedRequest = await ServiceRequest.findByIdAndUpdate(
       id,
