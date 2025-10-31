@@ -1,6 +1,8 @@
 const Service = require('../models/Service');
 const Vendor = require('../models/Vendor');
 const Category = require('../models/Category');
+const User = require('../models/User');
+const ServiceRequest = require('../models/ServiceRequest');
 const { sendSuccess, sendError, sendNotFoundError, sendValidationError } = require('../utils/response');
 const { checkVendorEligibility } = require('../utils/vendorEligibility');
 
@@ -303,9 +305,126 @@ const getAssignedServices = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get admin dashboard statistics
+ * @route   GET /api/admin/dashboard
+ * @access  Private (Admin only)
+ */
+const getAdminDashboard = async (req, res, next) => {
+  try {
+    const { limit = 10 } = req.query;
+
+    // Execute all queries in parallel for better performance
+    const [
+      totalUsers,
+      totalOrders,
+      totalVendors,
+      revenueResult,
+      recentOrders
+    ] = await Promise.all([
+      // Total users count
+      User.countDocuments(),
+      
+      // Total orders (service requests) count
+      ServiceRequest.countDocuments(),
+      
+      // Total vendors count
+      Vendor.countDocuments(),
+      
+      // Total revenue - sum of total_price from all completed orders
+      ServiceRequest.aggregate([
+        {
+          $match: {
+            status: 'Completed'
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: '$total_price' }
+          }
+        }
+      ]),
+      
+      // Recent orders with their status
+      ServiceRequest.find()
+        .populate('service_id', 'name description')
+        .populate('category_id', 'name description')
+        .populate('vendor', 'firstName lastName email mobileNumber')
+        .sort({ createdAt: -1 })
+        .limit(parseInt(limit))
+        .lean()
+    ]);
+
+    // Extract total revenue from aggregation result
+    const totalRevenue = revenueResult.length > 0 ? revenueResult[0].totalRevenue : 0;
+
+    // Transform recent orders
+    const transformedOrders = recentOrders.map(order => ({
+      _id: order._id,
+      user_name: order.user_name,
+      user_phone: order.user_phone,
+      user_email: order.user_email,
+      address: order.address,
+      service_id: order.service_id,
+      service_name: order.service_name,
+      category_id: order.category_id,
+      category_name: order.category_name,
+      request_type: order.request_type,
+      requested_date: order.requested_date ? order.requested_date.toISOString() : null,
+      message: order.message,
+      status: order.status,
+      vendor: order.vendor,
+      unit_type: order.unit_type,
+      unit_price: order.unit_price,
+      number_of_units: order.number_of_units,
+      total_price: order.total_price,
+      createdAt: order.createdAt ? order.createdAt.toISOString() : null,
+      updatedAt: order.updatedAt ? order.updatedAt.toISOString() : null
+    }));
+
+    // Get orders count by status
+    const ordersByStatus = await ServiceRequest.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Transform status counts into object
+    const statusCounts = {};
+    ordersByStatus.forEach(item => {
+      statusCounts[item._id] = item.count;
+    });
+
+    sendSuccess(res, 200, 'Dashboard data retrieved successfully', {
+      statistics: {
+        totalUsers,
+        totalOrders,
+        totalVendors,
+        totalRevenue: totalRevenue || 0,
+        ordersByStatus: {
+          Pending: statusCounts.Pending || 0,
+          Assigned: statusCounts.Assigned || 0,
+          Accepted: statusCounts.Accepted || 0,
+          Completed: statusCounts.Completed || 0,
+          Cancelled: statusCounts.Cancelled || 0
+        }
+      },
+      recentOrders: transformedOrders
+    });
+  } catch (error) {
+    console.error('Error getting admin dashboard:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   getEligibleVendors,
   assignServiceToVendor,
   unassignServiceFromVendor,
-  getAssignedServices
+  getAssignedServices,
+  getAdminDashboard
 };

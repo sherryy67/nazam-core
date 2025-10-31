@@ -2,7 +2,7 @@ const express = require('express');
 const { body } = require('express-validator');
 const { sendSuccess } = require('../utils/response');
 const { adminLogin, createAdmin, adminActivateUser, adminDeactivateUser, getAllUsers } = require('../controllers/authController');
-const { getEligibleVendors, assignServiceToVendor, unassignServiceFromVendor, getAssignedServices } = require('../controllers/adminController');
+const { getEligibleVendors, assignServiceToVendor, unassignServiceFromVendor, getAssignedServices, getAdminDashboard } = require('../controllers/adminController');
 const { updateVendorAvailability } = require('../controllers/vendorController');
 const { protect } = require('../middlewares/auth');
 const { isAdmin } = require('../middlewares/roleAuth');
@@ -1301,5 +1301,105 @@ router.get('/assigned-services', protect, isAdmin, getAssignedServices);
  *         description: Unauthorized - admin access required
  */
 router.put('/vendor/:vendorId/availability', protect, isAdmin, updateVendorAvailability);
+
+/**
+ * @swagger
+ * /api/admin/dashboard:
+ *   get:
+ *     summary: Get admin dashboard statistics and recent orders (Admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Number of recent orders to retrieve
+ *     responses:
+ *       200:
+ *         description: Dashboard data retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 description:
+ *                   type: string
+ *                   example: "Dashboard data retrieved successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     statistics:
+ *                       type: object
+ *                       properties:
+ *                         totalUsers:
+ *                           type: integer
+ *                           example: 150
+ *                         totalOrders:
+ *                           type: integer
+ *                           example: 320
+ *                         totalVendors:
+ *                           type: integer
+ *                           example: 25
+ *                         totalRevenue:
+ *                           type: number
+ *                           example: 45000.50
+ *                         ordersByStatus:
+ *                           type: object
+ *                           properties:
+ *                             Pending:
+ *                               type: integer
+ *                               example: 45
+ *                             Assigned:
+ *                               type: integer
+ *                               example: 30
+ *                             Accepted:
+ *                               type: integer
+ *                               example: 20
+ *                             Completed:
+ *                               type: integer
+ *                               example: 200
+ *                             Cancelled:
+ *                               type: integer
+ *                               example: 25
+ *                     recentOrders:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: string
+ *                           user_name:
+ *                             type: string
+ *                           user_phone:
+ *                             type: string
+ *                           user_email:
+ *                             type: string
+ *                           service_name:
+ *                             type: string
+ *                           category_name:
+ *                             type: string
+ *                           request_type:
+ *                             type: string
+ *                           status:
+ *                             type: string
+ *                           total_price:
+ *                             type: number
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ */
+router.get('/dashboard', protect, isAdmin, getAdminDashboard);
 
 module.exports = router;
