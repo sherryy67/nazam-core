@@ -140,6 +140,22 @@ const assignServiceToVendor = async (req, res, next) => {
     ).populate('vendorId', 'firstName lastName email mobileNumber')
      .populate('category_id', 'name description');
 
+    // Assign all pending ServiceRequests for this service to the vendor
+    // and update their status from Pending to Assigned
+    const ServiceRequest = require('../models/ServiceRequest');
+    const updateResult = await ServiceRequest.updateMany(
+      {
+        service_id: serviceId,
+        status: 'Pending'
+      },
+      {
+        $set: {
+          vendor: vendorId,
+          status: 'Assigned'
+        }
+      }
+    );
+
     // Note: We don't update vendor's serviceId since it's their primary service
     // The admin can assign multiple service requests to the same vendor
     // as long as they have different dates/times and the vendor is eligible
