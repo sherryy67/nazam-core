@@ -1188,13 +1188,110 @@ const adminDeactivateUser = async (req, res, next) => {
   }
 };
 
-// @desc    Get all users
+// @desc    Get all users (Admin only)
 // @route   GET /api/admin/users
 // @access  Private (Admin only)
 const getAllUsers = async (req, res, next) => {
   try {
-    const users = await User.find().select('-password');
-    sendSuccess(res, 200, 'Users retrieved successfully', { users });
+    const { 
+      page = 1, 
+      limit = 10, 
+      name, 
+      fromDate, 
+      toDate 
+    } = req.query;
+
+    // Build query
+    const query = {};
+    
+    // Name filter (case-insensitive search in name)
+    if (name) {
+      query.name = { $regex: name, $options: 'i' };
+    }
+    
+    // Date range filter (on createdAt)
+    if (fromDate || toDate) {
+      query.createdAt = {};
+      if (fromDate) {
+        const from = new Date(fromDate);
+        if (isNaN(from.getTime())) {
+          return sendError(res, 400, 'Invalid fromDate format. Use ISO 8601 format (e.g., YYYY-MM-DD)', 'INVALID_DATE_FORMAT');
+        }
+        query.createdAt.$gte = from;
+      }
+      if (toDate) {
+        const to = new Date(toDate);
+        if (isNaN(to.getTime())) {
+          return sendError(res, 400, 'Invalid toDate format. Use ISO 8601 format (e.g., YYYY-MM-DD)', 'INVALID_DATE_FORMAT');
+        }
+        // Set to end of day
+        to.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = to;
+      }
+    }
+
+    // Validate pagination parameters
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    
+    if (pageNum < 1) {
+      return sendError(res, 400, 'Page number must be greater than 0', 'INVALID_PAGE');
+    }
+    
+    if (limitNum < 1 || limitNum > 100) {
+      return sendError(res, 400, 'Limit must be between 1 and 100', 'INVALID_LIMIT');
+    }
+
+    // Calculate pagination
+    const skip = (pageNum - 1) * limitNum;
+
+    // Execute queries in parallel
+    const [users, totalCount] = await Promise.all([
+      User.find(query)
+        .select('-password')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
+      User.countDocuments(query)
+    ]);
+
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1;
+
+    // Transform users to include formatted dates
+    const transformedUsers = users.map(user => ({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      role: user.role,
+      isActive: user.isActive,
+      isOTPVerified: user.isOTPVerified,
+      profilePic: user.profilePic,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString()
+    }));
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Users retrieved successfully',
+      content: {
+        users: transformedUsers,
+        pagination: {
+          currentPage: pageNum,
+          totalPages,
+          totalCount,
+          limit: limitNum,
+          hasNextPage,
+          hasPrevPage
+        }
+      }
+    };
+
+    res.status(200).json(response);
   } catch (error) {
     next(error);
   }

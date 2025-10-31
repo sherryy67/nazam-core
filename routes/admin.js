@@ -296,10 +296,45 @@ router.post('/create', adminCreateValidation, createAdmin);
  * @swagger
  * /api/admin/users:
  *   get:
- *     summary: Get all users
+ *     summary: Get all users with pagination and filtering (Admin only)
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Number of users per page
+ *       - in: query
+ *         name: name
+ *         schema:
+ *           type: string
+ *         description: Filter users by name (case-insensitive search)
+ *       - in: query
+ *         name: fromDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2024-01-01"
+ *         description: Filter users created from this date (ISO 8601 format)
+ *       - in: query
+ *         name: toDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2024-12-31"
+ *         description: Filter users created until this date (ISO 8601 format)
  *     responses:
  *       200:
  *         description: Users retrieved successfully
@@ -311,10 +346,13 @@ router.post('/create', adminCreateValidation, createAdmin);
  *                 success:
  *                   type: boolean
  *                   example: true
- *                 message:
+ *                 exception:
+ *                   type: string
+ *                   example: null
+ *                 description:
  *                   type: string
  *                   example: "Users retrieved successfully"
- *                 data:
+ *                 content:
  *                   type: object
  *                   properties:
  *                     users:
@@ -352,22 +390,33 @@ router.post('/create', adminCreateValidation, createAdmin);
  *                           updatedAt:
  *                             type: string
  *                             format: date-time
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         currentPage:
+ *                           type: integer
+ *                           example: 1
+ *                         totalPages:
+ *                           type: integer
+ *                           example: 5
+ *                         totalCount:
+ *                           type: integer
+ *                           example: 50
+ *                         limit:
+ *                           type: integer
+ *                           example: 10
+ *                         hasNextPage:
+ *                           type: boolean
+ *                           example: true
+ *                         hasPrevPage:
+ *                           type: boolean
+ *                           example: false
+ *       400:
+ *         description: Bad request - invalid parameters
  *       401:
  *         description: Unauthorized - admin access required
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Admin access required"
- *                 error:
- *                   type: string
- *                   example: "ADMIN_REQUIRED"
+ *       403:
+ *         description: Forbidden - admin access required
  */
 router.get('/users', protect, isAdmin, getAllUsers);
 
