@@ -235,8 +235,8 @@ const updateServiceRequestStatus = async (req, res, next) => {
     const { status, vendor } = req.body;
 
     // Validate status
-    if (!['Pending', 'Accepted', 'Completed', 'Cancelled'].includes(status)) {
-      return sendError(res, 400, 'Invalid status. Must be Pending, Accepted, Completed, or Cancelled', 'INVALID_STATUS');
+    if (!['Pending', 'Assigned', 'Accepted', 'Completed', 'Cancelled'].includes(status)) {
+      return sendError(res, 400, 'Invalid status. Must be Pending, Assigned, Accepted, Completed, or Cancelled', 'INVALID_STATUS');
     }
 
     const serviceRequest = await ServiceRequest.findById(id);
@@ -319,7 +319,7 @@ const assignRequest = async (req, res, next) => {
       requestId,
       { 
         vendor: vendorId,
-        status: 'Accepted'
+        status: 'Assigned'
       },
       { new: true, runValidators: true }
     ).populate('service_id', 'name description')
@@ -360,9 +360,46 @@ const assignRequest = async (req, res, next) => {
   }
 };
 
+// @desc    Delete service request (Admin only)
+// @route   DELETE /api/service-requests/:id
+// @access  Admin only
+const deleteServiceRequest = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Validate service request exists
+    const serviceRequest = await ServiceRequest.findById(id);
+    if (!serviceRequest) {
+      return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
+    }
+
+    // Delete the service request
+    await ServiceRequest.findByIdAndDelete(id);
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Service request deleted successfully',
+      content: {
+        deletedRequest: {
+          _id: serviceRequest._id,
+          user_name: serviceRequest.user_name,
+          service_name: serviceRequest.service_name,
+          status: serviceRequest.status
+        }
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   submitServiceRequest,
   getServiceRequests,
   updateServiceRequestStatus,
-  assignRequest
+  assignRequest,
+  deleteServiceRequest
 };

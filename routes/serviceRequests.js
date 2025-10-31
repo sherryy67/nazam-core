@@ -5,7 +5,8 @@ const { authorize, isAdmin } = require('../middlewares/roleAuth');
 const { 
   submitServiceRequest, 
   getServiceRequests, 
-  updateServiceRequestStatus 
+  updateServiceRequestStatus,
+  deleteServiceRequest
 } = require('../controllers/serviceRequestController');
 
 const router = express.Router();
@@ -66,8 +67,8 @@ const submitServiceRequestValidation = [
 // Validation rules for status update
 const updateStatusValidation = [
   body('status')
-    .isIn(['Pending', 'Accepted', 'Completed', 'Cancelled'])
-    .withMessage('Status must be Pending, Accepted, Completed, or Cancelled'),
+    .isIn(['Pending', 'Assigned', 'Accepted', 'Completed', 'Cancelled'])
+    .withMessage('Status must be Pending, Assigned, Accepted, Completed, or Cancelled'),
   body('vendor')
     .optional()
     .isMongoId()
@@ -204,7 +205,7 @@ router.post('/submit-service-requests', submitServiceRequestValidation, submitSe
  *         required: false
  *         schema:
  *           type: string
- *           enum: [Pending, Accepted, Completed, Cancelled]
+ *           enum: [Pending, Assigned, Accepted, Completed, Cancelled]
  *         description: Filter by status
  *       - in: query
  *         name: request_type
@@ -330,8 +331,8 @@ router.get('/', protect, isAdmin, getServiceRequests);
  *             properties:
  *               status:
  *                 type: string
- *                 enum: [Pending, Accepted, Completed, Cancelled]
- *                 example: "Accepted"
+ *                 enum: [Pending, Assigned, Accepted, Completed, Cancelled]
+ *                 example: "Assigned"
  *               vendor:
  *                 type: string
  *                 example: "64a1b2c3d4e5f6789abcdef2"
@@ -364,5 +365,60 @@ router.get('/', protect, isAdmin, getServiceRequests);
  *         description: Service request not found
  */
 router.put('/:id/status', protect, isAdmin, updateStatusValidation, updateServiceRequestStatus);
+
+/**
+ * @swagger
+ * /api/service-requests/{id}:
+ *   delete:
+ *     summary: Delete a service request (Admin only)
+ *     tags: [Service Requests]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Service request ID
+ *     responses:
+ *       200:
+ *         description: Service request deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 exception:
+ *                   type: string
+ *                   example: null
+ *                 description:
+ *                   type: string
+ *                   example: "Service request deleted successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     deletedRequest:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         user_name:
+ *                           type: string
+ *                         service_name:
+ *                           type: string
+ *                         status:
+ *                           type: string
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: Service request not found
+ */
+router.delete('/:id', protect, isAdmin, deleteServiceRequest);
 
 module.exports = router;

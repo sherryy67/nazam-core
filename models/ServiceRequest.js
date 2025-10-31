@@ -34,7 +34,7 @@ const serviceRequestSchema = new mongoose.Schema({
   // Status and assignment
   status: { 
     type: String, 
-    enum: ["Pending", "Accepted", "Completed", "Cancelled"], 
+    enum: ["Pending", "Assigned", "Accepted", "Completed", "Cancelled"], 
     default: "Pending" 
   },
   vendor: { type: mongoose.Schema.Types.ObjectId, ref: "Vendor" }, // assigned later
