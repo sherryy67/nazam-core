@@ -472,6 +472,7 @@ module.exports = {
         return {
           id: category._id,
           name: category.name,
+          sortOrder: category.sortOrder || 0,
           totalServices,
           services: services.map(svc => ({
             id: svc._id,
@@ -482,8 +483,13 @@ module.exports = {
         };
       }));
 
-      // Sort by totalServices desc
-      results.sort((a, b) => b.totalServices - a.totalServices);
+      // Sort by sortOrder ascending, then by name as secondary sort
+      results.sort((a, b) => {
+        if (a.sortOrder !== b.sortOrder) {
+          return a.sortOrder - b.sortOrder;
+        }
+        return a.name.localeCompare(b.name);
+      });
 
       // Use generic response model; content is the array as requested
       return sendSuccess(res, 200, 'Category service summary retrieved successfully', results);
