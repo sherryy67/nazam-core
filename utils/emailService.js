@@ -2,27 +2,42 @@ const nodemailer = require('nodemailer');
 
 /**
  * Email Service for sending OTP and notifications
- * Handles email sending using Gmail SMTP
+ * Handles email sending using Amazon SES SMTP
  */
 class EmailService {
   constructor() {
-    // Check if email credentials are available
-    const emailUser = process.env.Email || 'sheralii10711@gmail.com';
-    const emailPass = process.env.Password || process.env.EMAIL_PASSWORD;
+    // Check if Amazon SES SMTP credentials are available
+    const smtpHost = process.env.SMTP_HOST || 'email-smtp.us-east-1.amazonaws.com';
+    const smtpPort = parseInt(process.env.SMTP_PORT || '587');
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+    const smtpFrom = process.env.SMTP_FROM;
     
-    if (!emailPass) {
-      console.warn('⚠️  Email password not found in environment variables. Email OTP will not work.');
-      console.warn('Please set Password or EMAIL_PASSWORD in your .env file');
+    if (!smtpUser || !smtpPass) {
+      console.warn('⚠️  Amazon SES SMTP credentials not found in environment variables. Email OTP will not work.');
+      console.warn('Please set SMTP_USER and SMTP_PASS in your .env file');
       this.transporter = null;
       return;
     }
 
+    // Validate that SMTP_FROM is set and is a valid email address
+    if (!smtpFrom || !this.isValidEmail(smtpFrom)) {
+      console.warn('⚠️  SMTP_FROM is not set or is not a valid email address.');
+      console.warn('Please set SMTP_FROM to a verified email address in Amazon SES in your .env file');
+      console.warn('Example: SMTP_FROM=noreply@yourdomain.com');
+      this.transporter = null;
+      return;
+    }
+
+    this.smtpFrom = smtpFrom;
+
     this.transporter = nodemailer.createTransport({
-      service: "gmail",
-      secure: true,
+      host: smtpHost,
+      port: smtpPort,
+      secure: false, // true for 465, false for other ports (587 uses STARTTLS)
       auth: {
-        user: emailUser,
-        pass: emailPass,
+        user: smtpUser,
+        pass: smtpPass,
       },
     });
   }
@@ -46,7 +61,7 @@ class EmailService {
       }
 
       const mailOptions = {
-        from: process.env.Email || 'sheralii10711@gmail.com',
+        from: this.smtpFrom,
         to: email,
         subject: 'Nazam - Verification Code',
         html: `
@@ -128,7 +143,7 @@ class EmailService {
       }
 
       const mailOptions = {
-        from: process.env.Email || 'sheralii10711@gmail.com',
+        from: this.smtpFrom,
         to: email,
         subject: subject,
         html: `
