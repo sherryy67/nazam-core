@@ -60,7 +60,7 @@ router.post('/', protect, authorize(ROLES.USER), submitServiceRequest);
  * @swagger
  * /api/requests:
  *   get:
- *     summary: Get all service requests (order details) with pagination
+ *     summary: Get all service requests
  *     tags: [Service Requests]
  *     security:
  *       - bearerAuth: []
@@ -69,105 +69,23 @@ router.post('/', protect, authorize(ROLES.USER), submitServiceRequest);
  *         name: status
  *         schema:
  *           type: string
- *           enum: [Pending, Assigned, Accepted, Completed, Cancelled]
+ *           enum: [Pending, Assigned, InProgress, Completed, Cancelled]
  *         description: Filter by status
- *       - in: query
- *         name: request_type
- *         schema:
- *           type: string
- *           enum: [Quotation, OnTime, Scheduled]
- *         description: Filter by request type
  *       - in: query
  *         name: page
  *         schema:
  *           type: integer
- *           minimum: 1
  *           default: 1
  *         description: Page number
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
- *           minimum: 1
- *           maximum: 100
  *           default: 10
  *         description: Number of requests per page
  *     responses:
  *       200:
- *         description: Order details retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 exception:
- *                   type: string
- *                   example: null
- *                 description:
- *                   type: string
- *                   example: "Service requests retrieved successfully"
- *                 content:
- *                   type: object
- *                   properties:
- *                     serviceRequests:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           orderId:
- *                             type: string
- *                             example: "690501334f243577095f9787"
- *                           userName:
- *                             type: string
- *                             example: "John Doe"
- *                           userPhoneNumber:
- *                             type: string
- *                             example: "+971501234567"
- *                           userEmail:
- *                             type: string
- *                             example: "john@example.com"
- *                           serviceCity:
- *                             type: string
- *                             example: "Dubai"
- *                           address:
- *                             type: string
- *                             example: "123 Main Street, Dubai"
- *                           category:
- *                             type: string
- *                             example: "Home Maintenance"
- *                           service:
- *                             type: string
- *                             example: "AC Service"
- *                           createdDate:
- *                             type: string
- *                             format: date-time
- *                             example: "2024-01-15T10:30:00.000Z"
- *                           requestedDateTime:
- *                             type: string
- *                             format: date-time
- *                             example: "2024-01-20T14:00:00.000Z"
- *                           paymentMethod:
- *                             type: string
- *                             enum: [Cash On Delivery, Online Payment]
- *                             example: "Cash On Delivery"
- *                     pagination:
- *                       type: object
- *                       properties:
- *                         currentPage:
- *                           type: integer
- *                         totalPages:
- *                           type: integer
- *                         totalCount:
- *                           type: integer
- *                         limit:
- *                           type: integer
- *                         hasNextPage:
- *                           type: boolean
- *                         hasPrevPage:
- *                           type: boolean
+ *         description: Service requests retrieved successfully
  *       401:
  *         description: Unauthorized
  *       403:

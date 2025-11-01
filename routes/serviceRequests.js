@@ -61,14 +61,7 @@ const submitServiceRequestValidation = [
     .optional()
     .trim()
     .isLength({ max: 1000 })
-    .withMessage('Message must be less than 1000 characters'),
-  body('paymentMethod')
-    .optional()
-    .isIn(['Cash On Delivery', 'Online Payment'])
-    .withMessage('Payment method must be "Cash On Delivery" or "Online Payment"'),
-  body('number_of_units')
-    .isInt({ min: 1 })
-    .withMessage('Number of units must be a positive integer')
+    .withMessage('Message must be less than 1000 characters')
 ];
 
 // Validation rules for status update
@@ -138,18 +131,9 @@ const updateStatusValidation = [
  *                 type: string
  *                 format: date-time
  *                 example: "2023-12-15T10:00:00.000Z"
- *               number_of_units:
- *                 type: integer
- *                 minimum: 1
- *                 example: 2
  *               message:
  *                 type: string
  *                 example: "Please clean the AC unit in the living room"
- *               paymentMethod:
- *                 type: string
- *                 enum: [Cash On Delivery, Online Payment]
- *                 default: Cash On Delivery
- *                 example: "Cash On Delivery"
  *     responses:
  *       201:
  *         description: Service request submitted successfully
@@ -193,8 +177,6 @@ const updateStatusValidation = [
  *                         requested_date:
  *                           type: string
  *                         message:
- *                           type: string
- *                         paymentMethod:
  *                           type: string
  *                         status:
  *                           type: string
