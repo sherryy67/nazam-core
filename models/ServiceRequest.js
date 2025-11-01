@@ -38,6 +38,11 @@ const serviceRequestSchema = new mongoose.Schema({
     default: "Pending" 
   },
   vendor: { type: mongoose.Schema.Types.ObjectId, ref: "Vendor" }, // assigned later
+  paymentMethod: {
+    type: String,
+    enum: ["Cash On Delivery", "Online Payment"],
+    default: "Cash On Delivery"
+  },
   
   // Legacy fields (for backward compatibility)
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

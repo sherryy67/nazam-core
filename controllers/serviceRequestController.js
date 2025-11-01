@@ -90,6 +90,11 @@ const submitServiceRequest = async (req, res, next) => {
       return sendError(res, 400, 'Requested date cannot be in the past', 'INVALID_DATE');
     }
 
+    // Validate paymentMethod if provided
+    if (req.body.paymentMethod && !['Cash On Delivery', 'Online Payment'].includes(req.body.paymentMethod)) {
+      return sendError(res, 400, 'Invalid payment method. Must be "Cash On Delivery" or "Online Payment"', 'INVALID_PAYMENT_METHOD');
+    }
+
     // Create service request data
     const serviceRequestData = {
       user_name: user_name.trim(),
@@ -107,7 +112,8 @@ const submitServiceRequest = async (req, res, next) => {
       unit_type: unitType,
       unit_price: unitPrice,
       number_of_units: numberOfUnits,
-      total_price: totalPrice
+      total_price: totalPrice,
+      paymentMethod: req.body.paymentMethod || 'Cash On Delivery' // Default to Cash On Delivery if not provided
     };
 
     // Create the service request
@@ -128,6 +134,7 @@ const submitServiceRequest = async (req, res, next) => {
       requested_date: serviceRequest.requested_date.toISOString(),
       message: serviceRequest.message,
       status: serviceRequest.status,
+      paymentMethod: serviceRequest.paymentMethod || 'Cash On Delivery',
       unit_type: serviceRequest.unit_type,
       unit_price: serviceRequest.unit_price,
       number_of_units: serviceRequest.number_of_units,
@@ -173,35 +180,35 @@ const getServiceRequests = async (req, res, next) => {
       ServiceRequest.find(query)
         .populate('service_id', 'name description basePrice')
         .populate('category_id', 'name description')
-        .populate('vendor', 'firstName lastName email mobileNumber')
+        .populate('vendor', 'firstName lastName email mobileNumber coveredCity')
       .sort({ createdAt: -1 })
       .skip(skip)
         .limit(limitNum),
       ServiceRequest.countDocuments(query)
     ]);
 
-    // Transform service requests
+    // Transform service requests to order details format
     const transformedRequests = serviceRequests.map(request => ({
-      _id: request._id,
-      user_name: request.user_name,
-      user_phone: request.user_phone,
-      user_email: request.user_email,
-      address: request.address,
-      service_id: request.service_id,
-      service_name: request.service_name,
-      category_id: request.category_id,
-      category_name: request.category_name,
-      request_type: request.request_type,
-      requested_date: request.requested_date.toISOString(),
-      message: request.message,
+      orderId: request._id,
+      userName: request.user_name,
+      userPhoneNumber: request.user_phone,
+      userEmail: request.user_email,
+      serviceCity: request.vendor?.coveredCity || null, // Get from vendor's coveredCity
+      address: request.address || '',
+      category: request.category_name,
+      service: request.service_name,
+      createdDate: request.createdAt.toISOString(),
+      requestedDateTime: request.requested_date.toISOString(),
+      paymentMethod: request.paymentMethod || 'Cash On Delivery',
+      // Additional fields for backward compatibility
       status: request.status,
+      requestType: request.request_type,
+      totalPrice: request.total_price,
+      unitType: request.unit_type,
+      unitPrice: request.unit_price,
+      numberOfUnits: request.number_of_units,
       vendor: request.vendor,
-      unit_type: request.unit_type,
-      unit_price: request.unit_price,
-      number_of_units: request.number_of_units,
-      total_price: request.total_price,
-      createdAt: request.createdAt.toISOString(),
-      updatedAt: request.updatedAt.toISOString()
+      message: request.message
     }));
 
     const response = {

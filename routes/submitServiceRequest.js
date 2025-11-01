@@ -49,7 +49,11 @@ const submitServiceRequestValidation = [
     .optional()
     .trim()
     .isLength({ max: 1000 })
-    .withMessage('Message must be less than 1000 characters')
+    .withMessage('Message must be less than 1000 characters'),
+  body('paymentMethod')
+    .optional()
+    .isIn(['Cash On Delivery', 'Online Payment'])
+    .withMessage('Payment method must be "Cash On Delivery" or "Online Payment"')
 ];
 
 /**
@@ -116,6 +120,11 @@ const submitServiceRequestValidation = [
  *               message:
  *                 type: string
  *                 example: "Need urgent plumbing service for blocked drain"
+ *               paymentMethod:
+ *                 type: string
+ *                 enum: [Cash On Delivery, Online Payment]
+ *                 default: Cash On Delivery
+ *                 example: "Cash On Delivery"
  *     responses:
  *       201:
  *         description: Service request submitted successfully
@@ -174,6 +183,8 @@ const submitServiceRequestValidation = [
  *                           type: integer
  *                         total_price:
  *                           type: number
+ *                         paymentMethod:
+ *                           type: string
  *                         createdAt:
  *                           type: string
  *                         updatedAt:
