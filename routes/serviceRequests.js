@@ -6,7 +6,8 @@ const {
   submitServiceRequest, 
   getServiceRequests, 
   updateServiceRequestStatus,
-  deleteServiceRequest
+  deleteServiceRequest,
+  getOrderDetails
 } = require('../controllers/serviceRequestController');
 
 const router = express.Router();
@@ -420,5 +421,90 @@ router.put('/:id/status', protect, isAdmin, updateStatusValidation, updateServic
  *         description: Service request not found
  */
 router.delete('/:id', protect, isAdmin, deleteServiceRequest);
+
+/**
+ * @swagger
+ * /api/service-requests/{id}/details:
+ *   get:
+ *     summary: Get order details by request ID
+ *     tags: [Service Requests]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Service request ID
+ *     responses:
+ *       200:
+ *         description: Order details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 exception:
+ *                   type: string
+ *                   example: null
+ *                 description:
+ *                   type: string
+ *                   example: "Order details retrieved successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     orderDetails:
+ *                       type: object
+ *                       properties:
+ *                         orderId:
+ *                           type: string
+ *                           example: "690501334f243577095f9787"
+ *                         userName:
+ *                           type: string
+ *                           example: "John Doe"
+ *                         userPhoneNumber:
+ *                           type: string
+ *                           example: "+971501234567"
+ *                         userEmail:
+ *                           type: string
+ *                           example: "john@example.com"
+ *                         serviceCity:
+ *                           type: string
+ *                           example: "Dubai"
+ *                         address:
+ *                           type: string
+ *                           example: "123 Main Street, Dubai, UAE"
+ *                         category:
+ *                           type: object
+ *                           properties:
+ *                             id:
+ *                               type: string
+ *                             name:
+ *                               type: string
+ *                         service:
+ *                           type: object
+ *                           properties:
+ *                             id:
+ *                               type: string
+ *                             name:
+ *                               type: string
+ *                         createdDate:
+ *                           type: string
+ *                           format: date-time
+ *                         requestedDateTime:
+ *                           type: string
+ *                           format: date-time
+ *                         paymentMethod:
+ *                           type: string
+ *                           enum: [Cash On Delivery, Online Payment]
+ *                           example: "Cash On Delivery"
+ *       400:
+ *         description: Bad request - Invalid request ID
+ *       404:
+ *         description: Order not found
+ */
+router.get('/:id/details', getOrderDetails);
 
 module.exports = router;

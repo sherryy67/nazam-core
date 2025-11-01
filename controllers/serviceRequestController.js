@@ -1,6 +1,7 @@
 const ServiceRequest = require('../models/ServiceRequest');
 const Service = require('../models/Service');
 const Category = require('../models/Category');
+const mongoose = require('mongoose');
 const { sendSuccess, sendError, sendCreated } = require('../utils/response');
 
 // @desc    Submit a service request
@@ -404,10 +405,101 @@ const deleteServiceRequest = async (req, res, next) => {
   }
 };
 
+// @desc    Get order details by request ID
+// @route   GET /api/service-requests/:id/details
+// @access  Public or JWT protected (depending on requirement)
+const getOrderDetails = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Validate request ID
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, 'Invalid request ID', 'INVALID_REQUEST_ID');
+    }
+
+    // Find service request with populated fields
+    const serviceRequest = await ServiceRequest.findById(id)
+      .populate('service_id', 'name description basePrice unitType')
+      .populate('category_id', 'name description')
+      .populate('vendor', 'firstName lastName email mobileNumber coveredCity');
+
+    if (!serviceRequest) {
+      return sendError(res, 404, 'Order not found', 'ORDER_NOT_FOUND');
+    }
+
+    // Extract city from address or use vendor's coveredCity
+    // Try to extract city from address (assuming format: "Street, City, Country")
+    let serviceCity = '';
+    if (serviceRequest.address) {
+      const addressParts = serviceRequest.address.split(',').map(part => part.trim());
+      // Usually city is second to last or last part before country
+      if (addressParts.length >= 2) {
+        serviceCity = addressParts[addressParts.length - 2] || addressParts[addressParts.length - 1];
+      } else {
+        serviceCity = serviceRequest.address;
+      }
+    }
+    
+    // If vendor is assigned and has coveredCity, use that as service city
+    if (serviceRequest.vendor && serviceRequest.vendor.coveredCity) {
+      serviceCity = serviceRequest.vendor.coveredCity;
+    }
+
+    // Transform response to match requested format
+    const orderDetails = {
+      orderId: serviceRequest._id.toString(),
+      userName: serviceRequest.user_name,
+      userPhoneNumber: serviceRequest.user_phone,
+      userEmail: serviceRequest.user_email,
+      serviceCity: serviceCity || 'N/A',
+      address: serviceRequest.address || 'N/A',
+      category: {
+        id: serviceRequest.category_id?._id?.toString() || serviceRequest.category_id?.toString(),
+        name: serviceRequest.category_name
+      },
+      service: {
+        id: serviceRequest.service_id?._id?.toString() || serviceRequest.service_id?.toString(),
+        name: serviceRequest.service_name
+      },
+      createdDate: serviceRequest.createdAt ? serviceRequest.createdAt.toISOString() : null,
+      requestedDateTime: serviceRequest.requested_date ? serviceRequest.requested_date.toISOString() : null,
+      paymentMethod: serviceRequest.paymentMethod || 'Cash On Delivery',
+      // Additional useful fields
+      requestType: serviceRequest.request_type,
+      status: serviceRequest.status,
+      totalPrice: serviceRequest.total_price,
+      unitType: serviceRequest.unit_type,
+      unitPrice: serviceRequest.unit_price,
+      numberOfUnits: serviceRequest.number_of_units,
+      message: serviceRequest.message,
+      vendor: serviceRequest.vendor ? {
+        id: serviceRequest.vendor._id?.toString(),
+        name: `${serviceRequest.vendor.firstName || ''} ${serviceRequest.vendor.lastName || ''}`.trim(),
+        coveredCity: serviceRequest.vendor.coveredCity
+      } : null
+    };
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Order details retrieved successfully',
+      content: {
+        orderDetails
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Error getting order details:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   submitServiceRequest,
   getServiceRequests,
   updateServiceRequestStatus,
   assignRequest,
-  deleteServiceRequest
+  deleteServiceRequest,
+  getOrderDetails
 };
