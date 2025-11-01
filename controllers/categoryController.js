@@ -1,5 +1,6 @@
 const Category = require('../models/Category');
 const Service = require('../models/Service');
+const mongoose = require('mongoose');
 const { sendSuccess, sendError, sendCreated } = require('../utils/response');
 
 // @desc    Create a new category
@@ -37,6 +38,7 @@ const createCategory = async (req, res, next) => {
       name: category.name,
       description: category.description || undefined,
       isActive: category.isActive,
+      sortOrder: category.sortOrder || 0,
       createdAt: category.createdAt?.toISOString(),
       updatedAt: category.updatedAt?.toISOString()
     };
@@ -64,7 +66,7 @@ const getCategories = async (req, res, next) => {
   try {
     const categories = await Category.find({ isActive: true })
       .populate('createdBy', 'name email')
-      .sort({ name: 1 });
+      .sort({ sortOrder: 1, name: 1 });
 
     // Transform categories to match frontend interface
     const transformedCategories = categories.map(category => ({
@@ -72,6 +74,7 @@ const getCategories = async (req, res, next) => {
       name: category.name,
       description: category.description || undefined,
       isActive: category.isActive,
+      sortOrder: category.sortOrder || 0,
       createdAt: category.createdAt?.toISOString(),
       updatedAt: category.updatedAt?.toISOString()
     }));
@@ -99,7 +102,7 @@ const getAllCategories = async (req, res, next) => {
   try {
     const categories = await Category.find()
       .populate('createdBy', 'name email')
-      .sort({ name: 1 });
+      .sort({ sortOrder: 1, name: 1 });
 
     // Transform categories to match frontend interface
     const transformedCategories = categories.map(category => ({
@@ -107,6 +110,7 @@ const getAllCategories = async (req, res, next) => {
       name: category.name,
       description: category.description || undefined,
       isActive: category.isActive,
+      sortOrder: category.sortOrder || 0,
       createdAt: category.createdAt?.toISOString(),
       updatedAt: category.updatedAt?.toISOString()
     }));
@@ -147,6 +151,7 @@ const getCategoryById = async (req, res, next) => {
       name: category.name,
       description: category.description || undefined,
       isActive: category.isActive,
+      sortOrder: category.sortOrder || 0,
       createdAt: category.createdAt?.toISOString(),
       updatedAt: category.updatedAt?.toISOString()
     };
@@ -210,6 +215,7 @@ const updateCategory = async (req, res, next) => {
       name: updatedCategory.name,
       description: updatedCategory.description || undefined,
       isActive: updatedCategory.isActive,
+      sortOrder: updatedCategory.sortOrder || 0,
       createdAt: updatedCategory.createdAt?.toISOString(),
       updatedAt: updatedCategory.updatedAt?.toISOString()
     };
@@ -277,7 +283,7 @@ const getHomeCategories = async (req, res, next) => {
   try {
     // Get all active categories
     const categories = await Category.find({ isActive: true })
-      .sort({ createdAt: -1 })
+      .sort({ sortOrder: 1, createdAt: -1 })
       .lean();
 
     // Get one service for each category
@@ -297,6 +303,7 @@ const getHomeCategories = async (req, res, next) => {
           name: category.name,
           description: category.description || undefined,
           isActive: category.isActive,
+          sortOrder: category.sortOrder || 0,
           createdAt: category.createdAt?.toISOString(),
           updatedAt: category.updatedAt?.toISOString()
         };
@@ -350,6 +357,92 @@ const getHomeCategories = async (req, res, next) => {
   }
 };
 
+// @desc    Bulk update category sort order
+// @route   PUT /api/categories/sort
+// @access  Admin only
+const updateCategorySortOrder = async (req, res, next) => {
+  try {
+    const { categories } = req.body;
+
+    // Validate request body
+    if (!categories || !Array.isArray(categories) || categories.length === 0) {
+      return sendError(res, 400, 'Categories array is required and must not be empty', 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Validate each category object
+    for (const category of categories) {
+      if (!category.id) {
+        return sendError(res, 400, 'Category ID is required for each category', 'MISSING_CATEGORY_ID');
+      }
+      if (!mongoose.Types.ObjectId.isValid(category.id)) {
+        return sendError(res, 400, `Invalid category ID format: ${category.id}`, 'INVALID_CATEGORY_ID');
+      }
+      if (category.sortOrder === undefined || category.sortOrder === null) {
+        return sendError(res, 400, 'sortOrder is required for each category', 'MISSING_SORT_ORDER');
+      }
+      if (typeof category.sortOrder !== 'number' || !Number.isInteger(category.sortOrder)) {
+        return sendError(res, 400, 'sortOrder must be an integer', 'INVALID_SORT_ORDER');
+      }
+      if (category.sortOrder < 0) {
+        return sendError(res, 400, 'sortOrder must be a non-negative integer', 'INVALID_SORT_ORDER');
+      }
+    }
+
+    // Check if all category IDs exist
+    const categoryIds = categories.map(cat => cat.id);
+    const existingCategories = await Category.find({ _id: { $in: categoryIds } }).select('_id');
+    const existingIds = existingCategories.map(cat => cat._id.toString());
+
+    const invalidIds = categoryIds.filter(id => !existingIds.includes(id));
+    if (invalidIds.length > 0) {
+      return sendError(res, 404, `Categories not found: ${invalidIds.join(', ')}`, 'CATEGORIES_NOT_FOUND');
+    }
+
+    // Prepare bulk write operations
+    const bulkOps = categories.map(category => ({
+      updateOne: {
+        filter: { _id: new mongoose.Types.ObjectId(category.id) },
+        update: { $set: { sortOrder: category.sortOrder } }
+      }
+    }));
+
+    // Execute bulk update
+    const result = await Category.bulkWrite(bulkOps);
+
+    // Fetch updated categories to return
+    const updatedCategories = await Category.find({ _id: { $in: categoryIds } })
+      .populate('createdBy', 'name email')
+      .sort({ sortOrder: 1, name: 1 });
+
+    // Transform categories to match frontend interface
+    const transformedCategories = updatedCategories.map(category => ({
+      _id: category._id,
+      name: category.name,
+      description: category.description || undefined,
+      isActive: category.isActive,
+      sortOrder: category.sortOrder || 0,
+      createdAt: category.createdAt?.toISOString(),
+      updatedAt: category.updatedAt?.toISOString()
+    }));
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Category sort order updated successfully',
+      content: {
+        categories: transformedCategories,
+        total: transformedCategories.length,
+        updatedCount: result.modifiedCount
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Error updating category sort order:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   createCategory,
   getCategories,
@@ -358,11 +451,12 @@ module.exports = {
   updateCategory,
   deleteCategory,
   getHomeCategories,
+  updateCategorySortOrder,
   // New: summarized categories with limited services and counts
   getCategoryServiceSummary: async (req, res, next) => {
     try {
       // Fetch active categories
-      const categories = await Category.find({ isActive: true }).sort({ name: 1 }).lean();
+      const categories = await Category.find({ isActive: true }).sort({ sortOrder: 1, name: 1 }).lean();
 
       // For each category, fetch service count and up to 3 services
       const results = await Promise.all(categories.map(async (category) => {

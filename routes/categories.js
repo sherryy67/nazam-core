@@ -9,7 +9,8 @@ const {
   getCategoryById, 
   updateCategory, 
   deleteCategory,
-  getHomeCategories
+  getHomeCategories,
+  updateCategorySortOrder
 } = require('../controllers/categoryController');
 
 const router = express.Router();
@@ -47,6 +48,21 @@ const updateCategoryValidation = [
     .optional()
     .isBoolean()
     .withMessage('isActive must be a boolean value')
+];
+
+// Validation rules for category sort order
+const updateSortOrderValidation = [
+  body('categories')
+    .isArray({ min: 1 })
+    .withMessage('Categories array is required and must not be empty'),
+  body('categories.*.id')
+    .notEmpty()
+    .withMessage('Category ID is required for each category')
+    .isMongoId()
+    .withMessage('Invalid category ID format'),
+  body('categories.*.sortOrder')
+    .isInt({ min: 0 })
+    .withMessage('sortOrder must be a non-negative integer')
 ];
 
 /**
@@ -326,6 +342,96 @@ router.get('/all', protect, isAdmin, getAllCategories);
  *       404:
  *         description: Category not found
  */
+/**
+ * @swagger
+ * /api/categories/sort:
+ *   put:
+ *     summary: Bulk update category sort order (Admin only)
+ *     tags: [Categories]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - categories
+ *             properties:
+ *               categories:
+ *                 type: array
+ *                 minItems: 1
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - id
+ *                     - sortOrder
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       format: objectid
+ *                       example: "64f2a9b3c4d5e6f7a8b9c0d1"
+ *                     sortOrder:
+ *                       type: integer
+ *                       minimum: 0
+ *                       example: 1
+ *     responses:
+ *       200:
+ *         description: Category sort order updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 exception:
+ *                   type: string
+ *                   example: null
+ *                 description:
+ *                   type: string
+ *                   example: "Category sort order updated successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     categories:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                           isActive:
+ *                             type: boolean
+ *                           sortOrder:
+ *                             type: integer
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *                           updatedAt:
+ *                             type: string
+ *                             format: date-time
+ *                     total:
+ *                       type: integer
+ *                     updatedCount:
+ *                       type: integer
+ *       400:
+ *         description: Bad request - invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: Categories not found
+ */
+router.put('/sort', protect, isAdmin, updateSortOrderValidation, updateCategorySortOrder);
+
 router.get('/:id', protect, getCategoryById);
 
 /**

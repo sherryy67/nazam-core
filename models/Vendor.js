@@ -15,7 +15,6 @@ const vendorSchema = new mongoose.Schema({
     required: true 
   }, // primary service the vendor handles
   gender: { type: String, enum: ["Male", "Female", "Other"] },
-  dob: { type: Date },
   privilege: { type: String, enum: ["Beginner", "Experienced", "Professional"], default: "Beginner" },
   profilePic: { type: String }, // file path or URL
   countryCode: { type: String, required: true },

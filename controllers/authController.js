@@ -66,7 +66,6 @@ const register = async (req, res, next) => {
         // Optional fields
         company: req.body.company,
         gender: req.body.gender,
-        dob: req.body.dob,
         privilege: req.body.privilege,
         profilePic: req.body.profilePic,
         experience: req.body.experience,
@@ -405,7 +404,6 @@ const adminCreateVendor = async (req, res, next) => {
       // Optional fields
       company: req.body.company,
       gender: req.body.gender,
-      dob: req.body.dob,
       privilege: req.body.privilege,
       experience: req.body.experience,
       bankName: req.body.bankName,
@@ -581,7 +579,6 @@ const getAllVendors = async (req, res, next) => {
       coveredCity: vendor.coveredCity,
       serviceId: vendor.serviceId,
       gender: vendor.gender,
-      dob: vendor.dob,
       privilege: vendor.privilege,
       profilePic: vendor.profilePic,
       countryCode: vendor.countryCode,

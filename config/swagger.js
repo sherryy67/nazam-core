@@ -140,12 +140,6 @@ const options = {
               description: "Gender",
               example: "Male",
             },
-            dob: {
-              type: "string",
-              format: "date",
-              description: "Date of birth",
-              example: "1990-01-01",
-            },
             privilege: {
               type: "string",
               enum: ["Beginner", "Experienced", "Professional"],
@@ -395,12 +389,6 @@ const options = {
               enum: ["Male", "Female", "Other"],
               description: "Gender",
               example: "Male",
-            },
-            dob: {
-              type: "string",
-              format: "date",
-              description: "Date of birth",
-              example: "1990-01-01",
             },
             privilege: {
               type: "string",

@@ -528,10 +528,6 @@ router.put('/updatepassword', protect, updatePasswordValidation, updatePassword)
  *                 type: string
  *                 enum: [Male, Female, Other]
  *                 example: "Male"
- *               dob:
- *                 type: string
- *                 format: date
- *                 example: "1990-01-01"
  *               privilege:
  *                 type: string
  *                 enum: [Beginner, Experienced, Professional]

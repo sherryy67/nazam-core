@@ -18,6 +18,10 @@ const categorySchema = new mongoose.Schema({
     type: Boolean, 
     default: true 
   },
+  sortOrder: {
+    type: Number,
+    default: 0
+  },
   createdBy: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: "Admin" 
@@ -29,5 +33,6 @@ const categorySchema = new mongoose.Schema({
 // Index for better performance
 categorySchema.index({ name: 1 });
 categorySchema.index({ isActive: 1 });
+categorySchema.index({ sortOrder: 1 });
 
 module.exports = mongoose.model("Category", categorySchema);
