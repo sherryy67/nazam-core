@@ -89,19 +89,36 @@ const createService = async (req, res, next) => {
       subservice_type
     } = req.body;
 
-    // Validate required fields
-    if (!name || !basePrice || !unitType || !category_id || !min_time_required || !availability || !job_service_type) {
-      return sendError(res, 400, 'Name, basePrice, unitType, category_id, min_time_required, availability, and job_service_type are required', 'MISSING_REQUIRED_FIELDS');
+    // Validate required fields - basePrice is not required for Quotation services
+    if (!name || !category_id || !min_time_required || !availability || !job_service_type) {
+      return sendError(res, 400, 'Name, category_id, min_time_required, availability, and job_service_type are required', 'MISSING_REQUIRED_FIELDS');
     }
 
-    // Validate unitType
-    if (!['per_unit', 'per_hour'].includes(unitType)) {
-      return sendError(res, 400, 'unitType must be either "per_unit" or "per_hour"', 'INVALID_UNIT_TYPE');
-    }
-
-    // Validate basePrice
-    if (basePrice <= 0) {
-      return sendError(res, 400, 'basePrice must be greater than 0', 'INVALID_BASE_PRICE');
+    // For non-Quotation services, unitType and basePrice are required
+    if (job_service_type !== 'Quotation') {
+      if (!unitType) {
+        return sendError(res, 400, 'unitType is required for OnTime and Scheduled services', 'MISSING_UNIT_TYPE');
+      }
+      if (!basePrice) {
+        return sendError(res, 400, 'basePrice is required for OnTime and Scheduled services', 'MISSING_BASE_PRICE');
+      }
+      // Validate unitType
+      if (!['per_unit', 'per_hour'].includes(unitType)) {
+        return sendError(res, 400, 'unitType must be either "per_unit" or "per_hour"', 'INVALID_UNIT_TYPE');
+      }
+      // Validate basePrice
+      if (basePrice <= 0) {
+        return sendError(res, 400, 'basePrice must be greater than 0', 'INVALID_BASE_PRICE');
+      }
+    } else {
+      // For Quotation services, unitType and basePrice are optional
+      // If provided, validate them
+      if (unitType && !['per_unit', 'per_hour'].includes(unitType)) {
+        return sendError(res, 400, 'unitType must be either "per_unit" or "per_hour"', 'INVALID_UNIT_TYPE');
+      }
+      if (basePrice !== undefined && basePrice !== null && basePrice <= 0) {
+        return sendError(res, 400, 'basePrice must be greater than 0 if provided', 'INVALID_BASE_PRICE');
+      }
     }
 
     // Validate category exists
@@ -139,14 +156,26 @@ const createService = async (req, res, next) => {
     const serviceData = {
       name,
       description,
-      basePrice: parseFloat(basePrice),
-      unitType,
       category_id,
       min_time_required: parseInt(min_time_required),
       availability: availabilityArray,
       job_service_type,
       createdBy: req.user.id
     };
+
+    // Add basePrice and unitType only if provided (required for non-Quotation services)
+    if (job_service_type !== 'Quotation') {
+      serviceData.basePrice = parseFloat(basePrice);
+      serviceData.unitType = unitType;
+    } else {
+      // For Quotation services, these are optional
+      if (basePrice !== undefined && basePrice !== null) {
+        serviceData.basePrice = parseFloat(basePrice);
+      }
+      if (unitType) {
+        serviceData.unitType = unitType;
+      }
+    }
 
     // Add conditional fields
     if (job_service_type === 'Quotation') {

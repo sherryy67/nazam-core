@@ -3,8 +3,19 @@ const mongoose = require("mongoose");
 const serviceSchema = new mongoose.Schema({
   name: { type: String, required: true },       // e.g. AC Cleaning
   description: { type: String },
-  basePrice: { type: Number, required: true },  // price per unit/hour
-  unitType: { type: String, enum: ["per_unit", "per_hour"], required: true },
+  basePrice: { 
+    type: Number, 
+    required: function() {
+      return this.job_service_type !== "Quotation";
+    }
+  },  // price per unit/hour - not required for Quotation services
+  unitType: { 
+    type: String, 
+    enum: ["per_unit", "per_hour"], 
+    required: function() {
+      return this.job_service_type !== "Quotation";
+    }
+  },
   imageUri: { type: String },                   // optional image URL for the service
   
   // New fields for enhanced service management

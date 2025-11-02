@@ -19,11 +19,27 @@ const createServiceValidation = [
     .isLength({ max: 500 })
     .withMessage('Description must be less than 500 characters'),
   body('basePrice')
+    .optional()
     .isFloat({ min: 0.01 })
-    .withMessage('Base price must be a positive number'),
+    .withMessage('Base price must be a positive number')
+    .custom((value, { req }) => {
+      // basePrice is required if job_service_type is NOT Quotation
+      if (req.body.job_service_type && req.body.job_service_type !== 'Quotation' && (!value || value <= 0)) {
+        throw new Error('Base price is required for OnTime and Scheduled services');
+      }
+      return true;
+    }),
   body('unitType')
+    .optional()
     .isIn(['per_unit', 'per_hour'])
-    .withMessage('Unit type must be either "per_unit" or "per_hour"'),
+    .withMessage('Unit type must be either "per_unit" or "per_hour"')
+    .custom((value, { req }) => {
+      // unitType is required if job_service_type is NOT Quotation
+      if (req.body.job_service_type && req.body.job_service_type !== 'Quotation' && (!value || value.trim().length === 0)) {
+        throw new Error('Unit type is required for OnTime and Scheduled services');
+      }
+      return true;
+    }),
   body('category_id')
     .isMongoId()
     .withMessage('Category ID must be a valid MongoDB ObjectId'),
@@ -43,15 +59,36 @@ const createServiceValidation = [
     .optional()
     .trim()
     .isLength({ min: 2, max: 100 })
-    .withMessage('Order name must be between 2 and 100 characters'),
+    .withMessage('Order name must be between 2 and 100 characters')
+    .custom((value, { req }) => {
+      // order_name is required if job_service_type is Quotation
+      if (req.body.job_service_type === 'Quotation' && (!value || value.trim().length === 0)) {
+        throw new Error('Order name is required for Quotation services');
+      }
+      return true;
+    }),
   body('price_type')
     .optional()
     .isIn(['30min', '1hr', '1day', 'fixed'])
-    .withMessage('Price type must be 30min, 1hr, 1day, or fixed'),
+    .withMessage('Price type must be 30min, 1hr, 1day, or fixed')
+    .custom((value, { req }) => {
+      // price_type is required if job_service_type is NOT Quotation
+      if (req.body.job_service_type && req.body.job_service_type !== 'Quotation' && (!value || value.trim().length === 0)) {
+        throw new Error('Price type is required for OnTime and Scheduled services');
+      }
+      return true;
+    }),
   body('subservice_type')
     .optional()
     .isIn(['single', 'multiple'])
     .withMessage('Subservice type must be single or multiple')
+    .custom((value, { req }) => {
+      // subservice_type is required if job_service_type is NOT Quotation
+      if (req.body.job_service_type && req.body.job_service_type !== 'Quotation' && (!value || value.trim().length === 0)) {
+        throw new Error('Subservice type is required for OnTime and Scheduled services');
+      }
+      return true;
+    })
 ];
 
 // Validation rules for paginated services
