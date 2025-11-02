@@ -72,16 +72,31 @@ router.post('/', protect, authorize(ROLES.USER), submitServiceRequest);
  *           enum: [Pending, Assigned, InProgress, Completed, Cancelled]
  *         description: Filter by status
  *       - in: query
+ *         name: serviceId
+ *         schema:
+ *           type: string
+ *         description: Filter by service ID
+ *         example: "60f7b3b3b3b3b3b3b3b3b3b3"
+ *       - in: query
+ *         name: keyword
+ *         schema:
+ *           type: string
+ *         description: Search keyword (searches in user name, email, phone, service name, category name, address, message)
+ *         example: "mobile repair"
+ *       - in: query
  *         name: page
  *         schema:
  *           type: integer
  *           default: 1
+ *           minimum: 1
  *         description: Page number
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
  *           default: 10
+ *           minimum: 1
+ *           maximum: 100
  *         description: Number of requests per page
  *     responses:
  *       200:

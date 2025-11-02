@@ -157,12 +157,37 @@ const submitServiceRequest = async (req, res, next) => {
 // @access  Admin only
 const getServiceRequests = async (req, res, next) => {
   try {
-    const { status, request_type, page = 1, limit = 10 } = req.query;
+    const { status, request_type, serviceId, keyword, page = 1, limit = 10 } = req.query;
 
     // Build query
     const query = {};
+    
+    // Apply filters
     if (status) query.status = status;
     if (request_type) query.request_type = request_type;
+    
+    // Filter by service ID
+    if (serviceId) {
+      if (!mongoose.Types.ObjectId.isValid(serviceId)) {
+        return sendError(res, 400, 'Invalid service ID format', 'INVALID_SERVICE_ID');
+      }
+      query.service_id = serviceId;
+    }
+    
+    // Keyword search - search across multiple fields
+    // MongoDB will automatically AND the keyword search with other filters
+    if (keyword) {
+      const keywordRegex = new RegExp(keyword, 'i'); // Case-insensitive search
+      query.$or = [
+        { user_name: keywordRegex },
+        { user_email: keywordRegex },
+        { user_phone: keywordRegex },
+        { service_name: keywordRegex },
+        { category_name: keywordRegex },
+        { address: keywordRegex },
+        { message: keywordRegex }
+      ];
+    }
 
     // Calculate pagination
     const pageNum = parseInt(page);
