@@ -528,7 +528,49 @@ const adminCreateVendor = async (req, res, next) => {
     if (req.file && require('fs').existsSync(req.file.path)) {
       require('fs').unlinkSync(req.file.path);
     }
-    next(error);
+    
+    // Handle specific database errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return sendError(res, 400, `Validation failed: ${validationErrors.join(', ')}`, 'VALIDATION_ERROR', { errors: validationErrors });
+    }
+    
+    if (error.name === 'MongoServerError' || error.code === 11000) {
+      // Duplicate key error
+      const duplicateField = Object.keys(error.keyPattern || {})[0];
+      if (duplicateField === 'email') {
+        return sendError(res, 409, 'A vendor with this email already exists', 'DUPLICATE_EMAIL');
+      }
+      if (duplicateField === 'mobileNumber') {
+        return sendError(res, 409, 'A vendor with this mobile number already exists', 'DUPLICATE_MOBILE_NUMBER');
+      }
+      return sendError(res, 409, `A vendor with this ${duplicateField} already exists`, 'DUPLICATE_KEY_ERROR');
+    }
+    
+    if (error.name === 'CastError') {
+      const fieldName = error.path || 'field';
+      return sendError(res, 400, `Invalid ${fieldName} format: ${error.message}`, 'INVALID_FORMAT');
+    }
+    
+    // Handle mongoose errors
+    if (error.name === 'MongooseError') {
+      return sendError(res, 400, `Database error: ${error.message}`, 'DATABASE_ERROR');
+    }
+    
+    // Handle other specific errors
+    if (error.message && error.message.includes('required')) {
+      return sendError(res, 400, error.message, 'VALIDATION_ERROR');
+    }
+    
+    // Log unexpected errors for debugging
+    console.error('Unexpected error in adminCreateVendor:', error);
+    
+    // Return user-friendly error message
+    const errorMessage = error.message || 'Failed to create vendor. Please check your input and try again.';
+    return sendError(res, 500, errorMessage, 'VENDOR_CREATION_FAILED', { 
+      errorType: error.name || 'Unknown',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 
