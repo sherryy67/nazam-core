@@ -421,12 +421,12 @@ router.get('/active', getAllActiveServices);
  * @swagger
  * /api/services/home:
  *   get:
- *     summary: Get services of the Home category
- *     description: Returns all active services that belong to the Home (or Home Cleaning) category.
+ *     summary: Get services of the INTERIOR RENOVATION category
+ *     description: Returns all active services that belong to the INTERIOR RENOVATION category.
  *     tags: [Services]
  *     responses:
  *       200:
- *         description: Home category services retrieved successfully
+ *         description: INTERIOR RENOVATION category services retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -441,7 +441,7 @@ router.get('/active', getAllActiveServices);
  *                   example: null
  *                 description:
  *                   type: string
- *                   example: Home category services retrieved successfully
+ *                   example: INTERIOR RENOVATION category services retrieved successfully
  *                 content:
  *                   type: array
  *                   items:

@@ -580,21 +580,17 @@ module.exports = {
   getServiceById,
   deleteService,
   getAllActiveServices,
-  // New: Get only services of the "Home" category (public)
+  // New: Get only services of the "INTERIOR RENOVATION" category (public)
   getHomeCategoryServices: async (req, res, next) => {
     try {
-      // Try to find the "Home Cleaning" category first, fallback to any category containing 'home'
-      let category = await Category.findOne({
-        name: { $regex: /^home(\s+cleaning)?$/i },
+      // Find the "INTERIOR RENOVATION" category
+      const category = await Category.findOne({
+        name: { $regex: /^INTERIOR RENOVATION$/i },
         isActive: true
       });
 
       if (!category) {
-        category = await Category.findOne({ name: { $regex: /home/i }, isActive: true });
-      }
-
-      if (!category) {
-        return sendSuccess(res, 200, 'No home category found', []);
+        return sendSuccess(res, 200, 'INTERIOR RENOVATION category not found', []);
       }
 
       const services = await Service.find({ category_id: category._id, isActive: true })
@@ -609,7 +605,7 @@ module.exports = {
         price: svc.basePrice
       }));
 
-      return sendSuccess(res, 200, 'Home category services retrieved successfully', result);
+      return sendSuccess(res, 200, 'INTERIOR RENOVATION category services retrieved successfully', result);
     } catch (error) {
       next(error);
     }
