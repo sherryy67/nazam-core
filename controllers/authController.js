@@ -292,12 +292,21 @@ const updatePassword = async (req, res, next) => {
 // @access  Private (Admin only)
 const adminCreateVendor = async (req, res, next) => {
   try {
-    // Validate required fields
+    // Validate required fields - check for empty strings too
     const requiredFields = ['firstName', 'lastName', 'email', 'password', 'type', 'coveredCity', 'serviceId', 'countryCode', 'mobileNumber', 'idType', 'idNumber'];
-    const missingFields = requiredFields.filter(field => !req.body[field]);
+    const missingFields = requiredFields.filter(field => {
+      const value = req.body[field];
+      return !value || (typeof value === 'string' && value.trim() === '');
+    });
     
     if (missingFields.length > 0) {
       return sendError(res, 400, `Missing required fields: ${missingFields.join(', ')}`, 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Validate serviceId format before using it
+    const mongoose = require('mongoose');
+    if (!mongoose.Types.ObjectId.isValid(req.body.serviceId)) {
+      return sendError(res, 400, 'Invalid service ID format', 'INVALID_SERVICE_ID');
     }
 
     // Check if vendor already exists with this email or mobile number

@@ -82,6 +82,8 @@ const vendorRegisterValidation = [
     .notEmpty()
     .withMessage('Covered city is required'),
   body('serviceId')
+    .notEmpty()
+    .withMessage('Service ID is required')
     .isMongoId()
     .withMessage('Service ID must be a valid MongoDB ObjectId'),
   body('countryCode')
