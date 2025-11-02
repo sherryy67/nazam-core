@@ -25,11 +25,23 @@ const serviceRequestSchema = new mongoose.Schema({
   unit_type: { 
     type: String, 
     enum: ["per_unit", "per_hour"], 
-    required: true 
+    required: function() {
+      return this.request_type !== "Quotation";
+    }
   },
-  unit_price: { type: Number, required: true }, // Price per unit or per hour
+  unit_price: { 
+    type: Number, 
+    required: function() {
+      return this.request_type !== "Quotation";
+    }
+  }, // Price per unit or per hour - not required for Quotation requests
   number_of_units: { type: Number, required: true }, // Number of units or hours
-  total_price: { type: Number, required: true }, // Calculated total price
+  total_price: { 
+    type: Number, 
+    required: function() {
+      return this.request_type !== "Quotation";
+    }
+  }, // Calculated total price - not required for Quotation requests
   
   // Status and assignment
   status: { 

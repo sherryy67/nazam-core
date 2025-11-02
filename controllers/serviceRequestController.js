@@ -21,7 +21,8 @@ const submitServiceRequest = async (req, res, next) => {
       request_type,
       requested_date,
       message,
-      number_of_units
+      number_of_units,
+      payment_method
     } = req.body;
 
     // Validate required fields
@@ -53,7 +54,7 @@ const submitServiceRequest = async (req, res, next) => {
       return sendError(res, 400, 'Invalid request_type. Must be Quotation, OnTime, or Scheduled', 'INVALID_REQUEST_TYPE');
     }
 
-    // Validate number_of_units
+    // Validate number_of_units - for Quotation, this can be 1 (just indicating a request)
     if (!number_of_units || number_of_units <= 0 || !Number.isInteger(Number(number_of_units))) {
       return sendError(res, 400, 'Number of units must be a positive integer', 'INVALID_NUMBER_OF_UNITS');
     }
@@ -64,19 +65,53 @@ const submitServiceRequest = async (req, res, next) => {
       return sendError(res, 400, 'Invalid or inactive service', 'INVALID_SERVICE');
     }
 
-    // Calculate pricing based on service unit type
-    const unitType = service.unitType; // This should be 'per_unit' or 'per_hour'
-    const basePrice = service.basePrice;
-    const numberOfUnits = Number(number_of_units);
-    
-    // Validate unit type
-    if (!['per_unit', 'per_hour'].includes(unitType)) {
-      return sendError(res, 400, 'Service unit type must be per_unit or per_hour', 'INVALID_UNIT_TYPE');
+    // Validate and normalize payment method
+    let paymentMethod = 'Cash On Delivery'; // Default
+    if (payment_method) {
+      // Normalize common variations
+      const normalizedPaymentMethod = payment_method
+        .trim()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+      
+      const validPaymentMethods = ['Cash On Delivery', 'Online Payment'];
+      
+      // Check if normalized matches valid methods
+      if (!validPaymentMethods.includes(normalizedPaymentMethod)) {
+        return sendError(res, 400, `Payment method must be one of: ${validPaymentMethods.join(', ')}`, 'INVALID_PAYMENT_METHOD');
+      }
+      
+      paymentMethod = normalizedPaymentMethod;
     }
 
-    // Calculate total price
-    const unitPrice = basePrice;
-    const totalPrice = unitPrice * numberOfUnits;
+    // Calculate pricing based on service unit type (skip for Quotation requests)
+    let unitType, unitPrice, totalPrice;
+    const numberOfUnits = Number(number_of_units);
+    
+    if (request_type === 'Quotation') {
+      // For Quotation requests, pricing fields are optional
+      // The service might not have basePrice and unitType
+      unitType = service.unitType || null; // Use service's unitType if available
+      unitPrice = service.basePrice || null; // Use service's basePrice if available
+      totalPrice = null; // Total price not calculated for quotations
+    } else {
+      // For OnTime and Scheduled requests, calculate pricing
+      unitType = service.unitType;
+      const basePrice = service.basePrice;
+      
+      if (!unitType || !['per_unit', 'per_hour'].includes(unitType)) {
+        return sendError(res, 400, 'Service unit type must be per_unit or per_hour', 'INVALID_UNIT_TYPE');
+      }
+      
+      if (!basePrice || basePrice <= 0) {
+        return sendError(res, 400, 'Service must have a valid base price for OnTime and Scheduled requests', 'INVALID_SERVICE_PRICE');
+      }
+
+      // Calculate total price
+      unitPrice = basePrice;
+      totalPrice = unitPrice * numberOfUnits;
+    }
 
     // Validate category exists and is active
     const category = await Category.findById(category_id);
@@ -105,11 +140,27 @@ const submitServiceRequest = async (req, res, next) => {
       requested_date: requestedDate,
       message: message ? message.trim() : undefined,
       status: 'Pending',
-      unit_type: unitType,
-      unit_price: unitPrice,
       number_of_units: numberOfUnits,
-      total_price: totalPrice
+      paymentMethod: paymentMethod
     };
+
+    // Add pricing fields only for non-Quotation requests or if available
+    if (request_type !== 'Quotation') {
+      serviceRequestData.unit_type = unitType;
+      serviceRequestData.unit_price = unitPrice;
+      serviceRequestData.total_price = totalPrice;
+    } else {
+      // For Quotation requests, add pricing fields only if available
+      if (unitType) {
+        serviceRequestData.unit_type = unitType;
+      }
+      if (unitPrice !== null && unitPrice !== undefined) {
+        serviceRequestData.unit_price = unitPrice;
+      }
+      if (totalPrice !== null && totalPrice !== undefined) {
+        serviceRequestData.total_price = totalPrice;
+      }
+    }
 
     // Create the service request
     const serviceRequest = await ServiceRequest.create(serviceRequestData);
