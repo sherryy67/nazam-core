@@ -348,23 +348,43 @@ const adminCreateVendor = async (req, res, next) => {
         return sendError(res, 400, 'availabilitySchedule must be an array. Received: ' + typeof availabilitySchedule, 'INVALID_AVAILABILITY_SCHEDULE');
       }
       
-      for (const schedule of availabilitySchedule) {
-        if (!schedule || typeof schedule !== 'object') {
-          return sendError(res, 400, 'Each availability schedule item must be an object', 'INVALID_AVAILABILITY_SCHEDULE');
-        }
-        if (!schedule.dayOfWeek || !validDays.includes(schedule.dayOfWeek)) {
-          return sendError(res, 400, `Invalid dayOfWeek in availabilitySchedule. Must be one of: ${validDays.join(', ')}`, 'INVALID_DAY_OF_WEEK');
-        }
-        if (!schedule.startTime || !timePattern.test(schedule.startTime)) {
-          return sendError(res, 400, 'Invalid startTime format in availabilitySchedule (use HH:MM format like 09:00)', 'INVALID_START_TIME');
-        }
-        if (!schedule.endTime || !timePattern.test(schedule.endTime)) {
-          return sendError(res, 400, 'Invalid endTime format in availabilitySchedule (use HH:MM format like 18:00)', 'INVALID_END_TIME');
-        }
+      // Clean and validate each schedule item
+      try {
+        const cleanedSchedule = availabilitySchedule.map((schedule, index) => {
+          if (!schedule || typeof schedule !== 'object') {
+            throw new Error(`Availability schedule item at index ${index} must be an object`);
+          }
+          
+          // Remove empty _id fields and other unwanted fields - only keep required fields
+          const cleaned = {
+            dayOfWeek: schedule.dayOfWeek,
+            startTime: schedule.startTime,
+            endTime: schedule.endTime
+          };
+          
+          // Validate dayOfWeek
+          if (!cleaned.dayOfWeek || !validDays.includes(cleaned.dayOfWeek)) {
+            throw new Error(`Invalid dayOfWeek at index ${index}. Must be one of: ${validDays.join(', ')}`);
+          }
+          
+          // Validate startTime
+          if (!cleaned.startTime || !timePattern.test(cleaned.startTime)) {
+            throw new Error(`Invalid startTime format at index ${index} (use HH:MM format like 09:00)`);
+          }
+          
+          // Validate endTime
+          if (!cleaned.endTime || !timePattern.test(cleaned.endTime)) {
+            throw new Error(`Invalid endTime format at index ${index} (use HH:MM format like 18:00)`);
+          }
+          
+          return cleaned;
+        });
+        
+        // Update req.body with cleaned data
+        req.body.availabilitySchedule = cleanedSchedule;
+      } catch (scheduleError) {
+        return sendError(res, 400, scheduleError.message, 'INVALID_AVAILABILITY_SCHEDULE');
       }
-      
-      // Update req.body with parsed data
-      req.body.availabilitySchedule = availabilitySchedule;
     }
 
     // Validate unavailableDates if provided
@@ -384,17 +404,32 @@ const adminCreateVendor = async (req, res, next) => {
         return sendError(res, 400, 'unavailableDates must be an array. Received: ' + typeof unavailableDates, 'INVALID_UNAVAILABLE_DATES');
       }
       
-      for (const unavailable of unavailableDates) {
-        if (!unavailable || typeof unavailable !== 'object') {
-          return sendError(res, 400, 'Each unavailable date item must be an object', 'INVALID_UNAVAILABLE_DATES');
-        }
-        if (!unavailable.date || isNaN(Date.parse(unavailable.date))) {
-          return sendError(res, 400, 'Invalid date format in unavailableDates (use YYYY-MM-DD format)', 'INVALID_DATE_FORMAT');
-        }
+      // Clean and validate each unavailable date item
+      try {
+        const cleanedUnavailableDates = unavailableDates.map((unavailable, index) => {
+          if (!unavailable || typeof unavailable !== 'object') {
+            throw new Error(`Unavailable date item at index ${index} must be an object`);
+          }
+          
+          // Remove empty _id fields and other unwanted fields - only keep required fields
+          const cleaned = {
+            date: unavailable.date,
+            reason: unavailable.reason || undefined
+          };
+          
+          // Validate date
+          if (!cleaned.date || isNaN(Date.parse(cleaned.date))) {
+            throw new Error(`Invalid date format at index ${index} (use YYYY-MM-DD format)`);
+          }
+          
+          return cleaned;
+        });
+        
+        // Update req.body with cleaned data
+        req.body.unavailableDates = cleanedUnavailableDates;
+      } catch (dateError) {
+        return sendError(res, 400, dateError.message, 'INVALID_UNAVAILABLE_DATES');
       }
-      
-      // Update req.body with parsed data
-      req.body.unavailableDates = unavailableDates;
     }
 
     const vendorData = {
