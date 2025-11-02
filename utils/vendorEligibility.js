@@ -16,12 +16,25 @@ const checkVendorEligibility = (vendor, service) => {
       return false;
     }
 
-    // 2. For scheduled services, check availability at specific time
+    // 2. Check if vendor's primary service matches the requested service
+    // This is the most important check - vendor must have the same service as their primary service
+    if (!vendor.serviceId || !service._id) {
+      return false;
+    }
+    
+    const vendorServiceId = vendor.serviceId._id ? vendor.serviceId._id.toString() : vendor.serviceId.toString();
+    const requestServiceId = service._id.toString();
+    
+    if (vendorServiceId !== requestServiceId) {
+      return false; // Vendor's primary service doesn't match the requested service
+    }
+
+    // 3. For scheduled services, check availability at specific time
     if (service.job_service_type === "Scheduled" && service.scheduledDate && service.scheduledTime) {
       return checkAvailabilityForScheduledService(vendor, service);
     }
 
-    // 3. For all other service types, just check if vendor has any availability schedule
+    // 4. For all other service types, just check if vendor has any availability schedule
     return checkGeneralAvailability(vendor, service);
     
   } catch (error) {

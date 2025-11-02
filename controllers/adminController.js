@@ -13,18 +13,30 @@ const { checkVendorEligibility } = require('../utils/vendorEligibility');
  */
 const getEligibleVendors = async (req, res, next) => {
   try {
-    const { serviceId } = req.params;
+    const { serviceId } = req.params; // This can be either Service ID or ServiceRequest ID
 
-    // Validate serviceId
+    // Validate ID format
     if (!serviceId || !serviceId.match(/^[0-9a-fA-F]{24}$/)) {
-      return sendError(res, 400, 'Invalid service ID format', 'INVALID_SERVICE_ID');
+      return sendError(res, 400, 'Invalid ID format', 'INVALID_ID_FORMAT');
     }
 
-    // Find service and populate category
-    const service = await Service.findById(serviceId).populate('category_id', 'name description');
+    // Try to find ServiceRequest first (user is likely passing serviceRequestId)
+    const ServiceRequest = require('../models/ServiceRequest');
+    let serviceRequest = await ServiceRequest.findById(serviceId);
+    let service;
     
-    if (!service) {
-      return sendNotFoundError(res, 'Service not found');
+    if (serviceRequest) {
+      // If it's a ServiceRequest, get the service from it
+      service = await Service.findById(serviceRequest.service_id).populate('category_id', 'name description');
+      if (!service) {
+        return sendNotFoundError(res, 'Service not found for this request');
+      }
+    } else {
+      // If not a ServiceRequest, treat it as a Service ID
+      service = await Service.findById(serviceId).populate('category_id', 'name description');
+      if (!service) {
+        return sendNotFoundError(res, 'Service or Service Request not found');
+      }
     }
 
     // Check if service is already assigned to a different vendor
@@ -61,7 +73,7 @@ const getEligibleVendors = async (req, res, next) => {
       createdAt: vendor.createdAt
     }));
 
-    sendSuccess(res, 200, 'Eligible vendors retrieved successfully', {
+    const responseData = {
       service: {
         _id: service._id,
         name: service.name,
@@ -73,7 +85,20 @@ const getEligibleVendors = async (req, res, next) => {
       },
       eligibleVendors: transformedVendors,
       totalEligibleVendors: transformedVendors.length
-    });
+    };
+
+    // Include service request info if it was passed
+    if (serviceRequest) {
+      responseData.serviceRequest = {
+        _id: serviceRequest._id,
+        service_id: serviceRequest.service_id,
+        service_name: serviceRequest.service_name,
+        requested_date: serviceRequest.requested_date,
+        status: serviceRequest.status
+      };
+    }
+
+    sendSuccess(res, 200, 'Eligible vendors retrieved successfully', responseData);
 
   } catch (error) {
     console.error('Error getting eligible vendors:', error);
