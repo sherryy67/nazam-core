@@ -281,10 +281,60 @@ const testS3 = async (req, res, next) => {
   }
 };
 
+// @desc    Update user password
+// @route   PUT /api/users/update-password
+// @access  Private
+const updatePassword = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { currentPassword, newPassword } = req.body;
+
+    // Validate required fields
+    if (!currentPassword || !newPassword) {
+      return sendError(res, 400, 'Current password and new password are required', 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Validate new password length
+    if (newPassword.length < 6) {
+      return sendError(res, 400, 'New password must be at least 6 characters long', 'INVALID_PASSWORD_LENGTH');
+    }
+
+    // Find user with password field
+    const user = await User.findById(userId).select('+password');
+    
+    if (!user) {
+      return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    // Check if current password is correct
+    const isPasswordMatch = await user.comparePassword(currentPassword);
+    
+    if (!isPasswordMatch) {
+      return sendError(res, 401, 'Current password is incorrect', 'INCORRECT_PASSWORD');
+    }
+
+    // Check if new password is different from current password
+    if (currentPassword === newPassword) {
+      return sendError(res, 400, 'New password must be different from current password', 'SAME_PASSWORD');
+    }
+
+    // Update password (will be hashed by pre-save hook)
+    user.password = newPassword;
+    await user.save();
+
+    sendSuccess(res, 200, 'Password updated successfully', { 
+      message: 'Password has been updated successfully' 
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
   deleteProfilePicture,
+  updatePassword,
   testS3,
   upload
 };
