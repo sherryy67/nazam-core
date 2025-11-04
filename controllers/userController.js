@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const ServiceRequest = require('../models/ServiceRequest');
 const { sendSuccess, sendError } = require('../utils/response');
 const multer = require('multer');
 const path = require('path');
@@ -347,11 +348,107 @@ const updatePassword = async (req, res, next) => {
   }
 };
 
+// @desc    Get user's order history (service request history)
+// @route   GET /api/users/orders
+// @access  Private
+const getUserOrderHistory = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { status, request_type, page = 1, limit = 10 } = req.query;
+
+    // Get authenticated user's email and phone number
+    const user = await User.findById(userId);
+    if (!user) {
+      return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    // Build query to match user's email or phone number
+    const query = {
+      $or: [
+        { user_email: user.email.toLowerCase() },
+        { user_phone: user.phoneNumber }
+      ]
+    };
+
+    // Apply optional filters
+    if (status) {
+      if (!['Pending', 'Assigned', 'Accepted', 'Completed', 'Cancelled'].includes(status)) {
+        return sendError(res, 400, 'Invalid status. Must be Pending, Assigned, Accepted, Completed, or Cancelled', 'INVALID_STATUS');
+      }
+      query.status = status;
+    }
+
+    if (request_type) {
+      if (!['Quotation', 'OnTime', 'Scheduled'].includes(request_type)) {
+        return sendError(res, 400, 'Invalid request type. Must be Quotation, OnTime, or Scheduled', 'INVALID_REQUEST_TYPE');
+      }
+      query.request_type = request_type;
+    }
+
+    // Calculate pagination
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Execute queries in parallel
+    const [serviceRequests, totalCount] = await Promise.all([
+      ServiceRequest.find(query)
+        .populate('service_id', 'name description basePrice unitType')
+        .populate('category_id', 'name description')
+        .populate('vendor', 'firstName lastName email mobileNumber coveredCity')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
+      ServiceRequest.countDocuments(query)
+    ]);
+
+    // Transform service requests for response
+    const transformedRequests = serviceRequests.map(request => ({
+      _id: request._id,
+      user_name: request.user_name,
+      user_phone: request.user_phone,
+      user_email: request.user_email,
+      address: request.address,
+      service_id: request.service_id,
+      service_name: request.service_name,
+      category_id: request.category_id,
+      category_name: request.category_name,
+      request_type: request.request_type,
+      requested_date: request.requested_date ? request.requested_date.toISOString() : null,
+      message: request.message,
+      status: request.status,
+      vendor: request.vendor,
+      unit_type: request.unit_type,
+      unit_price: request.unit_price,
+      number_of_units: request.number_of_units,
+      total_price: request.total_price,
+      paymentMethod: request.paymentMethod,
+      createdAt: request.createdAt ? request.createdAt.toISOString() : null,
+      updatedAt: request.updatedAt ? request.updatedAt.toISOString() : null
+    }));
+
+    sendSuccess(res, 200, 'Order history retrieved successfully', {
+      orders: transformedRequests,
+      pagination: {
+        currentPage: pageNum,
+        totalPages: Math.ceil(totalCount / limitNum),
+        totalCount,
+        limit: limitNum,
+        hasNextPage: pageNum < Math.ceil(totalCount / limitNum),
+        hasPrevPage: pageNum > 1
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
   deleteProfilePicture,
   updatePassword,
+  getUserOrderHistory,
   testS3,
   upload
 };
