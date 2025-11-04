@@ -11,7 +11,8 @@ const userSchema = new mongoose.Schema({
   role: { type: Number, enum: [ROLES.USER], default: ROLES.USER },
   isActive: { type: Boolean, default: true },
   isOTPVerified: { type: Boolean, default: false },
-  profilePic: { type: String, default: "" }
+  profilePic: { type: String, default: "" },
+  address: { type: String, default: "" }
 }, { timestamps: true });
 
 // Hash password before saving

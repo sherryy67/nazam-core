@@ -12,7 +12,21 @@ const updateProfileValidation = [
     .optional()
     .trim()
     .isLength({ min: 2, max: 50 })
-    .withMessage('Name must be between 2 and 50 characters')
+    .withMessage('Name must be between 2 and 50 characters'),
+  body('email')
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email'),
+  body('phoneNumber')
+    .optional()
+    .isMobilePhone('ar-AE')
+    .withMessage('Please provide a valid UAE phone number'),
+  body('address')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Address must not exceed 500 characters')
 ];
 
 const updatePasswordValidation = [
@@ -136,6 +150,18 @@ router.get('/profile', protect, isUser, getProfile);
  *                 type: string
  *                 example: "John Doe"
  *                 description: User's full name
+ *               email:
+ *                 type: string
+ *                 example: "john@example.com"
+ *                 description: User's email address
+ *               phoneNumber:
+ *                 type: string
+ *                 example: "+971501234567"
+ *                 description: User's phone number (UAE format)
+ *               address:
+ *                 type: string
+ *                 example: "123 Main Street, Dubai, UAE"
+ *                 description: User's address
  *               profilePic:
  *                 type: string
  *                 format: binary
@@ -172,6 +198,9 @@ router.get('/profile', protect, isUser, getProfile);
  *                         phoneNumber:
  *                           type: string
  *                           example: "+971501234567"
+ *                         address:
+ *                           type: string
+ *                           example: "123 Main Street, Dubai, UAE"
  *                         role:
  *                           type: number
  *                           example: 1
@@ -191,7 +220,7 @@ router.get('/profile', protect, isUser, getProfile);
  *                           type: string
  *                           format: date-time
  *       400:
- *         description: Bad request - validation error
+ *         description: Bad request - validation error or duplicate email/phone
  *         content:
  *           application/json:
  *             schema:
@@ -206,6 +235,10 @@ router.get('/profile', protect, isUser, getProfile);
  *                 error:
  *                   type: string
  *                   example: "VALIDATION_ERROR"
+ *                   oneOf:
+ *                     - "VALIDATION_ERROR"
+ *                     - "EMAIL_ALREADY_EXISTS"
+ *                     - "PHONE_ALREADY_EXISTS"
  *       401:
  *         description: Unauthorized - invalid token
  *         content:

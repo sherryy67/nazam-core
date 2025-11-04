@@ -95,7 +95,7 @@ const getProfile = async (req, res, next) => {
 const updateProfile = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { name } = req.body;
+    const { name, email, phoneNumber, address } = req.body;
     
     // Check if user exists
     const user = await User.findById(userId);
@@ -103,9 +103,26 @@ const updateProfile = async (req, res, next) => {
       return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
     }
     
-    // Prepare update data - only name and profilePic allowed
+    // Prepare update data
     const updateData = {};
     if (name) updateData.name = name;
+    if (email) {
+      // Check if email is already taken by another user
+      const existingUserWithEmail = await User.findOne({ email, _id: { $ne: userId } });
+      if (existingUserWithEmail) {
+        return sendError(res, 400, 'Email is already in use by another user', 'EMAIL_ALREADY_EXISTS');
+      }
+      updateData.email = email;
+    }
+    if (phoneNumber) {
+      // Check if phone number is already taken by another user
+      const existingUserWithPhone = await User.findOne({ phoneNumber, _id: { $ne: userId } });
+      if (existingUserWithPhone) {
+        return sendError(res, 400, 'Phone number is already in use by another user', 'PHONE_ALREADY_EXISTS');
+      }
+      updateData.phoneNumber = phoneNumber;
+    }
+    if (address !== undefined) updateData.address = address;
     
     // Handle profile picture upload if provided
     if (req.file) {
