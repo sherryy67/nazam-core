@@ -8,6 +8,7 @@ const requestRoutes = require('./requests');
 const categoryRoutes = require('./categories');
 const serviceRequestRoutes = require('./serviceRequests');
 const submitServiceRequestRoutes = require('./submitServiceRequest');
+const geminiRoutes = require('./gemini');
 const { sendSuccess } = require('../utils/response');
 const { getCategoryServiceSummary } = require('../controllers/categoryController');
 const { protect } = require('../middlewares/auth');
@@ -24,6 +25,7 @@ router.use('/requests', requestRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/service-requests', serviceRequestRoutes);
 router.use('/submit-service-requests', submitServiceRequestRoutes);
+router.use('/gemini', geminiRoutes);
 
 /**
  * @swagger

@@ -23,6 +23,7 @@
         "@aws-sdk/client-s3": "^3.901.0",
         "@aws-sdk/credential-providers": "^3.901.0",
         "@aws-sdk/lib-storage": "^3.903.0",
+        "@google/generative-ai": "^0.24.1",
         "axios": "^1.12.2",
         "bcrypt": "^5.1.1",
         "cors": "^2.8.5",
