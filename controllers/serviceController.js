@@ -86,7 +86,8 @@ const createService = async (req, res, next) => {
       job_service_type,
       order_name,
       price_type,
-      subservice_type
+      subservice_type,
+      subServices
     } = req.body;
 
     // Validate required fields - basePrice is not required for Quotation services
@@ -183,6 +184,44 @@ const createService = async (req, res, next) => {
     } else {
       serviceData.price_type = price_type;
       serviceData.subservice_type = subservice_type;
+    }
+
+    // Handle subServices array (optional nested sub-services)
+    if (subServices !== undefined && subServices !== null) {
+      // Parse subServices if it's a JSON string (from multipart/form-data)
+      let parsedSubServices;
+      try {
+        parsedSubServices = typeof subServices === 'string' ? JSON.parse(subServices) : subServices;
+      } catch (parseError) {
+        return sendError(res, 400, 'subServices must be a valid JSON array', 'INVALID_SUBSERVICES');
+      }
+      
+      if (!Array.isArray(parsedSubServices)) {
+        return sendError(res, 400, 'subServices must be an array', 'INVALID_SUBSERVICES');
+      }
+      
+      // Validate each sub-service
+      for (const subService of parsedSubServices) {
+        if (!subService.name || subService.name.trim().length === 0) {
+          return sendError(res, 400, 'Each sub-service must have a name', 'INVALID_SUBSERVICE_NAME');
+        }
+        if (subService.rate === undefined || subService.rate === null || subService.rate < 0) {
+          return sendError(res, 400, 'Each sub-service must have a non-negative rate', 'INVALID_SUBSERVICE_RATE');
+        }
+        if (subService.items !== undefined && subService.items < 1) {
+          return sendError(res, 400, 'Sub-service items must be at least 1', 'INVALID_SUBSERVICE_ITEMS');
+        }
+        if (subService.max !== undefined && subService.max < 1) {
+          return sendError(res, 400, 'Sub-service max must be at least 1', 'INVALID_SUBSERVICE_MAX');
+        }
+      }
+      
+      serviceData.subServices = parsedSubServices.map(sub => ({
+        name: sub.name.trim(),
+        items: sub.items !== undefined ? parseInt(sub.items) : 1,
+        rate: parseFloat(sub.rate),
+        max: sub.max !== undefined ? parseInt(sub.max) : 1
+      }));
     }
 
     // Handle service image upload if provided
@@ -304,6 +343,7 @@ const getServices = async (req, res, next) => {
       order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
+      subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -401,6 +441,7 @@ const getServicesPaginated = async (req, res, next) => {
       order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
+      subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -461,11 +502,17 @@ const getServiceById = async (req, res, next) => {
       order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
+      subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString()
     };
+
+    // Ensure subServices is always an array (for backward compatibility)
+    if (!transformedService.subServices || !Array.isArray(transformedService.subServices)) {
+      transformedService.subServices = [];
+    }
 
     const response = {
       success: true,
@@ -551,6 +598,7 @@ const getAllActiveServices = async (req, res, next) => {
       order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
+      subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -573,6 +621,38 @@ const getAllActiveServices = async (req, res, next) => {
   }
 };
 
+// @desc    Get sub-services for a specific service
+// @route   GET /api/services/:id/sub-services
+// @access  All users
+const getServiceSubServices = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const service = await Service.findById(id)
+      .populate('category_id', 'name description');
+
+    if (!service || !service.isActive) {
+      return sendError(res, 404, 'Service not found', 'SERVICE_NOT_FOUND');
+    }
+
+    // Return the subServices array from the service
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Sub-services retrieved successfully',
+      content: {
+        serviceId: service._id,
+        serviceName: service.name,
+        subServices: service.subServices || []
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createService,
   getServices,
@@ -580,6 +660,7 @@ module.exports = {
   getServiceById,
   deleteService,
   getAllActiveServices,
+  getServiceSubServices,
   // New: Get only services of the "INTERIOR RENOVATION" category (public)
   getHomeCategoryServices: async (req, res, next) => {
     try {

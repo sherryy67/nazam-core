@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
 const ROLES = require('../constants/roles');
-const { createService, getServices, getServicesPaginated, getServiceById, deleteService, getAllActiveServices, getHomeCategoryServices, upload } = require('../controllers/serviceController');
+const { createService, getServices, getServicesPaginated, getServiceById, deleteService, getAllActiveServices, getServiceSubServices, getHomeCategoryServices, upload } = require('../controllers/serviceController');
 
 const router = express.Router();
 
@@ -86,6 +86,31 @@ const createServiceValidation = [
       // subservice_type is required if job_service_type is NOT Quotation
       if (req.body.job_service_type && req.body.job_service_type !== 'Quotation' && (!value || value.trim().length === 0)) {
         throw new Error('Subservice type is required for OnTime and Scheduled services');
+      }
+      return true;
+    }),
+  body('subServices')
+    .optional()
+    .custom((value, { req }) => {
+      // subServices should be a valid JSON array if provided
+      if (value !== undefined && value !== null) {
+        try {
+          const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+          if (!Array.isArray(parsed)) {
+            throw new Error('subServices must be an array');
+          }
+          // Validate each sub-service
+          for (const sub of parsed) {
+            if (!sub.name || typeof sub.name !== 'string') {
+              throw new Error('Each sub-service must have a name');
+            }
+            if (sub.rate === undefined || sub.rate === null || isNaN(sub.rate) || sub.rate < 0) {
+              throw new Error('Each sub-service must have a non-negative rate');
+            }
+          }
+        } catch (error) {
+          throw new Error(error.message || 'Invalid subServices format');
+        }
       }
       return true;
     })
@@ -178,6 +203,10 @@ const getServicesPaginatedValidation = [
  *                 type: string
  *                 enum: [single, multiple]
  *                 example: "single"
+ *               subServices:
+ *                 type: string
+ *                 example: '[{"name":"AC Soft Cleaning","items":1,"rate":200,"max":1},{"name":"AC Deep Cleaning","items":1,"rate":350,"max":1}]'
+ *                 description: JSON array of nested sub-services (for parent services)
  *               serviceImage:
  *                 type: string
  *                 format: binary
@@ -547,6 +576,69 @@ router.get('/home', getHomeCategoryServices);
  *       404:
  *         description: Service not found
  */
+/**
+ * @swagger
+ * /api/services/{id}/sub-services:
+ *   get:
+ *     summary: Get sub-services for a specific service
+ *     tags: [Services]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Service ID
+ *         example: "64a1b2c3d4e5f6789abcdef1"
+ *     responses:
+ *       200:
+ *         description: Sub-services retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 exception:
+ *                   type: string
+ *                   nullable: true
+ *                   example: null
+ *                 description:
+ *                   type: string
+ *                   example: "Sub-services retrieved successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     serviceId:
+ *                       type: string
+ *                       example: "64a1b2c3d4e5f6789abcdef1"
+ *                     serviceName:
+ *                       type: string
+ *                       example: "AC Cleaning"
+ *                     subServices:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           name:
+ *                             type: string
+ *                             example: "AC Soft Cleaning"
+ *                           items:
+ *                             type: number
+ *                             example: 1
+ *                           rate:
+ *                             type: number
+ *                             example: 200
+ *                           max:
+ *                             type: number
+ *                             example: 1
+ *       404:
+ *         description: Service not found
+ */
+router.get('/:id/sub-services', getServiceSubServices);
+
 router.get('/:id', protect, getServiceById);
 
 /**

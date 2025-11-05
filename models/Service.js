@@ -102,7 +102,15 @@ const serviceSchema = new mongoose.Schema({
   },
   assignedAt: { 
     type: Date 
-  }
+  },
+  
+  // Sub-services array (optional nested sub-services)
+  subServices: [{
+    name: { type: String, required: true },
+    items: { type: Number, default: 1 },
+    rate: { type: Number, required: true },
+    max: { type: Number, default: 1 }
+  }]
 }, { timestamps: true });
 
 module.exports = mongoose.model("Service", serviceSchema);

@@ -9,7 +9,8 @@
         "test": "echo \"Error: no test specified\" && exit 1",
         "configure-s3-cors": "node scripts/configure-s3-cors.js",
         "verify-cors": "node verify-cors.js",
-        "fix-cors": "node quick-fix-cors.js"
+        "fix-cors": "node quick-fix-cors.js",
+        "migrate:add-subServices": "node scripts/add-subServices-to-services.js"
     },
     "keywords": [
         "nodejs",
