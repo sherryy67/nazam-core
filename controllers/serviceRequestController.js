@@ -22,7 +22,8 @@ const submitServiceRequest = async (req, res, next) => {
       requested_date,
       message,
       number_of_units,
-      payment_method
+      payment_method,
+      selectedSubServices
     } = req.body;
 
     // Validate required fields
@@ -59,10 +60,57 @@ const submitServiceRequest = async (req, res, next) => {
       return sendError(res, 400, 'Number of units must be a positive integer', 'INVALID_NUMBER_OF_UNITS');
     }
 
-    // Validate service exists and is active
-    const service = await Service.findById(service_id);
+    // Validate service exists and is active (explicitly select subServices field)
+    const service = await Service.findById(service_id).select('+subServices');
     if (!service || !service.isActive) {
       return sendError(res, 400, 'Invalid or inactive service', 'INVALID_SERVICE');
+    }
+
+    // Handle sub-services selection if provided
+    let parsedSelectedSubServices = [];
+    if (selectedSubServices !== undefined && selectedSubServices !== null) {
+      // Parse selectedSubServices if it's a JSON string (from multipart/form-data)
+      try {
+        parsedSelectedSubServices = typeof selectedSubServices === 'string' 
+          ? JSON.parse(selectedSubServices) 
+          : selectedSubServices;
+      } catch (parseError) {
+        return sendError(res, 400, 'selectedSubServices must be a valid JSON array', 'INVALID_SELECTED_SUBSERVICES');
+      }
+      
+      if (!Array.isArray(parsedSelectedSubServices)) {
+        return sendError(res, 400, 'selectedSubServices must be an array', 'INVALID_SELECTED_SUBSERVICES');
+      }
+      
+      // Validate that service has subServices array
+      if (!service.subServices || service.subServices.length === 0) {
+        return sendError(res, 400, 'Service does not have sub-services available', 'SERVICE_NO_SUBSERVICES');
+      }
+      
+      // Validate each selected sub-service exists in service's subServices
+      for (const selected of parsedSelectedSubServices) {
+        if (!selected.name) {
+          return sendError(res, 400, 'Each selected sub-service must have a name', 'INVALID_SUBSERVICE_NAME');
+        }
+        
+        // Find matching sub-service in service's subServices array
+        const matchingSubService = service.subServices.find(
+          sub => sub.name.toLowerCase().trim() === selected.name.toLowerCase().trim()
+        );
+        
+        if (!matchingSubService) {
+          return sendError(res, 400, `Sub-service "${selected.name}" not found in service sub-services`, 'SUBSERVICE_NOT_FOUND');
+        }
+        
+        // Validate quantity (should be between 1 and max)
+        const quantity = selected.quantity !== undefined ? parseInt(selected.quantity) : 1;
+        if (quantity < 1) {
+          return sendError(res, 400, `Quantity for sub-service "${selected.name}" must be at least 1`, 'INVALID_SUBSERVICE_QUANTITY');
+        }
+        if (matchingSubService.max && quantity > matchingSubService.max) {
+          return sendError(res, 400, `Quantity for sub-service "${selected.name}" cannot exceed ${matchingSubService.max}`, 'INVALID_SUBSERVICE_QUANTITY');
+        }
+      }
     }
 
     // Validate and normalize payment method
@@ -85,32 +133,78 @@ const submitServiceRequest = async (req, res, next) => {
       paymentMethod = normalizedPaymentMethod;
     }
 
-    // Calculate pricing based on service unit type (skip for Quotation requests)
+    // Calculate pricing based on sub-services or service unit type
     let unitType, unitPrice, totalPrice;
     const numberOfUnits = Number(number_of_units);
+    
+    // Check if service has subServices and user has selected sub-services
+    const hasSubServices = service.subServices && service.subServices.length > 0;
+    const hasSelectedSubServices = parsedSelectedSubServices && parsedSelectedSubServices.length > 0;
     
     if (request_type === 'Quotation') {
       // For Quotation requests, pricing fields are optional
       // The service might not have basePrice and unitType
-      unitType = service.unitType || null; // Use service's unitType if available
-      unitPrice = service.basePrice || null; // Use service's basePrice if available
+      unitType = service.unitType || null;
+      
+      // If sub-services are selected, calculate from sub-services
+      if (hasSubServices && hasSelectedSubServices) {
+        let subServicesTotal = 0;
+        for (const selected of parsedSelectedSubServices) {
+          const matchingSubService = service.subServices.find(
+            sub => sub.name.toLowerCase().trim() === selected.name.toLowerCase().trim()
+          );
+          if (matchingSubService) {
+            const quantity = selected.quantity !== undefined ? parseInt(selected.quantity) : 1;
+            subServicesTotal += matchingSubService.rate * quantity;
+          }
+        }
+        unitPrice = subServicesTotal > 0 ? subServicesTotal : (service.basePrice || null);
+      } else {
+        unitPrice = service.basePrice || null;
+      }
+      
       totalPrice = null; // Total price not calculated for quotations
     } else {
       // For OnTime and Scheduled requests, calculate pricing
-      unitType = service.unitType;
-      const basePrice = service.basePrice;
-      
-      if (!unitType || !['per_unit', 'per_hour'].includes(unitType)) {
-        return sendError(res, 400, 'Service unit type must be per_unit or per_hour', 'INVALID_UNIT_TYPE');
-      }
-      
-      if (!basePrice || basePrice <= 0) {
-        return sendError(res, 400, 'Service must have a valid base price for OnTime and Scheduled requests', 'INVALID_SERVICE_PRICE');
-      }
+      // If service has subServices and user selected sub-services, calculate from sub-services
+      if (hasSubServices && hasSelectedSubServices) {
+        // Calculate pricing based on selected sub-services
+        let subServicesTotal = 0;
+        for (const selected of parsedSelectedSubServices) {
+          const matchingSubService = service.subServices.find(
+            sub => sub.name.toLowerCase().trim() === selected.name.toLowerCase().trim()
+          );
+          if (matchingSubService) {
+            const quantity = selected.quantity !== undefined ? parseInt(selected.quantity) : 1;
+            subServicesTotal += matchingSubService.rate * quantity;
+          }
+        }
+        
+        if (subServicesTotal <= 0) {
+          return sendError(res, 400, 'Invalid sub-services selection or pricing', 'INVALID_SUBSERVICES_PRICING');
+        }
+        
+        // Use sub-services pricing (this is the unit price based on selected sub-services)
+        unitType = service.unitType || 'per_unit';
+        unitPrice = subServicesTotal; // Total of all selected sub-services
+        totalPrice = unitPrice * numberOfUnits;
+      } else {
+        // Use service base price (existing logic)
+        unitType = service.unitType;
+        const basePrice = service.basePrice;
+        
+        if (!unitType || !['per_unit', 'per_hour'].includes(unitType)) {
+          return sendError(res, 400, 'Service unit type must be per_unit or per_hour', 'INVALID_UNIT_TYPE');
+        }
+        
+        if (!basePrice || basePrice <= 0) {
+          return sendError(res, 400, 'Service must have a valid base price for OnTime and Scheduled requests', 'INVALID_SERVICE_PRICE');
+        }
 
-      // Calculate total price
-      unitPrice = basePrice;
-      totalPrice = unitPrice * numberOfUnits;
+        // Calculate total price
+        unitPrice = basePrice;
+        totalPrice = unitPrice * numberOfUnits;
+      }
     }
 
     // Validate category exists and is active
@@ -143,6 +237,21 @@ const submitServiceRequest = async (req, res, next) => {
       number_of_units: numberOfUnits,
       paymentMethod: paymentMethod
     };
+
+    // Add selected sub-services if provided
+    if (parsedSelectedSubServices.length > 0) {
+      serviceRequestData.selectedSubServices = parsedSelectedSubServices.map(selected => {
+        const matchingSubService = service.subServices.find(
+          sub => sub.name.toLowerCase().trim() === selected.name.toLowerCase().trim()
+        );
+        return {
+          name: matchingSubService.name,
+          items: matchingSubService.items || 1,
+          rate: matchingSubService.rate,
+          quantity: selected.quantity !== undefined ? parseInt(selected.quantity) : 1
+        };
+      });
+    }
 
     // Add pricing fields only for non-Quotation requests or if available
     if (request_type !== 'Quotation') {
@@ -184,6 +293,8 @@ const submitServiceRequest = async (req, res, next) => {
       unit_price: serviceRequest.unit_price,
       number_of_units: serviceRequest.number_of_units,
       total_price: serviceRequest.total_price,
+      selectedSubServices: serviceRequest.selectedSubServices || [],
+      paymentMethod: serviceRequest.paymentMethod,
       createdAt: serviceRequest.createdAt.toISOString(),
       updatedAt: serviceRequest.updatedAt.toISOString()
     };
@@ -277,6 +388,8 @@ const getServiceRequests = async (req, res, next) => {
       unit_price: request.unit_price,
       number_of_units: request.number_of_units,
       total_price: request.total_price,
+      selectedSubServices: request.selectedSubServices || [],
+      paymentMethod: request.paymentMethod,
       createdAt: request.createdAt.toISOString(),
       updatedAt: request.updatedAt.toISOString()
     }));
@@ -356,6 +469,8 @@ const updateServiceRequestStatus = async (req, res, next) => {
       message: updatedRequest.message,
       status: updatedRequest.status,
       vendor: updatedRequest.vendor,
+      selectedSubServices: updatedRequest.selectedSubServices || [],
+      paymentMethod: updatedRequest.paymentMethod,
       createdAt: updatedRequest.createdAt.toISOString(),
       updatedAt: updatedRequest.updatedAt.toISOString()
     };
@@ -426,6 +541,8 @@ const assignRequest = async (req, res, next) => {
       message: updatedRequest.message,
       status: updatedRequest.status,
       vendor: updatedRequest.vendor,
+      selectedSubServices: updatedRequest.selectedSubServices || [],
+      paymentMethod: updatedRequest.paymentMethod,
       createdAt: updatedRequest.createdAt.toISOString(),
       updatedAt: updatedRequest.updatedAt.toISOString()
     };
@@ -547,6 +664,7 @@ const getOrderDetails = async (req, res, next) => {
       unitType: serviceRequest.unit_type,
       unitPrice: serviceRequest.unit_price,
       numberOfUnits: serviceRequest.number_of_units,
+      selectedSubServices: serviceRequest.selectedSubServices || [],
       message: serviceRequest.message,
       vendor: serviceRequest.vendor ? {
         id: serviceRequest.vendor._id?.toString(),

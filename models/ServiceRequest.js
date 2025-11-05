@@ -58,6 +58,14 @@ const serviceRequestSchema = new mongoose.Schema({
     default: "Cash On Delivery"
   },
   
+  // Sub-services selection (optional - for services with subServices array)
+  selectedSubServices: [{
+    name: { type: String, required: true },
+    items: { type: Number, default: 1 },
+    rate: { type: Number, required: true },
+    quantity: { type: Number, default: 1 } // Quantity selected by user
+  }],
+  
   // Legacy fields (for backward compatibility)
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   service: { type: mongoose.Schema.Types.ObjectId, ref: "Service" },

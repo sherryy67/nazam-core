@@ -49,7 +49,32 @@ const submitServiceRequestValidation = [
     .optional()
     .trim()
     .isLength({ max: 1000 })
-    .withMessage('Message must be less than 1000 characters')
+    .withMessage('Message must be less than 1000 characters'),
+  body('selectedSubServices')
+    .optional()
+    .custom((value, { req }) => {
+      // selectedSubServices should be a valid JSON array if provided
+      if (value !== undefined && value !== null) {
+        try {
+          const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+          if (!Array.isArray(parsed)) {
+            throw new Error('selectedSubServices must be an array');
+          }
+          // Validate each selected sub-service
+          for (const sub of parsed) {
+            if (!sub.name || typeof sub.name !== 'string') {
+              throw new Error('Each selected sub-service must have a name');
+            }
+            if (sub.quantity !== undefined && (isNaN(sub.quantity) || sub.quantity < 1)) {
+              throw new Error('Each selected sub-service quantity must be at least 1');
+            }
+          }
+        } catch (error) {
+          throw new Error(error.message || 'Invalid selectedSubServices format');
+        }
+      }
+      return true;
+    })
 ];
 
 /**
@@ -113,6 +138,10 @@ const submitServiceRequestValidation = [
  *                 type: integer
  *                 minimum: 1
  *                 example: 2
+ *               selectedSubServices:
+ *                 type: string
+ *                 example: '[{"name":"AC Soft Cleaning","quantity":1},{"name":"AC Deep Cleaning","quantity":2}]'
+ *                 description: JSON array of selected sub-services (optional - for services with subServices)
  *               message:
  *                 type: string
  *                 example: "Need urgent plumbing service for blocked drain"
