@@ -31,6 +31,10 @@ const serviceSchema = new mongoose.Schema({
     min: 1,
     max: 1440 // Maximum 24 hours in minutes
   },
+  isFeatured: {
+    type: Boolean,
+    default: false
+  },
   availability: [{ 
     type: String, 
     enum: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],

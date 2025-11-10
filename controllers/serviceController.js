@@ -87,6 +87,7 @@ const createService = async (req, res, next) => {
       order_name,
       price_type,
       subservice_type,
+      isFeatured,
       subServices
     } = req.body;
 
@@ -184,6 +185,14 @@ const createService = async (req, res, next) => {
     } else {
       serviceData.price_type = price_type;
       serviceData.subservice_type = subservice_type;
+    }
+
+    if (typeof isFeatured !== 'undefined') {
+      if (typeof isFeatured === 'string') {
+        serviceData.isFeatured = isFeatured.toLowerCase() === 'true';
+      } else {
+        serviceData.isFeatured = Boolean(isFeatured);
+      }
     }
 
     // Handle subServices array (optional nested sub-services)
@@ -343,6 +352,7 @@ const getServices = async (req, res, next) => {
       order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
+      isFeatured: service.isFeatured,
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -441,6 +451,7 @@ const getServicesPaginated = async (req, res, next) => {
       order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
+      isFeatured: service.isFeatured,
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -502,6 +513,7 @@ const getServiceById = async (req, res, next) => {
       order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
+      isFeatured: service.isFeatured,
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
