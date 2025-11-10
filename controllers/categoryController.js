@@ -357,6 +357,83 @@ const getHomeCategories = async (req, res, next) => {
   }
 };
 
+// @desc    Get categories with their services for mobile home
+// @route   GET /api/mobile/home
+// @access  Public
+const getMobileHomeContent = async (req, res, next) => {
+  try {
+    const categories = await Category.find({ isActive: true })
+      .sort({ sortOrder: 1, name: 1 })
+      .lean();
+
+    if (!categories.length) {
+      return sendSuccess(res, 200, 'No categories available', {
+        categories: [],
+        total: 0
+      });
+    }
+
+    const categoryIds = categories.map(category => category._id);
+
+    const services = await Service.find({
+      category_id: { $in: categoryIds },
+      isActive: true
+    })
+      .sort({ name: 1 })
+      .lean();
+
+    const servicesByCategory = services.reduce((acc, service) => {
+      const key = service.category_id.toString();
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+
+      acc[key].push({
+        _id: service._id,
+        name: service.name,
+        description: service.description || undefined,
+        basePrice: service.basePrice,
+        unitType: service.unitType,
+        imageUri: service.imageUri || undefined,
+        service_icon: service.service_icon || undefined,
+        category_id: service.category_id,
+        min_time_required: service.min_time_required,
+        availability: service.availability || [],
+        job_service_type: service.job_service_type,
+        order_name: service.order_name || undefined,
+        price_type: service.price_type || undefined,
+        subservice_type: service.subservice_type || undefined,
+        subServices: Array.isArray(service.subServices) ? service.subServices : [],
+        isActive: service.isActive,
+        createdAt: service.createdAt ? service.createdAt.toISOString() : undefined,
+        updatedAt: service.updatedAt ? service.updatedAt.toISOString() : undefined
+      });
+
+      return acc;
+    }, {});
+
+    const transformedCategories = categories.map(category => ({
+      category: {
+        _id: category._id,
+        name: category.name,
+        description: category.description || undefined,
+        isActive: category.isActive,
+        sortOrder: category.sortOrder || 0,
+        createdAt: category.createdAt ? category.createdAt.toISOString() : undefined,
+        updatedAt: category.updatedAt ? category.updatedAt.toISOString() : undefined
+      },
+      services: servicesByCategory[category._id.toString()] || []
+    }));
+
+    return sendSuccess(res, 200, 'Mobile home content retrieved successfully', {
+      categories: transformedCategories,
+      total: transformedCategories.length
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Bulk update category sort order
 // @route   PUT /api/categories/sort
 // @access  Admin only
@@ -452,6 +529,7 @@ module.exports = {
   deleteCategory,
   getHomeCategories,
   updateCategorySortOrder,
+  getMobileHomeContent,
   // New: summarized categories with limited services and counts
   getCategoryServiceSummary: async (req, res, next) => {
     try {
