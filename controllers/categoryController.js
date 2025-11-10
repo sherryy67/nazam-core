@@ -412,18 +412,20 @@ const getMobileHomeContent = async (req, res, next) => {
       return acc;
     }, {});
 
-    const transformedCategories = categories.map(category => ({
-      category: {
+    const transformedCategories = categories.map(category => {
+      const categoryServices = servicesByCategory[category._id.toString()] || [];
+
+      return {
         _id: category._id,
         name: category.name,
         description: category.description || undefined,
         isActive: category.isActive,
         sortOrder: category.sortOrder || 0,
         createdAt: category.createdAt ? category.createdAt.toISOString() : undefined,
-        updatedAt: category.updatedAt ? category.updatedAt.toISOString() : undefined
-      },
-      services: servicesByCategory[category._id.toString()] || []
-    }));
+        updatedAt: category.updatedAt ? category.updatedAt.toISOString() : undefined,
+        services: categoryServices
+      };
+    });
 
     return sendSuccess(res, 200, 'Mobile home content retrieved successfully', {
       categories: transformedCategories,
