@@ -4,6 +4,20 @@ const Category = require('../models/Category');
 const mongoose = require('mongoose');
 const { sendSuccess, sendError, sendCreated } = require('../utils/response');
 
+const resolveTimeBasedTier = (service, units) => {
+  if (!Array.isArray(service.timeBasedPricing) || service.timeBasedPricing.length === 0) {
+    return null;
+  }
+
+  const numericUnits = Number(units);
+
+  return service.timeBasedPricing.find((tier) => {
+    if (!tier) return false;
+    const tierHours = Number(tier.hours);
+    return Number.isFinite(tierHours) && tierHours === numericUnits;
+  }) || null;
+};
+
 // @desc    Submit a service request
 // @route   POST /api/submit-service-requests
 // @access  Public (no authentication required)
@@ -158,9 +172,21 @@ const submitServiceRequest = async (req, res, next) => {
             subServicesTotal += matchingSubService.rate * quantity;
           }
         }
-        unitPrice = subServicesTotal > 0 ? subServicesTotal : (service.basePrice || null);
+        if (subServicesTotal > 0) {
+          unitPrice = subServicesTotal;
+        } else if (service.unitType === 'per_hour') {
+          const tier = resolveTimeBasedTier(service, numberOfUnits);
+          unitPrice = tier ? tier.price : (service.basePrice || null);
+        } else {
+          unitPrice = service.basePrice || null;
+        }
       } else {
-        unitPrice = service.basePrice || null;
+        if (service.unitType === 'per_hour') {
+          const tier = resolveTimeBasedTier(service, numberOfUnits);
+          unitPrice = tier ? tier.price : (service.basePrice || null);
+        } else {
+          unitPrice = service.basePrice || null;
+        }
       }
       
       totalPrice = null; // Total price not calculated for quotations
@@ -191,19 +217,33 @@ const submitServiceRequest = async (req, res, next) => {
       } else {
         // Use service base price (existing logic)
         unitType = service.unitType;
-        const basePrice = service.basePrice;
-        
+
         if (!unitType || !['per_unit', 'per_hour'].includes(unitType)) {
           return sendError(res, 400, 'Service unit type must be per_unit or per_hour', 'INVALID_UNIT_TYPE');
         }
-        
-        if (!basePrice || basePrice <= 0) {
-          return sendError(res, 400, 'Service must have a valid base price for OnTime and Scheduled requests', 'INVALID_SERVICE_PRICE');
-        }
 
-        // Calculate total price
-        unitPrice = basePrice;
-        totalPrice = unitPrice * numberOfUnits;
+        if (unitType === 'per_hour') {
+          const tier = resolveTimeBasedTier(service, numberOfUnits);
+
+          if (tier) {
+            unitPrice = tier.price;
+            totalPrice = tier.price;
+          } else if (service.basePrice && service.basePrice > 0) {
+            unitPrice = service.basePrice;
+            totalPrice = service.basePrice * numberOfUnits;
+          } else {
+            return sendError(res, 400, `No time-based pricing found for ${numberOfUnits} hour(s)`, 'MISSING_TIME_BASED_TIER');
+          }
+        } else {
+          const basePrice = service.basePrice;
+
+          if (!basePrice || basePrice <= 0) {
+            return sendError(res, 400, 'Service must have a valid base price for OnTime and Scheduled requests', 'INVALID_SERVICE_PRICE');
+          }
+
+          unitPrice = basePrice;
+          totalPrice = unitPrice * numberOfUnits;
+        }
       }
     }
 
@@ -359,7 +399,7 @@ const getServiceRequests = async (req, res, next) => {
     // Execute queries in parallel
     const [serviceRequests, totalCount] = await Promise.all([
       ServiceRequest.find(query)
-        .populate('service_id', 'name description basePrice')
+        .populate('service_id', 'name description basePrice unitType timeBasedPricing')
         .populate('category_id', 'name description')
         .populate('vendor', 'firstName lastName email mobileNumber')
       .sort({ createdAt: -1 })
@@ -612,7 +652,7 @@ const getOrderDetails = async (req, res, next) => {
 
     // Find service request with populated fields
     const serviceRequest = await ServiceRequest.findById(id)
-      .populate('service_id', 'name description basePrice unitType')
+      .populate('service_id', 'name description basePrice unitType timeBasedPricing')
       .populate('category_id', 'name description')
       .populate('vendor', 'firstName lastName email mobileNumber coveredCity');
 

@@ -24,8 +24,13 @@ const createServiceValidation = [
     .withMessage('Base price must be a positive number')
     .custom((value, { req }) => {
       // basePrice is required if job_service_type is NOT Quotation
-      if (req.body.job_service_type && req.body.job_service_type !== 'Quotation' && (!value || value <= 0)) {
-        throw new Error('Base price is required for OnTime and Scheduled services');
+      if (
+        req.body.job_service_type &&
+        req.body.job_service_type !== 'Quotation' &&
+        req.body.unitType !== 'per_hour' &&
+        (!value || value <= 0)
+      ) {
+        throw new Error('Base price is required for OnTime and Scheduled services when unit type is not per_hour');
       }
       return true;
     }),
@@ -38,6 +43,50 @@ const createServiceValidation = [
       if (req.body.job_service_type && req.body.job_service_type !== 'Quotation' && (!value || value.trim().length === 0)) {
         throw new Error('Unit type is required for OnTime and Scheduled services');
       }
+      return true;
+    }),
+  body('timeBasedPricing')
+    .custom((value, { req }) => {
+      const unitType = req.body.unitType;
+
+      if (unitType === 'per_hour') {
+        if (value === undefined || value === null || value === '') {
+          throw new Error('timeBasedPricing is required for per_hour services');
+        }
+      }
+
+      if (value === undefined || value === null || value === '') {
+        return true;
+      }
+
+      try {
+        const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+
+        if (!Array.isArray(parsed)) {
+          throw new Error('timeBasedPricing must be an array');
+        }
+
+        if (unitType === 'per_hour' && parsed.length === 0) {
+          throw new Error('timeBasedPricing must contain at least one tier for per_hour services');
+        }
+
+        for (const tier of parsed) {
+          if (!tier || typeof tier !== 'object') {
+            throw new Error('Each time-based pricing tier must be an object');
+          }
+
+          if (tier.hours === undefined || Number(tier.hours) < 1) {
+            throw new Error('Each time-based pricing tier must include hours greater than or equal to 1');
+          }
+
+          if (tier.price === undefined || Number(tier.price) < 0) {
+            throw new Error('Each time-based pricing tier must include a non-negative price');
+          }
+        }
+      } catch (error) {
+        throw new Error(error.message || 'Invalid timeBasedPricing format');
+      }
+
       return true;
     }),
   body('category_id')
@@ -156,7 +205,6 @@ const getServicesPaginatedValidation = [
  *             type: object
  *             required:
  *               - name
- *               - basePrice
  *               - unitType
  *               - category_id
  *               - min_time_required
@@ -172,10 +220,23 @@ const getServicesPaginatedValidation = [
  *               basePrice:
  *                 type: number
  *                 example: 500
+ *                 description: Required when unitType is per_unit
  *               unitType:
  *                 type: string
  *                 enum: [per_unit, per_hour]
  *                 example: "per_unit"
+ *               timeBasedPricing:
+ *                 type: array
+ *                 description: Required when unitType is per_hour
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     hours:
+ *                       type: integer
+ *                       example: 2
+ *                     price:
+ *                       type: number
+ *                       example: 300
  *               category_id:
  *                 type: string
  *                 example: "64a1b2c3d4e5f6789abcdef0"

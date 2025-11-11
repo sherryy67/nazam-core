@@ -393,7 +393,7 @@ const getUserOrderHistory = async (req, res, next) => {
     // Execute queries in parallel
     const [serviceRequests, totalCount] = await Promise.all([
       ServiceRequest.find(query)
-        .populate('service_id', 'name description basePrice unitType')
+        .populate('service_id', 'name description basePrice unitType timeBasedPricing')
         .populate('category_id', 'name description')
         .populate('vendor', 'firstName lastName email mobileNumber coveredCity')
         .sort({ createdAt: -1 })

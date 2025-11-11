@@ -1,12 +1,25 @@
 const mongoose = require("mongoose");
 
+const timeBasedPricingSchema = new mongoose.Schema({
+  hours: {
+    type: Number,
+    min: 1,
+    required: true
+  },
+  price: {
+    type: Number,
+    min: 0,
+    required: true
+  }
+}, { _id: false });
+
 const serviceSchema = new mongoose.Schema({
   name: { type: String, required: true },       // e.g. AC Cleaning
   description: { type: String },
   basePrice: { 
     type: Number, 
     required: function() {
-      return this.job_service_type !== "Quotation";
+      return this.job_service_type !== "Quotation" && this.unitType !== "per_hour";
     }
   },  // price per unit/hour - not required for Quotation services
   unitType: { 
@@ -34,6 +47,28 @@ const serviceSchema = new mongoose.Schema({
   isFeatured: {
     type: Boolean,
     default: false
+  },
+  timeBasedPricing: {
+    type: [timeBasedPricingSchema],
+    default: [],
+    validate: {
+      validator: function(value) {
+        if (this.unitType !== "per_hour") {
+          return !value || value.length === 0 || value.every(tier => typeof tier.hours === 'number' && tier.hours >= 1 && typeof tier.price === 'number' && tier.price >= 0);
+        }
+
+        if (value === undefined || value === null) {
+          return true;
+        }
+
+        if (!Array.isArray(value) || value.length === 0) {
+          return true;
+        }
+
+        return value.every(tier => typeof tier.hours === 'number' && tier.hours >= 1 && typeof tier.price === 'number' && tier.price >= 0);
+      },
+      message: 'timeBasedPricing tiers must include valid hours and price values'
+    }
   },
   availability: [{ 
     type: String, 

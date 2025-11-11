@@ -647,7 +647,7 @@ const getAllVendors = async (req, res, next) => {
     // Execute queries in parallel
     const [vendors, totalCount] = await Promise.all([
       Vendor.find(query)
-        .populate('serviceId', 'name description basePrice unitType')
+        .populate('serviceId', 'name description basePrice unitType timeBasedPricing')
         .select('-password') // Exclude password
         .sort({ createdAt: -1 })
         .skip(skip)

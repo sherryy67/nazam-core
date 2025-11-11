@@ -88,6 +88,7 @@ const createService = async (req, res, next) => {
       price_type,
       subservice_type,
       isFeatured,
+      timeBasedPricing,
       subServices
     } = req.body;
 
@@ -96,30 +97,92 @@ const createService = async (req, res, next) => {
       return sendError(res, 400, 'Name, category_id, min_time_required, availability, and job_service_type are required', 'MISSING_REQUIRED_FIELDS');
     }
 
-    // For non-Quotation services, unitType and basePrice are required
-    if (job_service_type !== 'Quotation') {
-      if (!unitType) {
-        return sendError(res, 400, 'unitType is required for OnTime and Scheduled services', 'MISSING_UNIT_TYPE');
+    // Validate unitType requirements based on job_service_type
+    if (job_service_type !== 'Quotation' && (!unitType || unitType.trim().length === 0)) {
+      return sendError(res, 400, 'unitType is required for OnTime and Scheduled services', 'MISSING_UNIT_TYPE');
+    }
+
+    if (unitType && !['per_unit', 'per_hour'].includes(unitType)) {
+      return sendError(res, 400, 'unitType must be either "per_unit" or "per_hour"', 'INVALID_UNIT_TYPE');
+    }
+
+    // Validate pricing inputs
+    let parsedTimeBasedPricing = [];
+
+    if (unitType === 'per_hour') {
+      if (timeBasedPricing === undefined || timeBasedPricing === null || timeBasedPricing === '') {
+        return sendError(res, 400, 'timeBasedPricing is required for per_hour services', 'MISSING_TIME_BASED_PRICING');
       }
-      if (!basePrice) {
-        return sendError(res, 400, 'basePrice is required for OnTime and Scheduled services', 'MISSING_BASE_PRICE');
-      }
-      // Validate unitType
-      if (!['per_unit', 'per_hour'].includes(unitType)) {
-        return sendError(res, 400, 'unitType must be either "per_unit" or "per_hour"', 'INVALID_UNIT_TYPE');
-      }
-      // Validate basePrice
-      if (basePrice <= 0) {
-        return sendError(res, 400, 'basePrice must be greater than 0', 'INVALID_BASE_PRICE');
+
+      if (timeBasedPricing !== undefined && timeBasedPricing !== null && timeBasedPricing !== '') {
+        try {
+          const rawValue = typeof timeBasedPricing === 'string' ? JSON.parse(timeBasedPricing) : timeBasedPricing;
+
+          if (!Array.isArray(rawValue) || rawValue.length === 0) {
+            return sendError(res, 400, 'timeBasedPricing must be a non-empty array for per_hour services', 'INVALID_TIME_BASED_PRICING');
+          }
+
+          parsedTimeBasedPricing = rawValue.map((tier) => {
+            if (!tier || typeof tier !== 'object') {
+              throw new Error('Each pricing tier must be an object with hours and price');
+            }
+
+            const hours = Number(tier.hours);
+            const price = Number(tier.price);
+
+            if (!Number.isFinite(hours) || hours < 1) {
+              throw new Error('Each pricing tier must include hours greater than or equal to 1');
+            }
+
+            if (!Number.isFinite(price) || price < 0) {
+              throw new Error('Each pricing tier must include a non-negative price');
+            }
+
+            return { hours, price };
+          }).sort((a, b) => a.hours - b.hours);
+        } catch (error) {
+          return sendError(res, 400, error.message || 'Invalid timeBasedPricing format', 'INVALID_TIME_BASED_PRICING');
+        }
       }
     } else {
-      // For Quotation services, unitType and basePrice are optional
-      // If provided, validate them
-      if (unitType && !['per_unit', 'per_hour'].includes(unitType)) {
-        return sendError(res, 400, 'unitType must be either "per_unit" or "per_hour"', 'INVALID_UNIT_TYPE');
+      // Non per_hour services rely on basePrice
+      if (job_service_type !== 'Quotation' && (!basePrice || Number(basePrice) <= 0)) {
+        return sendError(res, 400, 'basePrice is required and must be greater than 0 for OnTime and Scheduled services', 'INVALID_BASE_PRICE');
       }
-      if (basePrice !== undefined && basePrice !== null && basePrice <= 0) {
+
+      if (basePrice !== undefined && basePrice !== null && Number(basePrice) <= 0) {
         return sendError(res, 400, 'basePrice must be greater than 0 if provided', 'INVALID_BASE_PRICE');
+      }
+
+      if (timeBasedPricing !== undefined && timeBasedPricing !== null && timeBasedPricing !== '') {
+        try {
+          const rawValue = typeof timeBasedPricing === 'string' ? JSON.parse(timeBasedPricing) : timeBasedPricing;
+
+          if (!Array.isArray(rawValue)) {
+            throw new Error('timeBasedPricing must be an array when provided');
+          }
+
+          parsedTimeBasedPricing = rawValue.map((tier) => {
+            if (!tier || typeof tier !== 'object') {
+              throw new Error('Each pricing tier must be an object with hours and price');
+            }
+
+            const hours = Number(tier.hours);
+            const price = Number(tier.price);
+
+            if (!Number.isFinite(hours) || hours < 1) {
+              throw new Error('Each pricing tier must include hours greater than or equal to 1');
+            }
+
+            if (!Number.isFinite(price) || price < 0) {
+              throw new Error('Each pricing tier must include a non-negative price');
+            }
+
+            return { hours, price };
+          }).sort((a, b) => a.hours - b.hours);
+        } catch (error) {
+          return sendError(res, 400, error.message || 'Invalid timeBasedPricing format', 'INVALID_TIME_BASED_PRICING');
+        }
       }
     }
 
@@ -165,18 +228,14 @@ const createService = async (req, res, next) => {
       createdBy: req.user.id
     };
 
-    // Add basePrice and unitType only if provided (required for non-Quotation services)
-    if (job_service_type !== 'Quotation') {
-      serviceData.basePrice = parseFloat(basePrice);
+    if (unitType) {
       serviceData.unitType = unitType;
-    } else {
-      // For Quotation services, these are optional
-      if (basePrice !== undefined && basePrice !== null) {
-        serviceData.basePrice = parseFloat(basePrice);
-      }
-      if (unitType) {
-        serviceData.unitType = unitType;
-      }
+    }
+
+    if (unitType === 'per_hour') {
+      delete serviceData.basePrice;
+    } else if (basePrice !== undefined && basePrice !== null && basePrice !== '') {
+      serviceData.basePrice = parseFloat(basePrice);
     }
 
     // Add conditional fields
@@ -185,6 +244,12 @@ const createService = async (req, res, next) => {
     } else {
       serviceData.price_type = price_type;
       serviceData.subservice_type = subservice_type;
+    }
+
+    if (parsedTimeBasedPricing.length > 0) {
+      serviceData.timeBasedPricing = parsedTimeBasedPricing;
+    } else if (unitType === 'per_hour') {
+      serviceData.timeBasedPricing = [];
     }
 
     if (typeof isFeatured !== 'undefined') {
@@ -352,6 +417,7 @@ const getServices = async (req, res, next) => {
       order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
+      timeBasedPricing: service.timeBasedPricing || [],
       isFeatured: service.isFeatured,
       subServices: service.subServices || [],
       isActive: service.isActive,
@@ -451,6 +517,7 @@ const getServicesPaginated = async (req, res, next) => {
       order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
+      timeBasedPricing: service.timeBasedPricing || [],
       isFeatured: service.isFeatured,
       subServices: service.subServices || [],
       isActive: service.isActive,
@@ -513,6 +580,7 @@ const getServiceById = async (req, res, next) => {
       order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
+      timeBasedPricing: service.timeBasedPricing || [],
       isFeatured: service.isFeatured,
       subServices: service.subServices || [],
       isActive: service.isActive,
@@ -610,6 +678,7 @@ const getAllActiveServices = async (req, res, next) => {
       order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
+      timeBasedPricing: service.timeBasedPricing || [],
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -688,15 +757,30 @@ module.exports = {
 
       const services = await Service.find({ category_id: category._id, isActive: true })
         .sort({ createdAt: -1 })
-        .select({ _id: 1, name: 1, service_icon: 1, basePrice: 1 })
+        .select({ _id: 1, name: 1, service_icon: 1, basePrice: 1, unitType: 1, timeBasedPricing: 1 })
         .lean();
 
-      const result = services.map(svc => ({
-        id: svc._id,
-        name: svc.name,
-        icon: svc.service_icon || null,
-        price: svc.basePrice
-      }));
+      const result = services.map(svc => {
+        const tiers = Array.isArray(svc.timeBasedPricing) ? svc.timeBasedPricing : [];
+        const perHourPrice = svc.unitType === 'per_hour' && tiers.length > 0
+          ? tiers.reduce((min, tier) => {
+            if (!tier || typeof tier.price !== 'number') return min;
+            if (min === null || tier.price < min) {
+              return tier.price;
+            }
+            return min;
+          }, null)
+          : null;
+
+        return {
+          id: svc._id,
+          name: svc.name,
+          icon: svc.service_icon || null,
+          price: perHourPrice !== null ? perHourPrice : svc.basePrice,
+          unitType: svc.unitType,
+          timeBasedPricing: tiers
+        };
+      });
 
       return sendSuccess(res, 200, 'INTERIOR RENOVATION category services retrieved successfully', result);
     } catch (error) {
