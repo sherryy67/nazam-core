@@ -1,5 +1,6 @@
 const Service = require('../models/Service');
 const Category = require('../models/Category');
+const mongoose = require('mongoose');
 const { sendSuccess, sendError, sendCreated } = require('../utils/response');
 const multer = require('multer');
 const path = require('path');
@@ -70,12 +71,13 @@ const upload = multer({
   }
 });
 
-// @desc    Create a new service
+// @desc    Create or update a service
 // @route   POST /api/services
 // @access  Admin only
 const createService = async (req, res, next) => {
   try {
     const { 
+      _id,
       name, 
       description, 
       basePrice, 
@@ -91,6 +93,18 @@ const createService = async (req, res, next) => {
       timeBasedPricing,
       subServices
     } = req.body;
+
+    // Check if this is an update operation
+    let existingService = null;
+    if (_id) {
+      if (!mongoose.Types.ObjectId.isValid(_id)) {
+        return sendError(res, 400, 'Invalid service ID format', 'INVALID_SERVICE_ID');
+      }
+      existingService = await Service.findById(_id);
+      if (!existingService) {
+        return sendError(res, 404, 'Service not found', 'SERVICE_NOT_FOUND');
+      }
+    }
 
     // Validate required fields - basePrice is not required for Quotation services
     if (!name || !category_id || !min_time_required || !availability || !job_service_type) {
@@ -220,13 +234,21 @@ const createService = async (req, res, next) => {
 
     const serviceData = {
       name,
-      description,
       category_id,
       min_time_required: parseInt(min_time_required),
       availability: availabilityArray,
-      job_service_type,
-      createdBy: req.user.id
+      job_service_type
     };
+
+    // Only include description if provided
+    if (description !== undefined && description !== null) {
+      serviceData.description = description;
+    }
+
+    // Only set createdBy for new services
+    if (!existingService) {
+      serviceData.createdBy = req.user.id;
+    }
 
     if (unitType) {
       serviceData.unitType = unitType;
@@ -364,9 +386,22 @@ const createService = async (req, res, next) => {
       }
     }
 
-    const service = await Service.create(serviceData);
-
-    sendCreated(res, 'Service created successfully', service);
+    let service;
+    if (existingService) {
+      // Update existing service
+      service = await Service.findByIdAndUpdate(
+        _id,
+        serviceData,
+        { new: true, runValidators: true }
+      ).populate('createdBy', 'name email')
+       .populate('category_id', 'name description');
+      
+      sendSuccess(res, 200, 'Service updated successfully', service);
+    } else {
+      // Create new service
+      service = await Service.create(serviceData);
+      sendCreated(res, 'Service created successfully', service);
+    }
   } catch (error) {
     // Clean up local file if error occurs
     if (req.file && fs.existsSync(req.file.path)) {

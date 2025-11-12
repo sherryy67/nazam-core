@@ -193,7 +193,8 @@ const getServicesPaginatedValidation = [
  * @swagger
  * /api/services:
  *   post:
- *     summary: Create a new service (Admin only)
+ *     summary: Create or update a service (Admin only)
+ *     description: Creates a new service if _id is not provided, or updates an existing service if _id is provided
  *     tags: [Services]
  *     security:
  *       - bearerAuth: []
@@ -211,6 +212,10 @@ const getServicesPaginatedValidation = [
  *               - availability
  *               - job_service_type
  *             properties:
+ *               _id:
+ *                 type: string
+ *                 description: Service ID (optional - if provided, updates existing service)
+ *                 example: "64a1b2c3d4e5f6789abcdef0"
  *               name:
  *                 type: string
  *                 example: "AC Cleaning"
