@@ -189,27 +189,30 @@ const getServicesPaginatedValidation = [
     .withMessage('SortOrder must be asc or desc')
 ];
 
+const idCollectionValidator = (value, { req }) => {
+  if (value === undefined || value === null) {
+    return true;
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      throw new Error('Array must contain at least one service ID');
+    }
+    const invalid = value.some(id => typeof id !== 'string' || id.trim().length === 0);
+    if (invalid) {
+      throw new Error('Each service ID must be a non-empty string');
+    }
+  } else if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error('Value must be a non-empty string or an array of strings');
+  }
+
+  return true;
+};
+
 const setFeaturedServicesValidation = [
-  body('serviceIds')
-    .custom(value => {
-      if (value === undefined || value === null) {
-        throw new Error('serviceIds is required');
-      }
-
-      if (Array.isArray(value)) {
-        if (value.length === 0) {
-          throw new Error('serviceIds must contain at least one service ID');
-        }
-        const invalid = value.some(id => typeof id !== 'string' || id.trim().length === 0);
-        if (invalid) {
-          throw new Error('Each service ID must be a non-empty string');
-        }
-      } else if (typeof value !== 'string' || value.trim().length === 0) {
-        throw new Error('serviceIds must be a non-empty string or an array of strings');
-      }
-
-      return true;
-    }),
+  body('serviceIds').custom(idCollectionValidator),
+  body('featureIds').custom(idCollectionValidator),
+  body('unfeatureIds').custom(idCollectionValidator),
   body('isFeatured')
     .optional()
     .isBoolean()
@@ -231,9 +234,9 @@ const setFeaturedServicesValidation = [
  *           schema:
  *             type: object
  *             required:
- *               - serviceIds
  *             properties:
  *               serviceIds:
+ *                 description: Optional legacy field used with isFeatured to toggle a single group of IDs
  *                 oneOf:
  *                   - type: string
  *                   - type: array
@@ -244,6 +247,17 @@ const setFeaturedServicesValidation = [
  *                 type: boolean
  *                 description: Defaults to true. Set false to remove featured flag.
  *                 example: true
+ *               featureIds:
+ *                 type: array
+ *                 description: IDs that should be marked as featured within the same request
+ *                 items:
+ *                   type: string
+ *               unfeatureIds:
+ *                 type: array
+ *                 description: IDs that should be removed from featured within the same request
+ *                 items:
+ *                   type: string
+ *     description: Provide at least one of serviceIds, featureIds, or unfeatureIds.
  *     responses:
  *       200:
  *         description: Services updated successfully

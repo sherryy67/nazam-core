@@ -774,52 +774,92 @@ const getServiceSubServices = async (req, res, next) => {
 // @access  Admin only
 const setFeaturedServices = async (req, res, next) => {
   try {
-    let { serviceIds, isFeatured = true } = req.body;
+    let { serviceIds, isFeatured = true, featureIds, unfeatureIds } = req.body;
 
-    if (!serviceIds) {
+    const normalizeIdsInput = (value) => {
+      if (value === undefined || value === null) return [];
+      const arr = Array.isArray(value) ? value : [value];
+      return arr
+        .filter(id => typeof id === 'string')
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
+    };
+
+    const serviceIdsNormalized = normalizeIdsInput(serviceIds);
+    const featureIdsNormalized = normalizeIdsInput(featureIds);
+    const unfeatureIdsNormalized = normalizeIdsInput(unfeatureIds);
+
+    if (
+      serviceIdsNormalized.length === 0 &&
+      featureIdsNormalized.length === 0 &&
+      unfeatureIdsNormalized.length === 0
+    ) {
       return sendError(res, 400, 'At least one service ID must be provided', 'MISSING_SERVICE_IDS');
     }
 
-    if (!Array.isArray(serviceIds)) {
-      serviceIds = [serviceIds];
+    const parseBoolean = (value, defaultValue = true) => {
+      if (typeof value === 'undefined') return defaultValue;
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'string') {
+        const lowered = value.toLowerCase();
+        if (['true', '1', 'yes'].includes(lowered)) return true;
+        if (['false', '0', 'no'].includes(lowered)) return false;
+      }
+      return Boolean(value);
+    };
+
+    const operations = [];
+
+    if (serviceIdsNormalized.length > 0) {
+      operations.push({
+        ids: serviceIdsNormalized,
+        isFeatured: parseBoolean(isFeatured, true)
+      });
     }
 
-    serviceIds = serviceIds
-      .filter(id => typeof id === 'string')
-      .map(id => id.trim())
-      .filter(id => id.length > 0);
-
-    if (serviceIds.length === 0) {
-      return sendError(res, 400, 'At least one service ID must be provided', 'MISSING_SERVICE_IDS');
+    if (featureIdsNormalized.length > 0) {
+      operations.push({
+        ids: featureIdsNormalized,
+        isFeatured: true
+      });
     }
 
-    const invalidIds = serviceIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+    if (unfeatureIdsNormalized.length > 0) {
+      operations.push({
+        ids: unfeatureIdsNormalized,
+        isFeatured: false
+      });
+    }
+
+    const allIds = [...new Set(operations.flatMap(op => op.ids))];
+    const invalidIds = allIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
     if (invalidIds.length > 0) {
       return sendError(res, 400, `Invalid service ID(s): ${invalidIds.join(', ')}`, 'INVALID_SERVICE_ID');
     }
 
-    if (typeof isFeatured === 'string') {
-      isFeatured = isFeatured.toLowerCase() === 'true';
-    } else {
-      isFeatured = Boolean(isFeatured);
+    let matchedCount = 0;
+    let modifiedCount = 0;
+
+    for (const op of operations) {
+      const result = await Service.updateMany(
+        { _id: { $in: op.ids } },
+        { $set: { isFeatured: op.isFeatured } }
+      );
+      matchedCount += result?.matchedCount ?? result?.n ?? 0;
+      modifiedCount += result?.modifiedCount ?? result?.nModified ?? 0;
     }
 
-    const updateResult = await Service.updateMany(
-      { _id: { $in: serviceIds } },
-      { $set: { isFeatured } }
-    );
-
-    const updatedServices = await Service.find({ _id: { $in: serviceIds } })
+    const updatedServices = await Service.find({ _id: { $in: allIds } })
       .populate('category_id', 'name description')
       .select('_id name category_id isFeatured isActive');
 
     return sendSuccess(
       res,
       200,
-      `Services ${isFeatured ? 'marked as' : 'removed from'} featured successfully`,
+      'Service featured status updated successfully',
       {
-        matchedCount: updateResult?.matchedCount ?? updateResult?.n ?? 0,
-        modifiedCount: updateResult?.modifiedCount ?? updateResult?.nModified ?? 0,
+        matchedCount,
+        modifiedCount,
         services: updatedServices
       }
     );
