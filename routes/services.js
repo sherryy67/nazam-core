@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
 const ROLES = require('../constants/roles');
-const { createService, getServices, getServicesPaginated, getServiceById, deleteService, getAllActiveServices, getServiceSubServices, getHomeCategoryServices, upload } = require('../controllers/serviceController');
+const { createService, getServices, getServicesPaginated, getServiceById, deleteService, getAllActiveServices, getServiceSubServices, setFeaturedServices, getFeaturedServices, getHomeCategoryServices, upload } = require('../controllers/serviceController');
 
 const router = express.Router();
 
@@ -188,6 +188,97 @@ const getServicesPaginatedValidation = [
     .isIn(['asc', 'desc'])
     .withMessage('SortOrder must be asc or desc')
 ];
+
+const setFeaturedServicesValidation = [
+  body('serviceIds')
+    .custom(value => {
+      if (value === undefined || value === null) {
+        throw new Error('serviceIds is required');
+      }
+
+      if (Array.isArray(value)) {
+        if (value.length === 0) {
+          throw new Error('serviceIds must contain at least one service ID');
+        }
+        const invalid = value.some(id => typeof id !== 'string' || id.trim().length === 0);
+        if (invalid) {
+          throw new Error('Each service ID must be a non-empty string');
+        }
+      } else if (typeof value !== 'string' || value.trim().length === 0) {
+        throw new Error('serviceIds must be a non-empty string or an array of strings');
+      }
+
+      return true;
+    }),
+  body('isFeatured')
+    .optional()
+    .isBoolean()
+    .withMessage('isFeatured must be a boolean value')
+];
+
+/**
+ * @swagger
+ * /api/services/featured:
+ *   post:
+ *     summary: Mark services as featured/unfeatured (Admin only)
+ *     tags: [Services]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - serviceIds
+ *             properties:
+ *               serviceIds:
+ *                 oneOf:
+ *                   - type: string
+ *                   - type: array
+ *                     items:
+ *                       type: string
+ *                 example: ["64a1b2c3d4e5f6789abcdef0", "64a1b2c3d4e5f6789abcdef1"]
+ *               isFeatured:
+ *                 type: boolean
+ *                 description: Defaults to true. Set false to remove featured flag.
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Services updated successfully
+ *       400:
+ *         description: Bad request - validation error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ */
+router.post('/featured', protect, isAdmin, setFeaturedServicesValidation, setFeaturedServices);
+
+/**
+ * @swagger
+ * /api/services/featured:
+ *   get:
+ *     summary: Get featured services
+ *     tags: [Services]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *         description: Optional maximum number of services to return
+ *     responses:
+ *       200:
+ *         description: Featured services retrieved successfully
+ *       400:
+ *         description: Bad request - invalid limit
+ *       500:
+ *         description: Server error
+ */
+router.get('/featured', getFeaturedServices);
 
 /**
  * @swagger

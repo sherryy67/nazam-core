@@ -769,6 +769,124 @@ const getServiceSubServices = async (req, res, next) => {
   }
 };
 
+// @desc    Mark one or multiple services as featured/unfeatured
+// @route   POST /api/services/featured
+// @access  Admin only
+const setFeaturedServices = async (req, res, next) => {
+  try {
+    let { serviceIds, isFeatured = true } = req.body;
+
+    if (!serviceIds) {
+      return sendError(res, 400, 'At least one service ID must be provided', 'MISSING_SERVICE_IDS');
+    }
+
+    if (!Array.isArray(serviceIds)) {
+      serviceIds = [serviceIds];
+    }
+
+    serviceIds = serviceIds
+      .filter(id => typeof id === 'string')
+      .map(id => id.trim())
+      .filter(id => id.length > 0);
+
+    if (serviceIds.length === 0) {
+      return sendError(res, 400, 'At least one service ID must be provided', 'MISSING_SERVICE_IDS');
+    }
+
+    const invalidIds = serviceIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+    if (invalidIds.length > 0) {
+      return sendError(res, 400, `Invalid service ID(s): ${invalidIds.join(', ')}`, 'INVALID_SERVICE_ID');
+    }
+
+    if (typeof isFeatured === 'string') {
+      isFeatured = isFeatured.toLowerCase() === 'true';
+    } else {
+      isFeatured = Boolean(isFeatured);
+    }
+
+    const updateResult = await Service.updateMany(
+      { _id: { $in: serviceIds } },
+      { $set: { isFeatured } }
+    );
+
+    const updatedServices = await Service.find({ _id: { $in: serviceIds } })
+      .populate('category_id', 'name description')
+      .select('_id name category_id isFeatured isActive');
+
+    return sendSuccess(
+      res,
+      200,
+      `Services ${isFeatured ? 'marked as' : 'removed from'} featured successfully`,
+      {
+        matchedCount: updateResult?.matchedCount ?? updateResult?.n ?? 0,
+        modifiedCount: updateResult?.modifiedCount ?? updateResult?.nModified ?? 0,
+        services: updatedServices
+      }
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get featured services
+// @route   GET /api/services/featured
+// @access  Public
+const getFeaturedServices = async (req, res, next) => {
+  try {
+    const { limit } = req.query;
+    let limitNum;
+
+    if (typeof limit !== 'undefined') {
+      limitNum = parseInt(limit, 10);
+      if (!Number.isFinite(limitNum) || limitNum < 1 || limitNum > 100) {
+        return sendError(res, 400, 'limit must be a number between 1 and 100', 'INVALID_LIMIT');
+      }
+    }
+
+    let query = Service.find({ isActive: true, isFeatured: true })
+      .populate('createdBy', 'name email')
+      .populate('category_id', 'name description')
+      .sort({ updatedAt: -1 });
+
+    if (limitNum) {
+      query = query.limit(limitNum);
+    }
+
+    const services = await query;
+
+    const transformedServices = services.map(service => ({
+      _id: service._id,
+      name: service.name,
+      description: service.description,
+      basePrice: service.basePrice,
+      unitType: service.unitType,
+      imageUri: service.imageUri,
+      service_icon: service.service_icon,
+      category_id: service.category_id,
+      min_time_required: service.min_time_required,
+      availability: service.availability,
+      job_service_type: service.job_service_type,
+      order_name: service.order_name,
+      price_type: service.price_type,
+      subservice_type: service.subservice_type,
+      timeBasedPricing: service.timeBasedPricing || [],
+      isFeatured: service.isFeatured,
+      subServices: service.subServices || [],
+      isActive: service.isActive,
+      createdBy: service.createdBy,
+      createdAt: service.createdAt?.toISOString(),
+      updatedAt: service.updatedAt?.toISOString()
+    }));
+
+    return sendSuccess(res, 200, 'Featured services retrieved successfully', {
+      services: transformedServices,
+      total: transformedServices.length
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createService,
   getServices,
@@ -777,6 +895,8 @@ module.exports = {
   deleteService,
   getAllActiveServices,
   getServiceSubServices,
+  setFeaturedServices,
+  getFeaturedServices,
   // New: Get only services of the "INTERIOR RENOVATION" category (public)
   getHomeCategoryServices: async (req, res, next) => {
     try {
