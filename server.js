@@ -37,7 +37,7 @@ app.use('/api', routes);
 
 // Root route
 app.get('/', (req, res) => {
-  sendSuccess(res, 200, 'Welcome to Nazam Core API UAE REGION', {
+  sendSuccess(res, 200, 'Welcome to Nazam Core API', {
     version: '1.0.0',
     documentation: '/api-docs',
     health: '/api/health',

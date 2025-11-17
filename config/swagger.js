@@ -8,7 +8,7 @@ const options = {
   definition: {
     openapi: "3.0.0",
     info: {
-      title: "Nazam Core API",
+      title: "Nazam Core API UAE",
       version: "1.0.0",
       description:
         "A Node.js + Express.js project with MongoDB for building robust web applications",
