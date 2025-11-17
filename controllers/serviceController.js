@@ -91,7 +91,9 @@ const createService = async (req, res, next) => {
       subservice_type,
       isFeatured,
       timeBasedPricing,
-      subServices
+      subServices,
+      serviceType,
+      isBannerService
     } = req.body;
 
     // Check if this is an update operation
@@ -107,8 +109,25 @@ const createService = async (req, res, next) => {
     }
 
     // Validate required fields - basePrice is not required for Quotation services
+    // For new services, serviceType is required. For updates, use existing value if not provided
     if (!name || !category_id || !min_time_required || !availability || !job_service_type) {
       return sendError(res, 400, 'Name, category_id, min_time_required, availability, and job_service_type are required', 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Handle serviceType - has default value "residential" in model, but validate if provided
+    let finalServiceType = serviceType;
+    
+    if (existingService && !serviceType) {
+      // Use existing serviceType if not provided in update
+      finalServiceType = existingService.serviceType || 'residential';
+    } else if (!serviceType) {
+      // Use default for new services if not provided
+      finalServiceType = 'residential';
+    }
+
+    // Validate serviceType if provided
+    if (finalServiceType && !['residential', 'commercial'].includes(finalServiceType)) {
+      return sendError(res, 400, 'serviceType must be either "residential" or "commercial"', 'INVALID_SERVICE_TYPE');
     }
 
     // Validate unitType requirements based on job_service_type
@@ -237,7 +256,8 @@ const createService = async (req, res, next) => {
       category_id,
       min_time_required: parseInt(min_time_required),
       availability: availabilityArray,
-      job_service_type
+      job_service_type,
+      serviceType: finalServiceType
     };
 
     // Only include description if provided
@@ -279,6 +299,14 @@ const createService = async (req, res, next) => {
         serviceData.isFeatured = isFeatured.toLowerCase() === 'true';
       } else {
         serviceData.isFeatured = Boolean(isFeatured);
+      }
+    }
+
+    if (typeof isBannerService !== 'undefined') {
+      if (typeof isBannerService === 'string') {
+        serviceData.isBannerService = isBannerService.toLowerCase() === 'true';
+      } else {
+        serviceData.isBannerService = Boolean(isBannerService);
       }
     }
 
@@ -454,6 +482,8 @@ const getServices = async (req, res, next) => {
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
       isFeatured: service.isFeatured,
+      serviceType: service.serviceType,
+      isBannerService: service.isBannerService,
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -554,6 +584,8 @@ const getServicesPaginated = async (req, res, next) => {
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
       isFeatured: service.isFeatured,
+      serviceType: service.serviceType,
+      isBannerService: service.isBannerService,
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -617,6 +649,8 @@ const getServiceById = async (req, res, next) => {
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
       isFeatured: service.isFeatured,
+      serviceType: service.serviceType,
+      isBannerService: service.isBannerService,
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -911,6 +945,8 @@ const getFeaturedServices = async (req, res, next) => {
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
       isFeatured: service.isFeatured,
+      serviceType: service.serviceType,
+      isBannerService: service.isBannerService,
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -919,6 +955,288 @@ const getFeaturedServices = async (req, res, next) => {
     }));
 
     return sendSuccess(res, 200, 'Featured services retrieved successfully', {
+      services: transformedServices,
+      total: transformedServices.length
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get banner services
+// @route   GET /api/services/banner
+// @access  Public
+const getBannerServices = async (req, res, next) => {
+  try {
+    const { limit } = req.query;
+    let limitNum;
+
+    if (typeof limit !== 'undefined') {
+      limitNum = parseInt(limit, 10);
+      if (!Number.isFinite(limitNum) || limitNum < 1 || limitNum > 100) {
+        return sendError(res, 400, 'limit must be a number between 1 and 100', 'INVALID_LIMIT');
+      }
+    }
+
+    let query = Service.find({ isActive: true, isBannerService: true })
+      .populate('createdBy', 'name email')
+      .populate('category_id', 'name description')
+      .sort({ updatedAt: -1 });
+
+    if (limitNum) {
+      query = query.limit(limitNum);
+    }
+
+    const services = await query;
+
+    const transformedServices = services.map(service => ({
+      _id: service._id,
+      name: service.name,
+      description: service.description,
+      basePrice: service.basePrice,
+      unitType: service.unitType,
+      imageUri: service.imageUri,
+      service_icon: service.service_icon,
+      category_id: service.category_id,
+      min_time_required: service.min_time_required,
+      availability: service.availability,
+      job_service_type: service.job_service_type,
+      order_name: service.order_name,
+      price_type: service.price_type,
+      subservice_type: service.subservice_type,
+      timeBasedPricing: service.timeBasedPricing || [],
+      isFeatured: service.isFeatured,
+      serviceType: service.serviceType,
+      isBannerService: service.isBannerService,
+      subServices: service.subServices || [],
+      isActive: service.isActive,
+      createdBy: service.createdBy,
+      createdAt: service.createdAt?.toISOString(),
+      updatedAt: service.updatedAt?.toISOString()
+    }));
+
+    return sendSuccess(res, 200, 'Banner services retrieved successfully', {
+      services: transformedServices,
+      total: transformedServices.length
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Toggle banner service status (Admin only)
+// @route   POST /api/services/banner/toggle
+// @access  Admin only
+const toggleBannerService = async (req, res, next) => {
+  try {
+    const { serviceId, isBannerService } = req.body;
+
+    if (!serviceId) {
+      return sendError(res, 400, 'Service ID is required', 'MISSING_SERVICE_ID');
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(serviceId)) {
+      return sendError(res, 400, 'Invalid service ID format', 'INVALID_SERVICE_ID');
+    }
+
+    if (typeof isBannerService !== 'boolean') {
+      return sendError(res, 400, 'isBannerService must be a boolean value', 'INVALID_BANNER_STATUS');
+    }
+
+    const service = await Service.findById(serviceId);
+
+    if (!service) {
+      return sendError(res, 404, 'Service not found', 'SERVICE_NOT_FOUND');
+    }
+
+    service.isBannerService = isBannerService;
+    await service.save();
+
+    const updatedService = await Service.findById(serviceId)
+      .populate('createdBy', 'name email')
+      .populate('category_id', 'name description');
+
+    const transformedService = {
+      _id: updatedService._id,
+      name: updatedService.name,
+      description: updatedService.description,
+      basePrice: updatedService.basePrice,
+      unitType: updatedService.unitType,
+      imageUri: updatedService.imageUri,
+      service_icon: updatedService.service_icon,
+      category_id: updatedService.category_id,
+      min_time_required: updatedService.min_time_required,
+      availability: updatedService.availability,
+      job_service_type: updatedService.job_service_type,
+      order_name: updatedService.order_name,
+      price_type: updatedService.price_type,
+      subservice_type: updatedService.subservice_type,
+      timeBasedPricing: updatedService.timeBasedPricing || [],
+      isFeatured: updatedService.isFeatured,
+      serviceType: updatedService.serviceType,
+      isBannerService: updatedService.isBannerService,
+      subServices: updatedService.subServices || [],
+      isActive: updatedService.isActive,
+      createdBy: updatedService.createdBy,
+      createdAt: updatedService.createdAt?.toISOString(),
+      updatedAt: updatedService.updatedAt?.toISOString()
+    };
+
+    return sendSuccess(
+      res,
+      200,
+      `Service banner status ${isBannerService ? 'enabled' : 'disabled'} successfully`,
+      { service: transformedService }
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get residential services
+// @route   GET /api/services/residential
+// @access  Public
+const getResidentialServices = async (req, res, next) => {
+  try {
+    const { limit, category } = req.query;
+    let limitNum;
+
+    if (typeof limit !== 'undefined') {
+      limitNum = parseInt(limit, 10);
+      if (!Number.isFinite(limitNum) || limitNum < 1 || limitNum > 100) {
+        return sendError(res, 400, 'limit must be a number between 1 and 100', 'INVALID_LIMIT');
+      }
+    }
+
+    // Build query
+    const query = { isActive: true, serviceType: 'residential' };
+    
+    // Add category filter if provided
+    if (category) {
+      if (!mongoose.Types.ObjectId.isValid(category)) {
+        return sendError(res, 400, 'Invalid category ID format', 'INVALID_CATEGORY_ID');
+      }
+      const categoryDoc = await Category.findById(category);
+      if (!categoryDoc || !categoryDoc.isActive) {
+        return sendError(res, 400, 'Invalid or inactive category', 'INVALID_CATEGORY');
+      }
+      query.category_id = category;
+    }
+
+    let serviceQuery = Service.find(query)
+      .populate('createdBy', 'name email')
+      .populate('category_id', 'name description')
+      .sort({ updatedAt: -1 });
+
+    if (limitNum) {
+      serviceQuery = serviceQuery.limit(limitNum);
+    }
+
+    const services = await serviceQuery;
+
+    const transformedServices = services.map(service => ({
+      _id: service._id,
+      name: service.name,
+      description: service.description,
+      basePrice: service.basePrice,
+      unitType: service.unitType,
+      imageUri: service.imageUri,
+      service_icon: service.service_icon,
+      category_id: service.category_id,
+      min_time_required: service.min_time_required,
+      availability: service.availability,
+      job_service_type: service.job_service_type,
+      order_name: service.order_name,
+      price_type: service.price_type,
+      subservice_type: service.subservice_type,
+      timeBasedPricing: service.timeBasedPricing || [],
+      isFeatured: service.isFeatured,
+      serviceType: service.serviceType,
+      isBannerService: service.isBannerService,
+      subServices: service.subServices || [],
+      isActive: service.isActive,
+      createdBy: service.createdBy,
+      createdAt: service.createdAt?.toISOString(),
+      updatedAt: service.updatedAt?.toISOString()
+    }));
+
+    return sendSuccess(res, 200, 'Residential services retrieved successfully', {
+      services: transformedServices,
+      total: transformedServices.length
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get commercial services
+// @route   GET /api/services/commercial
+// @access  Public
+const getCommercialServices = async (req, res, next) => {
+  try {
+    const { limit, category } = req.query;
+    let limitNum;
+
+    if (typeof limit !== 'undefined') {
+      limitNum = parseInt(limit, 10);
+      if (!Number.isFinite(limitNum) || limitNum < 1 || limitNum > 100) {
+        return sendError(res, 400, 'limit must be a number between 1 and 100', 'INVALID_LIMIT');
+      }
+    }
+
+    // Build query
+    const query = { isActive: true, serviceType: 'commercial' };
+    
+    // Add category filter if provided
+    if (category) {
+      if (!mongoose.Types.ObjectId.isValid(category)) {
+        return sendError(res, 400, 'Invalid category ID format', 'INVALID_CATEGORY_ID');
+      }
+      const categoryDoc = await Category.findById(category);
+      if (!categoryDoc || !categoryDoc.isActive) {
+        return sendError(res, 400, 'Invalid or inactive category', 'INVALID_CATEGORY');
+      }
+      query.category_id = category;
+    }
+
+    let serviceQuery = Service.find(query)
+      .populate('createdBy', 'name email')
+      .populate('category_id', 'name description')
+      .sort({ updatedAt: -1 });
+
+    if (limitNum) {
+      serviceQuery = serviceQuery.limit(limitNum);
+    }
+
+    const services = await serviceQuery;
+
+    const transformedServices = services.map(service => ({
+      _id: service._id,
+      name: service.name,
+      description: service.description,
+      basePrice: service.basePrice,
+      unitType: service.unitType,
+      imageUri: service.imageUri,
+      service_icon: service.service_icon,
+      category_id: service.category_id,
+      min_time_required: service.min_time_required,
+      availability: service.availability,
+      job_service_type: service.job_service_type,
+      order_name: service.order_name,
+      price_type: service.price_type,
+      subservice_type: service.subservice_type,
+      timeBasedPricing: service.timeBasedPricing || [],
+      isFeatured: service.isFeatured,
+      serviceType: service.serviceType,
+      isBannerService: service.isBannerService,
+      subServices: service.subServices || [],
+      isActive: service.isActive,
+      createdBy: service.createdBy,
+      createdAt: service.createdAt?.toISOString(),
+      updatedAt: service.updatedAt?.toISOString()
+    }));
+
+    return sendSuccess(res, 200, 'Commercial services retrieved successfully', {
       services: transformedServices,
       total: transformedServices.length
     });
@@ -937,6 +1255,10 @@ module.exports = {
   getServiceSubServices,
   setFeaturedServices,
   getFeaturedServices,
+  getBannerServices,
+  toggleBannerService,
+  getResidentialServices,
+  getCommercialServices,
   // New: Get only services of the "INTERIOR RENOVATION" category (public)
   getHomeCategoryServices: async (req, res, next) => {
     try {

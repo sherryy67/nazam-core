@@ -9,7 +9,16 @@ dotenv.config();
 const createFirstAdmin = async () => {
   try {
     // Connect to database
-    await mongoose.connect(process.env.MONGO_URI);
+    if (!process.env.MONGODB_URI) {
+      console.error('Error: MONGODB_URI environment variable is not set');
+      console.error('Please make sure your .env file contains MONGODB_URI');
+      process.exit(1);
+    }
+    
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 30000, // 30 seconds timeout
+      socketTimeoutMS: 45000, // 45 seconds socket timeout
+    });
     console.log('Connected to database');
 
     // Check if any admin already exists

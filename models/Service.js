@@ -48,6 +48,15 @@ const serviceSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  serviceType: {
+    type: String,
+    enum: ["residential", "commercial"],
+    default: "residential"
+  },
+  isBannerService: {
+    type: Boolean,
+    default: false
+  },
   timeBasedPricing: {
     type: [timeBasedPricingSchema],
     default: [],
