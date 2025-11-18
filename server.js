@@ -8,7 +8,6 @@ const errorHandler = require('./middlewares/errorHandler');
 const routes = require('./routes');
 const { sendSuccess, sendError } = require('./utils/response');
 
-// Load env vars
 dotenv.config();
 
 // Connect to database

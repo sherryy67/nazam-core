@@ -10,7 +10,8 @@
         "configure-s3-cors": "node scripts/configure-s3-cors.js",
         "verify-cors": "node verify-cors.js",
         "fix-cors": "node quick-fix-cors.js",
-        "migrate:add-subServices": "node scripts/add-subServices-to-services.js"
+        "migrate:add-subServices": "node scripts/add-subServices-to-services.js",
+        "migrate:service-fields": "node scripts/migrate-service-fields.js"
     },
     "keywords": [
         "nodejs",

@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
 const ROLES = require('../constants/roles');
-const { createService, getServices, getServicesPaginated, getServiceById, deleteService, getAllActiveServices, getServiceSubServices, setFeaturedServices, getFeaturedServices, getHomeCategoryServices, upload } = require('../controllers/serviceController');
+const { createService, getServices, getServicesPaginated, getServiceById, deleteService, getAllActiveServices, getServiceSubServices, setFeaturedServices, getFeaturedServices, getBannerServices, toggleBannerService, getResidentialServices, getCommercialServices, getHomeCategoryServices, upload } = require('../controllers/serviceController');
 
 const router = express.Router();
 
@@ -162,7 +162,15 @@ const createServiceValidation = [
         }
       }
       return true;
-    })
+    }),
+  body('serviceType')
+    .optional()
+    .isIn(['residential', 'commercial'])
+    .withMessage('Service type must be either "residential" or "commercial"'),
+  body('isBannerService')
+    .optional()
+    .isBoolean()
+    .withMessage('isBannerService must be a boolean value')
 ];
 
 // Validation rules for paginated services
@@ -296,6 +304,130 @@ router.get('/featured', getFeaturedServices);
 
 /**
  * @swagger
+ * /api/services/banner:
+ *   get:
+ *     summary: Get banner services
+ *     tags: [Services]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *         description: Optional maximum number of services to return
+ *     responses:
+ *       200:
+ *         description: Banner services retrieved successfully
+ *       400:
+ *         description: Bad request - invalid limit
+ *       500:
+ *         description: Server error
+ */
+router.get('/banner', getBannerServices);
+
+/**
+ * @swagger
+ * /api/services/banner/toggle:
+ *   post:
+ *     summary: Enable/disable service for banner (Admin only)
+ *     tags: [Services]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - serviceId
+ *               - isBannerService
+ *             properties:
+ *               serviceId:
+ *                 type: string
+ *                 description: Service ID to toggle banner status
+ *                 example: "64a1b2c3d4e5f6789abcdef0"
+ *               isBannerService:
+ *                 type: boolean
+ *                 description: Set to true to enable banner, false to disable
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Service banner status updated successfully
+ *       400:
+ *         description: Bad request - validation error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: Service not found
+ */
+router.post('/banner/toggle', protect, isAdmin, toggleBannerService);
+
+/**
+ * @swagger
+ * /api/services/residential:
+ *   get:
+ *     summary: Get residential services
+ *     tags: [Services]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *         description: Optional maximum number of services to return
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Optional category ID to filter services
+ *         example: "64a1b2c3d4e5f6789abcdef0"
+ *     responses:
+ *       200:
+ *         description: Residential services retrieved successfully
+ *       400:
+ *         description: Bad request - invalid limit or category
+ *       500:
+ *         description: Server error
+ */
+router.get('/residential', getResidentialServices);
+
+/**
+ * @swagger
+ * /api/services/commercial:
+ *   get:
+ *     summary: Get commercial services
+ *     tags: [Services]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *         description: Optional maximum number of services to return
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Optional category ID to filter services
+ *         example: "64a1b2c3d4e5f6789abcdef0"
+ *     responses:
+ *       200:
+ *         description: Commercial services retrieved successfully
+ *       400:
+ *         description: Bad request - invalid limit or category
+ *       500:
+ *         description: Server error
+ */
+router.get('/commercial', getCommercialServices);
+
+/**
+ * @swagger
  * /api/services:
  *   post:
  *     summary: Create or update a service (Admin only)
@@ -382,6 +514,15 @@ router.get('/featured', getFeaturedServices);
  *                 type: string
  *                 format: binary
  *                 description: Service image file (optional)
+ *               serviceType:
+ *                 type: string
+ *                 enum: [residential, commercial]
+ *                 example: "residential"
+ *                 description: Service type - residential or commercial (defaults to "residential" if not provided)
+ *               isBannerService:
+ *                 type: boolean
+ *                 example: false
+ *                 description: Whether the service should be displayed as a banner (optional)
  *     responses:
  *       201:
  *         description: Service created successfully
@@ -427,6 +568,11 @@ router.get('/featured', getFeaturedServices);
  *                       type: string
  *                     subservice_type:
  *                       type: string
+ *                     serviceType:
+ *                       type: string
+ *                       enum: [residential, commercial]
+ *                     isBannerService:
+ *                       type: boolean
  *                     isActive:
  *                       type: boolean
  *                     createdBy:
