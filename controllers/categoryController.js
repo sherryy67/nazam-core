@@ -364,6 +364,30 @@ const getHomeCategories = async (req, res, next) => {
 // @access  Public
 const getMobileHomeContent = async (req, res, next) => {
   try {
+    // Helper function to transform service to consistent format
+    const transformService = (service) => ({
+      _id: service._id,
+      name: service.name,
+      description: service.description || undefined,
+      basePrice: service.basePrice,
+      unitType: service.unitType,
+      imageUri: service.imageUri || undefined,
+      service_icon: service.service_icon || undefined,
+      category_id: service.category_id,
+      min_time_required: service.min_time_required,
+      availability: service.availability || [],
+      job_service_type: service.job_service_type,
+      order_name: service.order_name || undefined,
+      price_type: service.price_type || undefined,
+      subservice_type: service.subservice_type || undefined,
+      timeBasedPricing: Array.isArray(service.timeBasedPricing) ? service.timeBasedPricing : [],
+      isFeatured: service.isFeatured,
+      subServices: Array.isArray(service.subServices) ? service.subServices : [],
+      isActive: service.isActive,
+      createdAt: service.createdAt ? service.createdAt.toISOString() : undefined,
+      updatedAt: service.updatedAt ? service.updatedAt.toISOString() : undefined
+    });
+
     const categories = await Category.find({ isActive: true })
       .sort({ sortOrder: 1, name: 1 })
       .lean();
@@ -371,12 +395,16 @@ const getMobileHomeContent = async (req, res, next) => {
     if (!categories.length) {
       return sendSuccess(res, 200, 'No categories available', {
         categories: [],
+        bannerServices: [],
+        commercialServices: [],
+        residentialServices: [],
         total: 0
       });
     }
 
     const categoryIds = categories.map(category => category._id);
 
+    // Get all active services
     const services = await Service.find({
       category_id: { $in: categoryIds },
       isActive: true
@@ -384,34 +412,56 @@ const getMobileHomeContent = async (req, res, next) => {
       .sort({ name: 1 })
       .lean();
 
+    // Get banner services (featured services)
+    const bannerServices = await Service.find({
+      isActive: true,
+      isFeatured: true
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Find Commercial and Residential categories
+    const commercialCategory = await Category.findOne({
+      name: { $regex: /commercial/i },
+      isActive: true
+    }).lean();
+
+    const residentialCategory = await Category.findOne({
+      name: { $regex: /residential/i },
+      isActive: true
+    }).lean();
+
+    // Get commercial services
+    let commercialServices = [];
+    if (commercialCategory) {
+      const commercialServicesData = await Service.find({
+        category_id: commercialCategory._id,
+        isActive: true
+      })
+        .sort({ name: 1 })
+        .lean();
+      commercialServices = commercialServicesData.map(transformService);
+    }
+
+    // Get residential services
+    let residentialServices = [];
+    if (residentialCategory) {
+      const residentialServicesData = await Service.find({
+        category_id: residentialCategory._id,
+        isActive: true
+      })
+        .sort({ name: 1 })
+        .lean();
+      residentialServices = residentialServicesData.map(transformService);
+    }
+
     const servicesByCategory = services.reduce((acc, service) => {
       const key = service.category_id.toString();
       if (!acc[key]) {
         acc[key] = [];
       }
 
-      acc[key].push({
-        _id: service._id,
-        name: service.name,
-        description: service.description || undefined,
-        basePrice: service.basePrice,
-        unitType: service.unitType,
-        imageUri: service.imageUri || undefined,
-        service_icon: service.service_icon || undefined,
-        category_id: service.category_id,
-        min_time_required: service.min_time_required,
-        availability: service.availability || [],
-        job_service_type: service.job_service_type,
-        order_name: service.order_name || undefined,
-        price_type: service.price_type || undefined,
-        subservice_type: service.subservice_type || undefined,
-        timeBasedPricing: Array.isArray(service.timeBasedPricing) ? service.timeBasedPricing : [],
-        isFeatured: service.isFeatured,
-        subServices: Array.isArray(service.subServices) ? service.subServices : [],
-        isActive: service.isActive,
-        createdAt: service.createdAt ? service.createdAt.toISOString() : undefined,
-        updatedAt: service.updatedAt ? service.updatedAt.toISOString() : undefined
-      });
+      acc[key].push(transformService(service));
 
       return acc;
     }, {});
@@ -431,8 +481,14 @@ const getMobileHomeContent = async (req, res, next) => {
       };
     });
 
+    // Transform banner services
+    const transformedBannerServices = bannerServices.map(transformService);
+
     return sendSuccess(res, 200, 'Mobile home content retrieved successfully', {
       categories: transformedCategories,
+      bannerServices: transformedBannerServices,
+      commercialServices: commercialServices,
+      residentialServices: residentialServices,
       total: transformedCategories.length
     });
   } catch (error) {

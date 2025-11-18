@@ -35,12 +35,42 @@ const router = express.Router();
  *                       items:
  *                         type: object
  *                         properties:
- *                           category:
- *                             type: object
+ *                           _id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           description:
+ *                             type: string
  *                           services:
  *                             type: array
  *                             items:
  *                               type: object
+ *                     bannerServices:
+ *                       type: array
+ *                       description: Featured services for banner display
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                           basePrice:
+ *                             type: number
+ *                           isFeatured:
+ *                             type: boolean
+ *                     commercialServices:
+ *                       type: array
+ *                       description: Services from Commercial category
+ *                       items:
+ *                         type: object
+ *                     residentialServices:
+ *                       type: array
+ *                       description: Services from Residential category
+ *                       items:
+ *                         type: object
  *                     total:
  *                       type: number
  *       500:
