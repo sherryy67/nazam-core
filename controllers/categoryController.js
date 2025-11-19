@@ -395,11 +395,10 @@ const getMobileHomeContent = async (req, res, next) => {
 
     if (!categories.length) {
       return sendSuccess(res, 200, 'No categories available', {
-        categories: [],
         bannerServices: [],
         commercialServices: [],
         residentialServices: [],
-        total: 0
+
       });
     }
 
@@ -432,40 +431,61 @@ const getMobileHomeContent = async (req, res, next) => {
       mediaUrl: banner.mediaUrl
     }));
 
-    // Find Commercial and Residential categories
-    const commercialCategory = await Category.findOne({
-      name: { $regex: /commercial/i },
-      isActive: true
-    }).lean();
+    // Get commercial services - filter by serviceType from Service collection
+    const commercialServicesData = await Service.find({
+      isActive: true,
+      serviceType: 'commercial'
+    })
+      .populate('category_id', '_id name')
+      .sort({ name: 1 })
+      .lean();
 
-    const residentialCategory = await Category.findOne({
-      name: { $regex: /residential/i },
-      isActive: true
-    }).lean();
+    // Group commercial services by category
+    const commercialServicesByCategory = {};
+    commercialServicesData.forEach(service => {
+      const categoryId = service.category_id?._id?.toString() || service.category_id?.toString();
+      if (!categoryId) return;
+      
+      if (!commercialServicesByCategory[categoryId]) {
+        commercialServicesByCategory[categoryId] = {
+          category: {
+            _id: service.category_id?._id || service.category_id,
+            name: service.category_id?.name || '',
+            services: []
+          }
+        };
+      }
+      commercialServicesByCategory[categoryId].category.services.push(transformService(service));
+    });
+    const commercialServices = Object.values(commercialServicesByCategory);
 
-    // Get commercial services
-    let commercialServices = [];
-    if (commercialCategory) {
-      const commercialServicesData = await Service.find({
-        category_id: commercialCategory._id,
-        isActive: true
-      })
-        .sort({ name: 1 })
-        .lean();
-      commercialServices = commercialServicesData.map(transformService);
-    }
+    // Get residential services - filter by serviceType from Service collection
+    const residentialServicesData = await Service.find({
+      isActive: true,
+      serviceType: 'residential'
+    })
+      .populate('category_id', '_id name')
+      .sort({ name: 1 })
+      .lean();
 
-    // Get residential services
-    let residentialServices = [];
-    if (residentialCategory) {
-      const residentialServicesData = await Service.find({
-        category_id: residentialCategory._id,
-        isActive: true
-      })
-        .sort({ name: 1 })
-        .lean();
-      residentialServices = residentialServicesData.map(transformService);
-    }
+    // Group residential services by category
+    const residentialServicesByCategory = {};
+    residentialServicesData.forEach(service => {
+      const categoryId = service.category_id?._id?.toString() || service.category_id?.toString();
+      if (!categoryId) return;
+      
+      if (!residentialServicesByCategory[categoryId]) {
+        residentialServicesByCategory[categoryId] = {
+          category: {
+            _id: service.category_id?._id || service.category_id,
+            name: service.category_id?.name || '',
+            services: []
+          }
+        };
+      }
+      residentialServicesByCategory[categoryId].category.services.push(transformService(service));
+    });
+    const residentialServices = Object.values(residentialServicesByCategory);
 
     const servicesByCategory = services.reduce((acc, service) => {
       const key = service.category_id.toString();
@@ -478,27 +498,13 @@ const getMobileHomeContent = async (req, res, next) => {
       return acc;
     }, {});
 
-    const transformedCategories = categories.map(category => {
-      const categoryServices = servicesByCategory[category._id.toString()] || [];
-
-      return {
-        _id: category._id,
-        name: category.name,
-        description: category.description || undefined,
-        isActive: category.isActive,
-        sortOrder: category.sortOrder || 0,
-        createdAt: category.createdAt ? category.createdAt.toISOString() : undefined,
-        updatedAt: category.updatedAt ? category.updatedAt.toISOString() : undefined,
-        services: categoryServices
-      };
-    });
+   
 
     return sendSuccess(res, 200, 'Mobile home content retrieved successfully', {
-      categories: transformedCategories,
       bannerServices: transformedBannerServices,
       commercialServices: commercialServices,
       residentialServices: residentialServices,
-      total: transformedCategories.length
+
     });
   } catch (error) {
     next(error);
