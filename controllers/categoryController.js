@@ -414,9 +414,10 @@ const getMobileHomeContent = async (req, res, next) => {
       .lean();
 
     // Get banner services from Banner collection
+    // Only return banners where platform is NOT 'web' (i.e., 'mobile' or 'both')
     const banners = await Banner.find({
       isActive: true,
-      platform: { $in: ['mobile', 'both'] } // Only get banners for mobile or both platforms
+      platform: { $in: ['mobile', 'both'] } // Exclude banners with platform 'web' only
     })
       .populate('service', 'name')
       .sort({ sortOrder: 1, createdAt: -1 })
