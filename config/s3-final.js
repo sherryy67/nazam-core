@@ -153,4 +153,5 @@ const uploadToS3 = async (file) => {
 module.exports = {
   createS3Client,
   uploadToS3,
+  getCredentials,
 };
