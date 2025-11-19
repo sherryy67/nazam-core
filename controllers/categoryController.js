@@ -653,7 +653,6 @@ module.exports = {
               serviceType: serviceType
             })
               .sort({ createdAt: -1 })
-              .limit(3)
               .select({ _id: 1, name: 1, service_icon: 1, basePrice: 1, unitType: 1, timeBasedPricing: 1,imageUri:1 })
               .lean()
           ]);
