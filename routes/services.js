@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
 const ROLES = require('../constants/roles');
-const { createService, getServices, getServicesPaginated, getServiceById, deleteService, getAllActiveServices, getServiceSubServices, setFeaturedServices, getFeaturedServices, getBannerServices, toggleBannerService, getResidentialServices, getCommercialServices, getHomeCategoryServices, upload } = require('../controllers/serviceController');
+const { createService, getServices, getServicesPaginated, getServiceById, deleteService, getAllActiveServices, getServiceSubServices, setFeaturedServices, getFeaturedServices, getResidentialServices, getCommercialServices, getHomeCategoryServices, upload } = require('../controllers/serviceController');
 
 const router = express.Router();
 
@@ -301,70 +301,6 @@ router.post('/featured', protect, isAdmin, setFeaturedServicesValidation, setFea
  *         description: Server error
  */
 router.get('/featured', getFeaturedServices);
-
-/**
- * @swagger
- * /api/services/banner:
- *   get:
- *     summary: Get banner services
- *     tags: [Services]
- *     parameters:
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 100
- *         description: Optional maximum number of services to return
- *     responses:
- *       200:
- *         description: Banner services retrieved successfully
- *       400:
- *         description: Bad request - invalid limit
- *       500:
- *         description: Server error
- */
-router.get('/banner', getBannerServices);
-
-/**
- * @swagger
- * /api/services/banner/toggle:
- *   post:
- *     summary: Enable/disable service for banner (Admin only)
- *     tags: [Services]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - serviceId
- *               - isBannerService
- *             properties:
- *               serviceId:
- *                 type: string
- *                 description: Service ID to toggle banner status
- *                 example: "64a1b2c3d4e5f6789abcdef0"
- *               isBannerService:
- *                 type: boolean
- *                 description: Set to true to enable banner, false to disable
- *                 example: true
- *     responses:
- *       200:
- *         description: Service banner status updated successfully
- *       400:
- *         description: Bad request - validation error
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden - Admin access required
- *       404:
- *         description: Service not found
- */
-router.post('/banner/toggle', protect, isAdmin, toggleBannerService);
 
 /**
  * @swagger
