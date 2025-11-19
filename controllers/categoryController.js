@@ -613,57 +613,83 @@ module.exports = {
       // Fetch active categories
       const categories = await Category.find({ isActive: true }).sort({ sortOrder: 1, name: 1 }).lean();
 
-      // For each category, fetch service count and up to 3 services
-      const results = await Promise.all(categories.map(async (category) => {
-        const [totalServices, services] = await Promise.all([
-          Service.countDocuments({ category_id: category._id, isActive: true }),
-          Service.find({ category_id: category._id, isActive: true })
-            .sort({ createdAt: -1 })
-            .select({ _id: 1, name: 1, service_icon: 1, basePrice: 1, unitType: 1, timeBasedPricing: 1 })
-            .lean()
-        ]);
+      // Helper function to transform service
+      const transformService = (svc) => {
+        const tiers = Array.isArray(svc.timeBasedPricing) ? svc.timeBasedPricing : [];
+        const perHourPrice = svc.unitType === 'per_hour' && tiers.length > 0
+          ? tiers.reduce((min, tier) => {
+            if (!tier || typeof tier.price !== 'number') {
+              return min;
+            }
+            if (min === null || tier.price < min) {
+              return tier.price;
+            }
+            return min;
+          }, null)
+          : null;
 
         return {
-          id: category._id,
-          name: category.name,
-          sortOrder: category.sortOrder || 0,
-          totalServices,
-          services: services.map(svc => {
-            const tiers = Array.isArray(svc.timeBasedPricing) ? svc.timeBasedPricing : [];
-            const perHourPrice = svc.unitType === 'per_hour' && tiers.length > 0
-              ? tiers.reduce((min, tier) => {
-                if (!tier || typeof tier.price !== 'number') {
-                  return min;
-                }
-                if (min === null || tier.price < min) {
-                  return tier.price;
-                }
-                return min;
-              }, null)
-              : null;
-
-            return {
-              id: svc._id,
-              name: svc.name,
-              icon: svc.service_icon || null,
-              price: perHourPrice !== null ? perHourPrice : svc.basePrice,
-              unitType: svc.unitType,
-              timeBasedPricing: tiers
-            };
-          })
+          id: svc._id,
+          name: svc.name,
+          icon: svc.service_icon || null,
+          price: perHourPrice !== null ? perHourPrice : svc.basePrice,
+          unitType: svc.unitType,
+          timeBasedPricing: tiers
         };
-      }));
+      };
 
-      // Sort by sortOrder ascending, then by name as secondary sort
-      results.sort((a, b) => {
-        if (a.sortOrder !== b.sortOrder) {
-          return a.sortOrder - b.sortOrder;
-        }
-        return a.name.localeCompare(b.name);
+      // Helper function to process services by serviceType
+      const processServicesByType = async (serviceType) => {
+        const results = await Promise.all(categories.map(async (category) => {
+          const [totalServices, services] = await Promise.all([
+            Service.countDocuments({ 
+              category_id: category._id, 
+              isActive: true,
+              serviceType: serviceType
+            }),
+            Service.find({ 
+              category_id: category._id, 
+              isActive: true,
+              serviceType: serviceType
+            })
+              .sort({ createdAt: -1 })
+              .limit(3)
+              .select({ _id: 1, name: 1, service_icon: 1, basePrice: 1, unitType: 1, timeBasedPricing: 1 })
+              .lean()
+          ]);
+
+          return {
+            id: category._id,
+            name: category.name,
+            totalServices,
+            services: services.map(transformService)
+          };
+        }));
+
+        // Filter out categories with no services and sort
+        const filteredResults = results
+          .filter(cat => cat.totalServices > 0)
+          .sort((a, b) => {
+            if (a.sortOrder !== b.sortOrder) {
+              return a.sortOrder - b.sortOrder;
+            }
+            return a.name.localeCompare(b.name);
+          });
+
+        return filteredResults;
+      };
+
+      // Process residential and commercial services
+      const [residential, commercial] = await Promise.all([
+        processServicesByType('residential'),
+        processServicesByType('commercial')
+      ]);
+
+      // Return structured response
+      return sendSuccess(res, 200, 'Category service summary retrieved successfully', {
+        residential,
+        commercial
       });
-
-      // Use generic response model; content is the array as requested
-      return sendSuccess(res, 200, 'Category service summary retrieved successfully', results);
     } catch (error) {
       return next(error);
     }
