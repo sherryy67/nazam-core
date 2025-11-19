@@ -615,7 +615,7 @@ module.exports = {
 
       // Helper function to transform service
       const transformService = (svc) => {
-        // const tiers = Array.isArray(svc.timeBasedPricing) ? svc.timeBasedPricing : [];
+        const tiers = Array.isArray(svc.timeBasedPricing) ? svc.timeBasedPricing : [];
         const perHourPrice = svc.unitType === 'per_hour' && tiers.length > 0
           ? tiers.reduce((min, tier) => {
             if (!tier || typeof tier.price !== 'number') {
