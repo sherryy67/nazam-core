@@ -1,5 +1,6 @@
 const Category = require('../models/Category');
 const Service = require('../models/Service');
+const Banner = require('../models/Banner');
 const mongoose = require('mongoose');
 const { sendSuccess, sendError, sendCreated } = require('../utils/response');
 
@@ -412,13 +413,23 @@ const getMobileHomeContent = async (req, res, next) => {
       .sort({ name: 1 })
       .lean();
 
-    // Get banner services (featured services)
-    const bannerServices = await Service.find({
+    // Get banner services from Banner collection
+    const banners = await Banner.find({
       isActive: true,
-      isFeatured: true
+      platform: { $in: ['mobile', 'both'] } // Only get banners for mobile or both platforms
     })
-      .sort({ createdAt: -1 })
+      .populate('service', 'name')
+      .sort({ sortOrder: 1, createdAt: -1 })
       .lean();
+
+    // Transform banners to custom response format
+    const transformedBannerServices = banners.map(banner => ({
+      name: banner.service?.name || '',
+      serviceId: banner.service?._id || banner.service,
+      discountPercentage: banner.discountPercentage,
+      mediaType: banner.mediaType,
+      mediaUrl: banner.mediaUrl
+    }));
 
     // Find Commercial and Residential categories
     const commercialCategory = await Category.findOne({
@@ -480,9 +491,6 @@ const getMobileHomeContent = async (req, res, next) => {
         services: categoryServices
       };
     });
-
-    // Transform banner services
-    const transformedBannerServices = bannerServices.map(transformService);
 
     return sendSuccess(res, 200, 'Mobile home content retrieved successfully', {
       categories: transformedCategories,
