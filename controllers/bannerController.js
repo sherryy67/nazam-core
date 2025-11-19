@@ -2,6 +2,8 @@ const Banner = require('../models/Banner');
 const Service = require('../models/Service');
 const mongoose = require('mongoose');
 const { sendSuccess, sendError, sendCreated, sendNotFoundError } = require('../utils/response');
+const { createS3Client, getCredentials } = require('../config/s3-final');
+const { Upload } = require('@aws-sdk/lib-storage');
 
 // @desc    Create or update a banner (if _id is provided, update; otherwise create)
 // @route   POST /api/banner
@@ -60,33 +62,67 @@ const createBanner = async (req, res, next) => {
     // Handle S3 upload if file is provided
     let mediaUrl;
     if (req.file) {
-      // Handle S3 upload if using memory storage (AWS SDK v3 fallback)
-      if (req.file.location) {
-        // File already uploaded via multer-s3 (AWS SDK v2)
-        mediaUrl = req.file.location;
-      } else if (req.file.buffer) {
-        // Upload to S3 manually using AWS SDK v3
-        // Try to get upload function from the upload middleware module
-        const uploadModule = require('../middlewares/uploadBanner');
-        if (uploadModule.uploadToS3) {
-          try {
-            mediaUrl = await uploadModule.uploadToS3(req.file);
-          } catch (uploadError) {
-            console.error('S3 upload error:', uploadError);
-            return sendError(res, 500, 'Failed to upload file to S3', 'S3_UPLOAD_ERROR');
-          }
-        } else {
-          // Fallback: use existing S3 upload utility
-          const { uploadToS3 } = require('../config/s3');
-          try {
-            mediaUrl = await uploadToS3(req.file);
-          } catch (uploadError) {
-            console.error('S3 upload error:', uploadError);
-            return sendError(res, 500, 'Failed to upload file to S3', 'S3_UPLOAD_ERROR');
-          }
+      try {
+        // Use the same S3 upload pattern as upload.js (s3-final)
+        // Upload to banners/ folder instead of uploads/
+        const s3Client = createS3Client();
+        const credentials = getCredentials();
+        
+        // Generate unique key with timestamp and original filename for banners folder
+        const timestamp = Date.now();
+        const fileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_'); // Sanitize filename
+        const key = `banners/${timestamp}-${fileName}`;
+
+        console.log('Uploading banner to S3:', {
+          bucket: credentials.bucketName,
+          key: key,
+          region: credentials.region,
+          fileSize: req.file.buffer.length
+        });
+
+        // Upload file to S3 (same pattern as s3-final.js)
+        const upload = new Upload({
+          client: s3Client,
+          params: {
+            Bucket: credentials.bucketName,
+            Key: key,
+            Body: req.file.buffer,
+            ContentType: req.file.mimetype,
+          },
+        });
+
+        const result = await upload.done();
+        mediaUrl = result.Location;
+        
+        console.log('Banner S3 Upload successful:', mediaUrl);
+      } catch (uploadError) {
+        console.error('S3 Upload Error Details:', {
+          name: uploadError.name,
+          message: uploadError.message,
+          code: uploadError.$metadata?.httpStatusCode,
+          requestId: uploadError.$metadata?.requestId
+        });
+        
+        // Handle specific AWS errors with detailed messages (same as s3-final.js)
+        if (uploadError.name === 'CredentialsProviderError' || uploadError.name === 'InvalidUserID.NotFound') {
+          return sendError(res, 500, 'AWS credentials are invalid. Please check your AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your .env file.', 'S3_UPLOAD_ERROR');
+        } else if (uploadError.name === 'NoSuchBucket') {
+          return sendError(res, 500, `S3 bucket '${process.env.AWS_S3_BUCKET_NAME}' does not exist. Please create the bucket or check the bucket name.`, 'S3_UPLOAD_ERROR');
+        } else if (uploadError.name === 'AccessDenied') {
+          return sendError(res, 500, 'Access denied to S3 bucket. Please check your IAM user permissions for S3 access.', 'S3_UPLOAD_ERROR');
+        } else if (uploadError.name === 'InvalidAccessKeyId') {
+          return sendError(res, 500, 'Invalid AWS Access Key ID. Please check your AWS_ACCESS_KEY_ID in your .env file.', 'S3_UPLOAD_ERROR');
+        } else if (uploadError.name === 'SignatureDoesNotMatch') {
+          return sendError(res, 500, 'Invalid AWS Secret Access Key. Please check your AWS_SECRET_ACCESS_KEY in your .env file.', 'S3_UPLOAD_ERROR');
+        } else if (uploadError.name === 'TokenRefreshRequired') {
+          return sendError(res, 500, 'AWS credentials have expired. Please refresh your credentials.', 'S3_UPLOAD_ERROR');
+        } else if (uploadError.message && uploadError.message.includes('Resolved credential object is not valid')) {
+          return sendError(res, 500, 'AWS credentials are not properly configured. Please check your .env file and ensure all AWS variables are set correctly.', 'S3_UPLOAD_ERROR');
         }
-      } else {
-        return sendError(res, 400, 'File upload failed or S3 configuration missing', 'UPLOAD_ERROR');
+        
+        // Generic error
+        const errorMessage = uploadError.message || 'Failed to upload file to S3';
+        return sendError(res, 500, `Failed to upload file to S3: ${errorMessage}`, 'S3_UPLOAD_ERROR');
       }
     }
 
