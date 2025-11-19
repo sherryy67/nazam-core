@@ -631,7 +631,7 @@ module.exports = {
         return {
           id: svc._id,
           name: svc.name,
-          icon: svc.service_icon || null,
+          icon: svc.service_icon || svc.imageUri,
           price: perHourPrice !== null ? perHourPrice : svc.basePrice,
           unitType: svc.unitType,
 
@@ -654,7 +654,7 @@ module.exports = {
             })
               .sort({ createdAt: -1 })
               .limit(3)
-              .select({ _id: 1, name: 1, service_icon: 1, basePrice: 1, unitType: 1, timeBasedPricing: 1 })
+              .select({ _id: 1, name: 1, service_icon: 1, basePrice: 1, unitType: 1, timeBasedPricing: 1,imageUri:1 })
               .lean()
           ]);
 
