@@ -26,6 +26,10 @@ const protect = async (req, res, next) => {
     let user;
     if (decoded.role === 1) {
       user = await User.findById(decoded.id);
+      // Check if user is active (only for regular users)
+      if (user && !user.isActive) {
+        return sendError(res, 403, 'Your account is deactivated by admin please contact support', 'USER_DEACTIVATED');
+      }
     } else if (decoded.role === 2) {
       user = await Vendor.findById(decoded.id);
     } else if (decoded.role === 3) {

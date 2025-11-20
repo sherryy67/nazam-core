@@ -155,7 +155,7 @@ const login = async (req, res, next) => {
 
     // For users, check if they are active
     if (role === ROLES.USER && !user.isActive) {
-      return sendError(res, 403, 'Your account has been deactivated', 'USER_DEACTIVATED');
+      return sendError(res, 403, 'Your account is deactivated by admin please contact support', 'USER_DEACTIVATED');
     }
 
     // For vendors, check if they are approved

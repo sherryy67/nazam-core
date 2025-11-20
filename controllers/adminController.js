@@ -3,6 +3,7 @@ const Vendor = require('../models/Vendor');
 const Category = require('../models/Category');
 const User = require('../models/User');
 const ServiceRequest = require('../models/ServiceRequest');
+const mongoose = require('mongoose');
 const { sendSuccess, sendError, sendNotFoundError, sendValidationError } = require('../utils/response');
 const { checkVendorEligibility } = require('../utils/vendorEligibility');
 
@@ -454,10 +455,160 @@ const getAdminDashboard = async (req, res, next) => {
   }
 };
 
+// @desc    Activate/Deactivate user
+// @route   PATCH /api/admin/users/:userId/status
+// @access  Admin only
+const toggleUserStatus = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { isActive } = req.body;
+
+    // Validate user ID
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return sendError(res, 400, 'Invalid user ID', 'INVALID_USER_ID');
+    }
+
+    // Validate isActive field
+    if (typeof isActive !== 'boolean') {
+      return sendError(res, 400, 'isActive must be a boolean value', 'INVALID_STATUS');
+    }
+
+    // Find user
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return sendNotFoundError(res, 'User not found');
+    }
+
+    // Update user status
+    user.isActive = isActive;
+    await user.save();
+
+    // Transform user for response
+    const transformedUser = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      isActive: user.isActive,
+      isOTPVerified: user.isOTPVerified,
+      profilePic: user.profilePic || undefined,
+      address: user.address || undefined,
+      role: user.role,
+      createdAt: user.createdAt?.toISOString(),
+      updatedAt: user.updatedAt?.toISOString()
+    };
+
+    const message = isActive 
+      ? 'User activated successfully' 
+      : 'User deactivated successfully';
+
+    return sendSuccess(res, 200, message, {
+      user: transformedUser
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all users with pagination and filters
+// @route   GET /api/admin/users
+// @access  Admin only
+const getAllUsers = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 10, status, search } = req.query;
+
+    // Build query for filtering
+    const query = {};
+    
+    // Filter by status: 'active' or 'deactive'
+    if (status) {
+      if (status === 'active') {
+        query.isActive = true;
+      } else if (status === 'deactive' || status === 'deactivated') {
+        query.isActive = false;
+      }
+    }
+
+    // Search filter (combined with AND logic if status filter is present)
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phoneNumber: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Calculate pagination
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get statistics (always calculate regardless of filters)
+    const [totalUsers, activeUsers, currentMonthUsers] = await Promise.all([
+      User.countDocuments(), // Total users
+      User.countDocuments({ isActive: true }), // Active users
+      User.countDocuments({
+        createdAt: {
+          $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+          $lt: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1)
+        }
+      }) // Current month users
+    ]);
+
+    // Get filtered users count
+    const filteredTotal = await User.countDocuments(query);
+
+    // Get users with filters
+    const users = await User.find(query)
+      .select('-password')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
+
+    // Transform users
+    const transformedUsers = users.map(user => ({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+      isActive: user.isActive,
+      isOTPVerified: user.isOTPVerified,
+      profilePic: user.profilePic || undefined,
+      address: user.address || undefined,
+      role: user.role,
+      createdAt: user.createdAt?.toISOString(),
+      updatedAt: user.updatedAt?.toISOString()
+    }));
+
+    return sendSuccess(res, 200, 'Users retrieved successfully', {
+      users: transformedUsers,
+      statistics: {
+        activeUsers,
+        totalUsers,
+        currentMonthUsers
+      },
+      pagination: {
+        total: filteredTotal,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(filteredTotal / limitNum),
+        hasNextPage: pageNum < Math.ceil(filteredTotal / limitNum),
+        hasPrevPage: pageNum > 1
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getEligibleVendors,
   assignServiceToVendor,
   unassignServiceFromVendor,
   getAssignedServices,
-  getAdminDashboard
+  getAdminDashboard,
+  toggleUserStatus,
+  getAllUsers
 };

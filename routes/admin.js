@@ -1,8 +1,8 @@
 const express = require('express');
 const { body } = require('express-validator');
 const { sendSuccess } = require('../utils/response');
-const { adminLogin, createAdmin, adminActivateUser, adminDeactivateUser, getAllUsers } = require('../controllers/authController');
-const { getEligibleVendors, assignServiceToVendor, unassignServiceFromVendor, getAssignedServices, getAdminDashboard } = require('../controllers/adminController');
+const { adminLogin, createAdmin } = require('../controllers/authController');
+const { getEligibleVendors, assignServiceToVendor, unassignServiceFromVendor, getAssignedServices, getAdminDashboard, toggleUserStatus, getAllUsers } = require('../controllers/adminController');
 const { updateVendorAvailability } = require('../controllers/vendorController');
 const { protect } = require('../middlewares/auth');
 const { isAdmin } = require('../middlewares/roleAuth');
@@ -317,24 +317,16 @@ router.post('/create', adminCreateValidation, createAdmin);
  *           default: 10
  *         description: Number of users per page
  *       - in: query
- *         name: name
+ *         name: status
  *         schema:
  *           type: string
- *         description: Filter users by name (case-insensitive search)
+ *           enum: [active, deactive, deactivated]
+ *         description: Filter users by status (active or deactive)
  *       - in: query
- *         name: fromDate
+ *         name: search
  *         schema:
  *           type: string
- *           format: date
- *           example: "2024-01-01"
- *         description: Filter users created from this date (ISO 8601 format)
- *       - in: query
- *         name: toDate
- *         schema:
- *           type: string
- *           format: date
- *           example: "2024-12-31"
- *         description: Filter users created until this date (ISO 8601 format)
+ *         description: Search users by name, email, or phone number (case-insensitive)
  *     responses:
  *       200:
  *         description: Users retrieved successfully
@@ -390,21 +382,37 @@ router.post('/create', adminCreateValidation, createAdmin);
  *                           updatedAt:
  *                             type: string
  *                             format: date-time
+ *                     statistics:
+ *                       type: object
+ *                       properties:
+ *                         activeUsers:
+ *                           type: integer
+ *                           description: Total number of active users
+ *                           example: 120
+ *                         totalUsers:
+ *                           type: integer
+ *                           description: Total number of all users
+ *                           example: 150
+ *                         currentMonthUsers:
+ *                           type: integer
+ *                           description: Number of users created in current month
+ *                           example: 25
  *                     pagination:
  *                       type: object
  *                       properties:
- *                         currentPage:
+ *                         total:
+ *                           type: integer
+ *                           description: Total filtered results
+ *                           example: 50
+ *                         page:
  *                           type: integer
  *                           example: 1
- *                         totalPages:
- *                           type: integer
- *                           example: 5
- *                         totalCount:
- *                           type: integer
- *                           example: 50
  *                         limit:
  *                           type: integer
  *                           example: 10
+ *                         totalPages:
+ *                           type: integer
+ *                           example: 5
  *                         hasNextPage:
  *                           type: boolean
  *                           example: true
@@ -422,22 +430,35 @@ router.get('/users', protect, isAdmin, getAllUsers);
 
 /**
  * @swagger
- * /api/admin/activate-user/{id}:
- *   put:
- *     summary: Activate user
+ * /api/admin/users/{userId}/status:
+ *   patch:
+ *     summary: Activate or deactivate user
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: userId
  *         required: true
  *         schema:
  *           type: string
  *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - isActive
+ *             properties:
+ *               isActive:
+ *                 type: boolean
+ *                 description: true to activate, false to deactivate
+ *                 example: false
  *     responses:
  *       200:
- *         description: User activated successfully
+ *         description: User status updated successfully
  *         content:
  *           application/json:
  *             schema:
@@ -446,92 +467,10 @@ router.get('/users', protect, isAdmin, getAllUsers);
  *                 success:
  *                   type: boolean
  *                   example: true
- *                 message:
- *                   type: string
- *                   example: "User activated successfully"
- *                 data:
- *                   type: object
- *                   properties:
- *                     user:
- *                       type: object
- *                       properties:
- *                         _id:
- *                           type: string
- *                           example: "60f7b3b3b3b3b3b3b3b3b3b3"
- *                         name:
- *                           type: string
- *                           example: "John Doe"
- *                         email:
- *                           type: string
- *                           example: "john@example.com"
- *                         isActive:
- *                           type: boolean
- *                           example: true
- *       404:
- *         description: User not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "User not found"
- *                 error:
- *                   type: string
- *                   example: "USER_NOT_FOUND"
- *       401:
- *         description: Unauthorized - admin access required
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Admin access required"
- *                 error:
- *                   type: string
- *                   example: "ADMIN_REQUIRED"
- */
-router.put('/activate-user/:id', protect, isAdmin, adminActivateUser);
-
-/**
- * @swagger
- * /api/admin/deactivate-user/{id}:
- *   put:
- *     summary: Deactivate user
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: User ID
- *     responses:
- *       200:
- *         description: User deactivated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
+ *                 description:
  *                   type: string
  *                   example: "User deactivated successfully"
- *                 data:
+ *                 content:
  *                   type: object
  *                   properties:
  *                     user:
@@ -539,50 +478,33 @@ router.put('/activate-user/:id', protect, isAdmin, adminActivateUser);
  *                       properties:
  *                         _id:
  *                           type: string
- *                           example: "60f7b3b3b3b3b3b3b3b3b3b3"
  *                         name:
  *                           type: string
- *                           example: "John Doe"
  *                         email:
  *                           type: string
- *                           example: "john@example.com"
+ *                         phoneNumber:
+ *                           type: string
  *                         isActive:
  *                           type: boolean
- *                           example: false
+ *       400:
+ *         description: Bad request - validation error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
  *       404:
  *         description: User not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "User not found"
- *                 error:
- *                   type: string
- *                   example: "USER_NOT_FOUND"
- *       401:
- *         description: Unauthorized - admin access required
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Admin access required"
- *                 error:
- *                   type: string
- *                   example: "ADMIN_REQUIRED"
  */
-router.put('/deactivate-user/:id', protect, isAdmin, adminDeactivateUser);
+// Validation for toggle user status
+const toggleUserStatusValidation = [
+  body('isActive')
+    .notEmpty()
+    .withMessage('isActive is required')
+    .isBoolean()
+    .withMessage('isActive must be a boolean value')
+];
+
+router.patch('/users/:userId/status', protect, isAdmin, toggleUserStatusValidation, toggleUserStatus);
 
 router.get('/status', (req, res) => {
   sendSuccess(res, 200, 'Admin module is available', {
