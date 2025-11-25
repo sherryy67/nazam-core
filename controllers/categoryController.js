@@ -376,15 +376,10 @@ const getMobileHomeContent = async (req, res, next) => {
       service_icon: service.service_icon || undefined,
       category_id: service.category_id,
       min_time_required: service.min_time_required,
-      // availability: service.availability || [],
       job_service_type: service.job_service_type,
-      // order_name: service.order_name || undefined,
-      // price_type: service.price_type || undefined,
       subservice_type: service.subservice_type || undefined,
       timeBasedPricing: Array.isArray(service.timeBasedPricing) ? service.timeBasedPricing : [],
-      // isFeatured: service.isFeatured,
       subServices: Array.isArray(service.subServices) ? service.subServices : [],
-      // isActive: service.isActive,
       createdAt: service.createdAt ? service.createdAt.toISOString() : undefined,
       updatedAt: service.updatedAt ? service.updatedAt.toISOString() : undefined
     });
@@ -395,10 +390,8 @@ const getMobileHomeContent = async (req, res, next) => {
 
     if (!categories.length) {
       return sendSuccess(res, 200, 'No categories available', {
-        bannerServices: [],
-        commercialServices: [],
-        residentialServices: [],
-
+        commercialServices: { servicedata: [], commercialBanner: [] },
+        residentialServices: { servicedata: [], residentialBanner: [] }
       });
     }
 
@@ -413,25 +406,34 @@ const getMobileHomeContent = async (req, res, next) => {
       .lean();
 
     // Get banner services from Banner collection
-    // Only return banners where platform is NOT 'web' (i.e., 'mobile' or 'both')
     const banners = await Banner.find({
       isActive: true,
-      platform: { $in: ['mobile', 'both'] } // Exclude banners with platform 'web' only
+      platform: { $in: ['mobile', 'both'] }
     })
-      .populate('service', 'name')
+      .populate('service', 'name serviceType')
       .sort({ sortOrder: 1, createdAt: -1 })
       .lean();
 
-    // Transform banners to custom response format
-    const transformedBannerServices = banners.map(banner => ({
-      name: banner.service?.name || '',
-      serviceId: banner.service?._id || banner.service,
-      discountPercentage: banner.discountPercentage,
-      mediaType: banner.mediaType,
-      mediaUrl: banner.mediaUrl
-    }));
+    // Separate banners by serviceType
+    const commercialBanner = [];
+    const residentialBanner = [];
+    banners.forEach(banner => {
+      const serviceType = banner.service?.serviceType;
+      const bannerObj = {
+        name: banner.service?.name || '',
+        serviceId: banner.service?._id || banner.service,
+        discountPercentage: banner.discountPercentage,
+        mediaType: banner.mediaType,
+        mediaUrl: banner.mediaUrl
+      };
+      if (serviceType === 'commercial') {
+        commercialBanner.push(bannerObj);
+      } else if (serviceType === 'residential') {
+        residentialBanner.push(bannerObj);
+      }
+    });
 
-    // Get commercial services - filter by serviceType from Service collection
+    // Get commercial services
     const commercialServicesData = await Service.find({
       isActive: true,
       serviceType: 'commercial'
@@ -440,12 +442,10 @@ const getMobileHomeContent = async (req, res, next) => {
       .sort({ name: 1 })
       .lean();
 
-    // Group commercial services by category
     const commercialServicesByCategory = {};
     commercialServicesData.forEach(service => {
       const categoryId = service.category_id?._id?.toString() || service.category_id?.toString();
       if (!categoryId) return;
-      
       if (!commercialServicesByCategory[categoryId]) {
         commercialServicesByCategory[categoryId] = {
           category: {
@@ -459,7 +459,7 @@ const getMobileHomeContent = async (req, res, next) => {
     });
     const commercialServices = Object.values(commercialServicesByCategory);
 
-    // Get residential services - filter by serviceType from Service collection
+    // Get residential services
     const residentialServicesData = await Service.find({
       isActive: true,
       serviceType: 'residential'
@@ -468,12 +468,10 @@ const getMobileHomeContent = async (req, res, next) => {
       .sort({ name: 1 })
       .lean();
 
-    // Group residential services by category
     const residentialServicesByCategory = {};
     residentialServicesData.forEach(service => {
       const categoryId = service.category_id?._id?.toString() || service.category_id?.toString();
       if (!categoryId) return;
-      
       if (!residentialServicesByCategory[categoryId]) {
         residentialServicesByCategory[categoryId] = {
           category: {
@@ -487,24 +485,16 @@ const getMobileHomeContent = async (req, res, next) => {
     });
     const residentialServices = Object.values(residentialServicesByCategory);
 
-    const servicesByCategory = services.reduce((acc, service) => {
-      const key = service.category_id.toString();
-      if (!acc[key]) {
-        acc[key] = [];
-      }
-
-      acc[key].push(transformService(service));
-
-      return acc;
-    }, {});
-
-   
-
+    // Response structure update
     return sendSuccess(res, 200, 'Mobile home content retrieved successfully', {
-      bannerServices: transformedBannerServices,
-      commercialServices: commercialServices,
-      residentialServices: residentialServices,
-
+      commercialServices: {
+        servicedata: commercialServices,
+        commercialBanner: commercialBanner
+      },
+      residentialServices: {
+        servicedata: residentialServices,
+        residentialBanner: residentialBanner
+      }
     });
   } catch (error) {
     next(error);
