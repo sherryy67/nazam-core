@@ -682,6 +682,7 @@ const getServiceById = async (req, res, next) => {
       unitType: service.unitType,
       imageUri: service.imageUri,
       service_icon: service.service_icon,
+      thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
       min_time_required: service.min_time_required,
       availability: service.availability,
