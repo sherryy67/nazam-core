@@ -37,7 +37,8 @@ const serviceSchema = new mongoose.Schema({
     ref: "Category", 
     required: true 
   },
-  service_icon: { type: String },               // S3 image URL for service icon
+  service_icon: { type: String },    
+  thumbnailUri: { type: String },               // S3 image URL for service icon
   min_time_required: { 
     type: Number, 
     required: true,

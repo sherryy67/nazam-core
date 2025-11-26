@@ -450,6 +450,10 @@ router.get('/commercial', getCommercialServices);
  *                 type: string
  *                 format: binary
  *                 description: Service image file (optional)
+ *               thumbnailUri:
+ *                 type: string,
+ *                 format: binary
+ *                 description: S3 image URL for service icon (optional)
  *               serviceType:
  *                 type: string
  *                 enum: [residential, commercial]
@@ -522,7 +526,17 @@ router.get('/commercial', getCommercialServices);
  *       500:
  *         description: Server error
  */
-router.post('/', protect, isAdmin, upload.single('serviceImage'), createServiceValidation, createService);
+router.post(
+  '/',
+  protect,
+  isAdmin,
+  upload.fields([
+    { name: 'serviceImage', maxCount: 1 },
+    { name: 'thumbnail', maxCount: 1 }
+  ]),
+  createServiceValidation,
+  createService
+);
 
 /**
  * @swagger

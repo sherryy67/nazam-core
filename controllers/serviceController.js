@@ -53,20 +53,27 @@ const storage = multer.diskStorage({
   }
 });
 
+// Update multer fileFilter to allow images and videos for thumbnail
+const allowedImageTypes = /jpeg|jpg|png|gif|webp/;
+const allowedVideoTypes = /mp4|mov|avi|wmv|webm|mkv/;
+const allowedMimeTypes = [
+  'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+  'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-ms-wmv', 'video/webm', 'video/x-matroska'
+];
+
 const upload = multer({ 
   storage: storage,
   limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
+    fileSize: 50 * 1024 * 1024 // 50MB limit for videos
   },
   fileFilter: function (req, file, cb) {
-    const allowedTypes = /jpeg|jpg|png|gif|webp/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    
+    const extname = allowedImageTypes.test(path.extname(file.originalname).toLowerCase()) ||
+                    allowedVideoTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedMimeTypes.includes(file.mimetype);
     if (mimetype && extname) {
       return cb(null, true);
     } else {
-      cb(new Error('Only image files (JPEG, JPG, PNG, GIF, WebP) are allowed'));
+      cb(new Error('Only image (JPEG, JPG, PNG, GIF, WebP) and video (MP4, MOV, AVI, WMV, WebM, MKV) files are allowed'));
     }
   }
 });
@@ -414,6 +421,39 @@ const createService = async (req, res, next) => {
       }
     }
 
+    // Handle thumbnail upload (image or video)
+    if (req.files && req.files.thumbnail) {
+      try {
+        const thumbnailFile = req.files.thumbnail[0];
+        const fileContent = fs.readFileSync(thumbnailFile.path);
+        const key = `service-thumbnails/${req.user.id}/${thumbnailFile.filename}`;
+        const uploadParams = {
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: key,
+          Body: fileContent,
+          ContentType: thumbnailFile.mimetype
+        };
+
+        let result;
+        if (PutObjectCommand) {
+          const command = new PutObjectCommand(uploadParams);
+          result = await s3Client.send(command);
+        } else {
+          result = await s3Client.upload(uploadParams).promise();
+        }
+
+        const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+        serviceData.thumbnailUri = s3Url;
+
+        fs.unlinkSync(thumbnailFile.path);
+      } catch (s3Error) {
+        if (req.files && req.files.thumbnail && fs.existsSync(req.files.thumbnail[0].path)) {
+          fs.unlinkSync(req.files.thumbnail[0].path);
+        }
+        return sendError(res, 500, `Failed to upload thumbnail: ${s3Error.message}`, 'S3_UPLOAD_FAILED');
+      }
+    }
+
     let service;
     if (existingService) {
       // Update existing service
@@ -473,6 +513,7 @@ const getServices = async (req, res, next) => {
       unitType: service.unitType,
       imageUri: service.imageUri,
       service_icon: service.service_icon,
+      thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
       min_time_required: service.min_time_required,
       availability: service.availability,
@@ -575,6 +616,7 @@ const getServicesPaginated = async (req, res, next) => {
       unitType: service.unitType,
       imageUri: service.imageUri,
       service_icon: service.service_icon,
+      thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
       min_time_required: service.min_time_required,
       availability: service.availability,
@@ -740,6 +782,7 @@ const getAllActiveServices = async (req, res, next) => {
       unitType: service.unitType,
       imageUri: service.imageUri,
       service_icon: service.service_icon,
+      thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
       min_time_required: service.min_time_required,
       availability: service.availability,
@@ -936,6 +979,7 @@ const getFeaturedServices = async (req, res, next) => {
       unitType: service.unitType,
       imageUri: service.imageUri,
       service_icon: service.service_icon,
+      thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
       min_time_required: service.min_time_required,
       availability: service.availability,
@@ -1012,6 +1056,7 @@ const getResidentialServices = async (req, res, next) => {
       unitType: service.unitType,
       imageUri: service.imageUri,
       service_icon: service.service_icon,
+      thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
       min_time_required: service.min_time_required,
       availability: service.availability,
@@ -1088,6 +1133,7 @@ const getCommercialServices = async (req, res, next) => {
       unitType: service.unitType,
       imageUri: service.imageUri,
       service_icon: service.service_icon,
+      thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
       min_time_required: service.min_time_required,
       availability: service.availability,
