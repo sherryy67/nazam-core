@@ -622,7 +622,7 @@ module.exports = {
           id: svc._id,
           name: svc.name,
           icon: svc.service_icon || svc.imageUri,
-          thumbnail: svc.thumbnailUri,
+          thumbnail: svc.thumbnailUri??'',
           price: perHourPrice !== null ? perHourPrice : svc.basePrice,
           unitType: svc.unitType,
 
