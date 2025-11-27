@@ -17,7 +17,7 @@ const app = express();
 
 // Body parser
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Enable CORS - Allow requests from any origin
 app.use(cors({

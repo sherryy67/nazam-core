@@ -1,11 +1,29 @@
 const { sendError, sendServerError } = require("../utils/response");
 
+const multer = require('multer');
+
 const errorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
 
   // Log error
   console.error(err);
+
+  // Multer errors
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return sendError(res, 400, 'File size exceeds 10MB limit', 'FILE_TOO_LARGE', {
+        message: 'File size must be less than 10MB'
+      });
+    }
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return sendError(res, 400, 'Too many files uploaded', 'TOO_MANY_FILES');
+    }
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      return sendError(res, 400, 'Unexpected file field', 'UNEXPECTED_FILE_FIELD');
+    }
+    return sendError(res, 400, `Upload error: ${err.message}`, 'UPLOAD_ERROR');
+  }
 
   // Mongoose bad ObjectId
   if (err.name === "CastError") {
