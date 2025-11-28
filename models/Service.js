@@ -54,9 +54,9 @@ const serviceSchema = new mongoose.Schema({
     enum: ["residential", "commercial"],
     default: "residential"
   },
-  isBannerService: {
-    type: Boolean,
-    default: false
+  badge: {
+    type: String,
+    default: ""
   },
   timeBasedPricing: {
     type: [timeBasedPricingSchema],

@@ -100,7 +100,7 @@ const createService = async (req, res, next) => {
       timeBasedPricing,
       subServices,
       serviceType,
-      isBannerService
+      badge
     } = req.body;
 
     // Check if this is an update operation
@@ -309,13 +309,15 @@ const createService = async (req, res, next) => {
       }
     }
 
-    if (typeof isBannerService !== 'undefined') {
-      if (typeof isBannerService === 'string') {
-        serviceData.isBannerService = isBannerService.toLowerCase() === 'true';
-      } else {
-        serviceData.isBannerService = Boolean(isBannerService);
-      }
+    // Handle badge field - optional, defaults to empty string
+    // Allow users to set empty string when updating
+    if (badge !== undefined && badge !== null) {
+      serviceData.badge = String(badge).trim();
+    } else if (!existingService) {
+      // Set default empty string for new services
+      serviceData.badge = '';
     }
+    // For updates, if badge is not provided, it will keep the existing value
 
     // Handle subServices array (optional nested sub-services)
     if (subServices !== undefined && subServices !== null) {
@@ -524,7 +526,7 @@ const getServices = async (req, res, next) => {
       timeBasedPricing: service.timeBasedPricing || [],
       isFeatured: service.isFeatured,
       serviceType: service.serviceType,
-      isBannerService: service.isBannerService,
+      badge: service.badge || '',
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -627,7 +629,7 @@ const getServicesPaginated = async (req, res, next) => {
       timeBasedPricing: service.timeBasedPricing || [],
       isFeatured: service.isFeatured,
       serviceType: service.serviceType,
-      isBannerService: service.isBannerService,
+      badge: service.badge || '',
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -693,7 +695,7 @@ const getServiceById = async (req, res, next) => {
       timeBasedPricing: service.timeBasedPricing || [],
       isFeatured: service.isFeatured,
       serviceType: service.serviceType,
-      isBannerService: service.isBannerService,
+      badge: service.badge || '',
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -792,6 +794,9 @@ const getAllActiveServices = async (req, res, next) => {
       price_type: service.price_type,
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
+      isFeatured: service.isFeatured,
+      serviceType: service.serviceType,
+      badge: service.badge || '',
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -982,18 +987,8 @@ const getFeaturedServices = async (req, res, next) => {
       service_icon: service.service_icon,
       thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
-      min_time_required: service.min_time_required,
-      availability: service.availability,
-      job_service_type: service.job_service_type,
-      order_name: service.order_name,
-      price_type: service.price_type,
-      subservice_type: service.subservice_type,
-      timeBasedPricing: service.timeBasedPricing || [],
+      badge: service.badge || '',
       isFeatured: service.isFeatured,
-      serviceType: service.serviceType,
-      isBannerService: service.isBannerService,
-      subServices: service.subServices || [],
-      isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString()
@@ -1068,7 +1063,7 @@ const getResidentialServices = async (req, res, next) => {
       timeBasedPricing: service.timeBasedPricing || [],
       isFeatured: service.isFeatured,
       serviceType: service.serviceType,
-      isBannerService: service.isBannerService,
+      badge: service.badge || '',
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -1145,7 +1140,7 @@ const getCommercialServices = async (req, res, next) => {
       timeBasedPricing: service.timeBasedPricing || [],
       isFeatured: service.isFeatured,
       serviceType: service.serviceType,
-      isBannerService: service.isBannerService,
+      badge: service.badge || '',
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
