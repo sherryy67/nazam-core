@@ -14,6 +14,7 @@ const bannerRoutes = require('./banner');
 const { sendSuccess } = require('../utils/response');
 const { getCategoryServiceSummary } = require('../controllers/categoryController');
 const { protect } = require('../middlewares/auth');
+const { getVideoByKey } = require('../controllers/videoController');
 
 const router = express.Router();
 
@@ -30,6 +31,32 @@ router.use('/service-requests', serviceRequestRoutes);
 router.use('/submit-service-requests', submitServiceRequestRoutes);
 router.use('/gemini', geminiRoutes);
 router.use('/', bannerRoutes);
+
+/**
+ * @swagger
+ * /api/videos/{key}:
+ *   get:
+ *     summary: Get video by key (Public endpoint)
+ *     description: Customers can fetch videos by passing the key (e.g., "home", "signup", "service")
+ *     tags: [Videos]
+ *     parameters:
+ *       - in: path
+ *         name: key
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Video key (e.g., "home", "signup", "service")
+ *     responses:
+ *       200:
+ *         description: Video retrieved successfully
+ *       400:
+ *         description: Missing video key
+ *       404:
+ *         description: Video not found
+ *       500:
+ *         description: Server error
+ */
+router.get('/videos/:key', getVideoByKey);
 
 /**
  * @swagger

@@ -6,6 +6,8 @@ const { getEligibleVendors, assignServiceToVendor, unassignServiceFromVendor, ge
 const { updateVendorAvailability } = require('../controllers/vendorController');
 const { protect } = require('../middlewares/auth');
 const { isAdmin } = require('../middlewares/roleAuth');
+const uploadVideo = require('../middlewares/uploadVideo');
+const { createVideo, getAllVideos, getVideoById, deleteVideo } = require('../controllers/videoController');
 
 const router = express.Router();
 
@@ -1323,5 +1325,186 @@ router.put('/vendor/:vendorId/availability', protect, isAdmin, updateVendorAvail
  *         description: Forbidden - Admin access required
  */
 router.get('/dashboard', protect, isAdmin, getAdminDashboard);
+
+// Video routes validation
+const createVideoValidation = [
+  body('_id')
+    .optional()
+    .isMongoId()
+    .withMessage('_id must be a valid MongoDB ID (for updates)'),
+  body('key')
+    .notEmpty()
+    .withMessage('Key is required')
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Key must be between 1 and 100 characters')
+    .matches(/^[a-z0-9_-]+$/)
+    .withMessage('Key must contain only lowercase letters, numbers, hyphens, and underscores'),
+  body('title')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Title must not exceed 200 characters'),
+  body('description')
+    .optional()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('Description must not exceed 1000 characters'),
+  body('isActive')
+    .optional()
+    .isBoolean()
+    .withMessage('isActive must be a boolean value')
+];
+
+/**
+ * @swagger
+ * /api/admin/videos:
+ *   post:
+ *     summary: Create or update a video
+ *     description: Create a new video if _id is not provided, or update existing video if _id is provided.
+ *     tags: [Videos]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - key
+ *             properties:
+ *               _id:
+ *                 type: string
+ *                 description: Video ID for updates (optional, omit for creation)
+ *               key:
+ *                 type: string
+ *                 description: Unique key for the video (e.g., "home", "signup", "service")
+ *               title:
+ *                 type: string
+ *                 description: Video title (optional)
+ *               description:
+ *                 type: string
+ *                 description: Video description (optional)
+ *               isActive:
+ *                 type: boolean
+ *                 description: Whether video is active
+ *                 default: true
+ *               video:
+ *                 type: string
+ *                 format: binary
+ *                 description: Video file to upload (required for creation, optional for updates)
+ *     responses:
+ *       201:
+ *         description: Video created successfully
+ *       200:
+ *         description: Video updated successfully
+ *       400:
+ *         description: Validation error or missing required fields
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: Video not found (for updates)
+ *       500:
+ *         description: Server error
+ */
+router.post(
+  '/videos',
+  protect,
+  isAdmin,
+  uploadVideo,
+  createVideoValidation,
+  createVideo
+);
+
+/**
+ * @swagger
+ * /api/admin/videos:
+ *   get:
+ *     summary: Get all videos (Admin only)
+ *     tags: [Videos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: isActive
+ *         schema:
+ *           type: boolean
+ *         description: Filter by active status
+ *     responses:
+ *       200:
+ *         description: Videos retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       500:
+ *         description: Server error
+ */
+router.get('/videos', protect, isAdmin, getAllVideos);
+
+/**
+ * @swagger
+ * /api/admin/videos/{id}:
+ *   get:
+ *     summary: Get video by ID (Admin only)
+ *     tags: [Videos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Video ID (MongoDB ObjectId)
+ *     responses:
+ *       200:
+ *         description: Video retrieved successfully
+ *       400:
+ *         description: Invalid video ID
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: Video not found
+ *       500:
+ *         description: Server error
+ */
+router.get('/videos/:id', protect, isAdmin, getVideoById);
+
+/**
+ * @swagger
+ * /api/admin/videos/{id}:
+ *   delete:
+ *     summary: Delete a video
+ *     tags: [Videos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Video ID (MongoDB ObjectId)
+ *     responses:
+ *       200:
+ *         description: Video deleted successfully
+ *       400:
+ *         description: Invalid video ID
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: Video not found
+ *       500:
+ *         description: Server error
+ */
+router.delete('/videos/:id', protect, isAdmin, deleteVideo);
 
 module.exports = router;
