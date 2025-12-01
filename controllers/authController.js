@@ -644,15 +644,33 @@ const getAllVendors = async (req, res, next) => {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
+    // Calculate current month start and end dates
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
     // Execute queries in parallel
-    const [vendors, totalCount] = await Promise.all([
+    const [vendors, totalCount, totalVendors, currentMonthVendors, individualVendors, corporateVendors] = await Promise.all([
       Vendor.find(query)
         .populate('serviceId', 'name description basePrice unitType timeBasedPricing')
         .select('-password') // Exclude password
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum),
-      Vendor.countDocuments(query)
+      Vendor.countDocuments(query),
+      // Total vendors count (all vendors regardless of filters)
+      Vendor.countDocuments({}),
+      // Current month vendors count (all vendors in current month regardless of filters)
+      Vendor.countDocuments({
+        createdAt: {
+          $gte: startOfMonth,
+          $lte: endOfMonth
+        }
+      }),
+      // Individual vendors count (regardless of filters)
+      Vendor.countDocuments({ type: 'individual' }),
+      // Corporate vendors count (regardless of filters)
+      Vendor.countDocuments({ type: 'corporate' })
     ]);
 
     // Transform vendors to match frontend interface
@@ -704,6 +722,12 @@ const getAllVendors = async (req, res, next) => {
           vendorsPerPage: limitNum,
           hasNextPage: pageNum < Math.ceil(totalCount / limitNum),
           hasPrevPage: pageNum > 1
+        },
+        statistics: {
+          totalVendors,
+          currentMonthVendors,
+          individualVendors,
+          corporateVendors
         }
       }
     };

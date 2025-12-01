@@ -771,7 +771,27 @@ const deleteService = async (req, res, next) => {
 // @access  Public
 const getAllActiveServices = async (req, res, next) => {
   try {
-    const services = await Service.find({ isActive: true })
+    const { category, category_id } = req.query;
+    
+    // Build query
+    const query = { isActive: true };
+    
+    // Add category filter if provided (support both 'category' and 'category_id' for flexibility)
+    const categoryFilter = category || category_id;
+    if (categoryFilter) {
+      // Validate category_id if provided
+      if (!mongoose.Types.ObjectId.isValid(categoryFilter)) {
+        return sendError(res, 400, 'Invalid category ID format', 'INVALID_CATEGORY_ID');
+      }
+      
+      const categoryDoc = await Category.findById(categoryFilter);
+      if (!categoryDoc || !categoryDoc.isActive) {
+        return sendError(res, 400, 'Invalid or inactive category', 'INVALID_CATEGORY');
+      }
+      query.category_id = categoryFilter;
+    }
+
+    const services = await Service.find(query)
       .populate('createdBy', 'name email')
       .populate('category_id', 'name description')
       .sort({ createdAt: -1 });

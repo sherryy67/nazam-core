@@ -396,8 +396,13 @@ const getServiceRequests = async (req, res, next) => {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
+    // Calculate current month start and end dates
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
     // Execute queries in parallel
-    const [serviceRequests, totalCount] = await Promise.all([
+    const [serviceRequests, totalCount, totalOrders, currentMonthOrders] = await Promise.all([
       ServiceRequest.find(query)
         .populate('service_id', 'name description basePrice unitType timeBasedPricing')
         .populate('category_id', 'name description')
@@ -405,7 +410,16 @@ const getServiceRequests = async (req, res, next) => {
       .sort({ createdAt: -1 })
       .skip(skip)
         .limit(limitNum),
-      ServiceRequest.countDocuments(query)
+      ServiceRequest.countDocuments(query),
+      // Total orders count (all orders regardless of filters)
+      ServiceRequest.countDocuments({}),
+      // Current month orders count (all orders in current month regardless of filters)
+      ServiceRequest.countDocuments({
+        createdAt: {
+          $gte: startOfMonth,
+          $lte: endOfMonth
+        }
+      })
     ]);
 
     // Transform service requests
@@ -440,13 +454,17 @@ const getServiceRequests = async (req, res, next) => {
       description: 'Service requests retrieved successfully',
       content: {
         serviceRequests: transformedRequests,
-      pagination: {
+        pagination: {
           currentPage: pageNum,
           totalPages: Math.ceil(totalCount / limitNum),
           totalCount,
           limit: limitNum,
           hasNextPage: pageNum < Math.ceil(totalCount / limitNum),
           hasPrevPage: pageNum > 1
+        },
+        statistics: {
+          totalOrders,
+          currentMonthOrders
         }
       }
     };

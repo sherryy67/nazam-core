@@ -643,6 +643,19 @@ router.get('/', protect, getServices);
  *   get:
  *     summary: Get all active services (Public endpoint)
  *     tags: [Services]
+ *     parameters:
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter by category ID (MongoDB ObjectId)
+ *         example: "69059fe182e1bfdb773e31fe"
+ *       - in: query
+ *         name: category_id
+ *         schema:
+ *           type: string
+ *         description: Filter by category ID (MongoDB ObjectId) - alternative to 'category' parameter
+ *         example: "69059fe182e1bfdb773e31fe"
  *     responses:
  *       200:
  *         description: All active services retrieved successfully
