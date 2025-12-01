@@ -12,8 +12,9 @@ const errorHandler = (err, req, res, next) => {
   // Multer errors
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return sendError(res, 400, 'File size exceeds 10MB limit', 'FILE_TOO_LARGE', {
-        message: 'File size must be less than 10MB'
+      return sendError(res, 413, 'File size exceeds 100MB limit', 'FILE_TOO_LARGE', {
+        message: 'File size must be less than 100MB',
+        maxSize: '100MB'
       });
     }
     if (err.code === 'LIMIT_FILE_COUNT') {
@@ -22,7 +23,27 @@ const errorHandler = (err, req, res, next) => {
     if (err.code === 'LIMIT_UNEXPECTED_FILE') {
       return sendError(res, 400, 'Unexpected file field', 'UNEXPECTED_FILE_FIELD');
     }
+    if (err.code === 'LIMIT_PART_COUNT') {
+      return sendError(res, 413, 'Too many parts in the multipart request', 'TOO_MANY_PARTS');
+    }
+    if (err.code === 'LIMIT_FIELD_KEY') {
+      return sendError(res, 413, 'Field name too long', 'FIELD_NAME_TOO_LONG');
+    }
+    if (err.code === 'LIMIT_FIELD_VALUE') {
+      return sendError(res, 413, 'Field value too long', 'FIELD_VALUE_TOO_LONG');
+    }
+    if (err.code === 'LIMIT_FIELD_COUNT') {
+      return sendError(res, 413, 'Too many fields', 'TOO_MANY_FIELDS');
+    }
     return sendError(res, 400, `Upload error: ${err.message}`, 'UPLOAD_ERROR');
+  }
+
+  // Handle "entity too large" errors (typically from body parser or reverse proxy)
+  if (err.message && (err.message.includes('entity too large') || err.message.includes('request entity too large') || err.status === 413)) {
+    return sendError(res, 413, 'Request entity too large. Maximum file size is 100MB', 'ENTITY_TOO_LARGE', {
+      message: 'The uploaded file exceeds the maximum allowed size',
+      maxSize: '100MB'
+    });
   }
 
   // Mongoose bad ObjectId

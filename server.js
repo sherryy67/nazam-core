@@ -15,9 +15,10 @@ connectDB();
 
 const app = express();
 
-// Body parser
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Body parser - increased limits for file uploads
+// Note: multipart/form-data (file uploads) are handled by multer, not these parsers
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb', parameterLimit: 50000 }));
 
 // Enable CORS - Allow requests from any origin
 app.use(cors({
