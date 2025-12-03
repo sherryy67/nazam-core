@@ -487,11 +487,11 @@ const getMobileHomeContent = async (req, res, next) => {
     // Response structure update
     return sendSuccess(res, 200, "Mobile home content retrieved successfully", {
       commercialServices: {
-        servicedata: commercialServices,
+        services: commercialServices,
         commercialBanner: commercialBanner,
       },
       residentialServices: {
-        servicedata: residentialServices,
+        services: residentialServices,
         residentialBanner: residentialBanner,
       },
     });
