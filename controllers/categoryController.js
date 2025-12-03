@@ -394,26 +394,9 @@ const getMobileHomeContent = async (req, res, next) => {
       _id: service._id,
       name: service.name,
       description: service.description || undefined,
-      basePrice: service.basePrice,
-      unitType: service.unitType,
       imageUri: service.imageUri || undefined,
       service_icon: service.service_icon || undefined,
       category_id: service.category_id,
-      min_time_required: service.min_time_required,
-      job_service_type: service.job_service_type,
-      subservice_type: service.subservice_type || undefined,
-      timeBasedPricing: Array.isArray(service.timeBasedPricing)
-        ? service.timeBasedPricing
-        : [],
-      subServices: Array.isArray(service.subServices)
-        ? service.subServices
-        : [],
-      createdAt: service.createdAt
-        ? service.createdAt.toISOString()
-        : undefined,
-      updatedAt: service.updatedAt
-        ? service.updatedAt.toISOString()
-        : undefined,
     });
 
     const categories = await Category.find({ isActive: true })
