@@ -6,6 +6,7 @@ const ServiceRequest = require('../models/ServiceRequest');
 const mongoose = require('mongoose');
 const { sendSuccess, sendError, sendNotFoundError, sendValidationError } = require('../utils/response');
 const { checkVendorEligibility } = require('../utils/vendorEligibility');
+const emailService = require('../utils/emailService');
 
 /**
  * @desc    Get eligible vendors for a specific service
@@ -191,6 +192,33 @@ const assignServiceToVendor = async (req, res, next) => {
         }
       }
     );
+
+    // Send email notifications to customers whose requests were assigned
+    try {
+      const assignedRequests = await ServiceRequest.find({
+        service_id: serviceId,
+        status: 'Assigned',
+        vendor: vendorId
+      }).populate('service_id', 'name description');
+
+      for (const request of assignedRequests) {
+        if (request.user_email && emailService.isValidEmail(request.user_email)) {
+          try {
+            await emailService.sendServiceAssignedEmail(
+              request.user_email,
+              request.user_name,
+              request,
+              vendor
+            );
+          } catch (emailError) {
+            console.error(`Failed to send assignment email to ${request.user_email}:`, emailError.message);
+          }
+        }
+      }
+    } catch (emailError) {
+      // Log error but don't fail the assignment
+      console.error('Failed to send assignment emails:', emailError.message);
+    }
 
     // Note: We don't update vendor's serviceId since it's their primary service
     // The admin can assign multiple service requests to the same vendor

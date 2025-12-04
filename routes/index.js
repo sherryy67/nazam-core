@@ -11,6 +11,7 @@ const serviceRequestRoutes = require('./serviceRequests');
 const submitServiceRequestRoutes = require('./submitServiceRequest');
 const geminiRoutes = require('./gemini');
 const bannerRoutes = require('./banner');
+const emailRoutes = require('./email');
 const { sendSuccess } = require('../utils/response');
 const { getCategoryServiceSummary } = require('../controllers/categoryController');
 const { protect } = require('../middlewares/auth');
@@ -30,6 +31,7 @@ router.use('/mobile', mobileRoutes);
 router.use('/service-requests', serviceRequestRoutes);
 router.use('/submit-service-requests', submitServiceRequestRoutes);
 router.use('/gemini', geminiRoutes);
+router.use('/email', emailRoutes);
 router.use('/', bannerRoutes);
 
 /**

@@ -3,6 +3,8 @@ const Service = require('../models/Service');
 const Category = require('../models/Category');
 const mongoose = require('mongoose');
 const { sendSuccess, sendError, sendCreated } = require('../utils/response');
+const emailService = require('../utils/emailService');
+const Admin = require('../models/Admin');
 
 const resolveTimeBasedTier = (service, units) => {
   if (!Array.isArray(service.timeBasedPricing) || service.timeBasedPricing.length === 0) {
@@ -314,6 +316,18 @@ const submitServiceRequest = async (req, res, next) => {
     // Create the service request
     const serviceRequest = await ServiceRequest.create(serviceRequestData);
 
+    // Send email notification to admin
+    try {
+      // Get admin email(s) - you can modify this to get from Admin model or env variable
+      const adminEmail = process.env.ADMIN_EMAIL || 'info@zushh.com';
+      if (emailService.isValidEmail(adminEmail)) {
+        await emailService.sendAdminNotificationEmail(adminEmail, serviceRequest);
+      }
+    } catch (emailError) {
+      // Log error but don't fail the request submission
+      console.error('Failed to send admin notification email:', emailError.message);
+    }
+
     // Transform response to match frontend interface
     const transformedRequest = {
       _id: serviceRequest._id,
@@ -566,11 +580,12 @@ const assignRequest = async (req, res, next) => {
       return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
     }
 
-    // Validate vendor exists (you might want to add vendor validation here)
-    // const vendor = await Vendor.findById(vendorId);
-    // if (!vendor) {
-    //   return sendError(res, 404, 'Vendor not found', 'VENDOR_NOT_FOUND');
-    // }
+    // Validate vendor exists
+    const Vendor = require('../models/Vendor');
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return sendError(res, 404, 'Vendor not found', 'VENDOR_NOT_FOUND');
+    }
 
     // Update service request with vendor assignment
     const updatedRequest = await ServiceRequest.findByIdAndUpdate(
@@ -581,7 +596,23 @@ const assignRequest = async (req, res, next) => {
       },
       { new: true, runValidators: true }
     ).populate('service_id', 'name description')
-     .populate('category_id', 'name description');
+     .populate('category_id', 'name description')
+     .populate('vendor', 'firstName lastName email mobileNumber');
+
+    // Send email to customer about assignment
+    try {
+      if (updatedRequest.user_email && emailService.isValidEmail(updatedRequest.user_email)) {
+        await emailService.sendServiceAssignedEmail(
+          updatedRequest.user_email,
+          updatedRequest.user_name,
+          updatedRequest,
+          vendor
+        );
+      }
+    } catch (emailError) {
+      // Log error but don't fail the assignment
+      console.error('Failed to send assignment email to customer:', emailError.message);
+    }
 
     // Transform response
     const transformedRequest = {

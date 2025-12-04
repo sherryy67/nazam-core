@@ -1550,6 +1550,16 @@ const createAccount = async (req, res, next) => {
     // Create new user
     const user = await User.create(userData);
 
+    // Send welcome email if email is provided
+    if (email && emailService.isValidEmail(email)) {
+      try {
+        await emailService.sendWelcomeEmail(email, name);
+      } catch (emailError) {
+        // Log error but don't fail the registration
+        console.error('Failed to send welcome email:', emailError.message);
+      }
+    }
+
     // Generate JWT token and send response
     sendTokenResponse(user, 201, res);
   } catch (error) {
