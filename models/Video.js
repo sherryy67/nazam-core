@@ -14,6 +14,10 @@ const videoSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  mimeType: {
+    type: String,
+    trim: true
+  },
   title: {
     type: String,
     trim: true,

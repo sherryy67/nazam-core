@@ -4,6 +4,14 @@ const { sendSuccess, sendError, sendCreated, sendNotFoundError } = require('../u
 const { createS3Client, getCredentials } = require('../config/s3-final');
 const { Upload } = require('@aws-sdk/lib-storage');
 
+// Helper function to determine media type from mimetype
+const getMediaType = (mimeType) => {
+  if (!mimeType) return 'unknown';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('image/')) return 'image';
+  return 'unknown';
+};
+
 // @desc    Create or update a video (if _id is provided, update; otherwise create)
 // @route   POST /api/admin/videos
 // @access  Admin only
@@ -44,21 +52,26 @@ const createVideo = async (req, res, next) => {
 
     // Handle S3 upload if video file is provided
     let videoUri;
+    let mimeType;
     if (req.file) {
       try {
         const s3Client = createS3Client();
         const credentials = getCredentials();
+        
+        // Store mimetype
+        mimeType = req.file.mimetype;
         
         // Generate unique key with timestamp and original filename for videos folder
         const timestamp = Date.now();
         const fileName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_'); // Sanitize filename
         const key = `videos/${timestamp}-${fileName}`;
 
-        console.log('Uploading video to S3:', {
+        console.log('Uploading media to S3:', {
           bucket: credentials.bucketName,
           key: key,
           region: credentials.region,
-          fileSize: req.file.buffer.length
+          fileSize: req.file.buffer.length,
+          mimeType: mimeType
         });
 
         // Upload file to S3
@@ -68,14 +81,14 @@ const createVideo = async (req, res, next) => {
             Bucket: credentials.bucketName,
             Key: key,
             Body: req.file.buffer,
-            ContentType: req.file.mimetype,
+            ContentType: mimeType,
           },
         });
 
         const result = await upload.done();
         videoUri = result.Location;
         
-        console.log('Video S3 Upload successful:', videoUri);
+        console.log('Media S3 Upload successful:', videoUri);
       } catch (uploadError) {
         console.error('S3 Upload Error Details:', {
           name: uploadError.name,
@@ -115,9 +128,10 @@ const createVideo = async (req, res, next) => {
       isActive: isActive !== undefined ? (isActive === 'true' || isActive === true) : true
     };
 
-    // Add videoUri only if file was uploaded
+    // Add videoUri and mimeType only if file was uploaded
     if (videoUri) {
       videoData.videoUri = videoUri;
+      videoData.mimeType = mimeType;
     }
 
     // Add createdBy for new videos
@@ -151,6 +165,8 @@ const createVideo = async (req, res, next) => {
       _id: video._id,
       key: video.key,
       videoUri: video.videoUri,
+      mimeType: video.mimeType || null,
+      type: getMediaType(video.mimeType),
       title: video.title || null,
       description: video.description || null,
       isActive: video.isActive,
@@ -160,8 +176,8 @@ const createVideo = async (req, res, next) => {
     };
 
     const message = isUpdate 
-      ? 'Video updated successfully' 
-      : 'Video created successfully';
+      ? 'Media updated successfully' 
+      : 'Media created successfully';
     
     const statusCode = isUpdate ? 200 : 201;
     const responseMethod = isUpdate ? sendSuccess : sendCreated;
@@ -201,6 +217,8 @@ const getAllVideos = async (req, res, next) => {
       _id: video._id,
       key: video.key,
       videoUri: video.videoUri,
+      mimeType: video.mimeType || null,
+      type: getMediaType(video.mimeType),
       title: video.title || null,
       description: video.description || null,
       isActive: video.isActive,
@@ -209,7 +227,7 @@ const getAllVideos = async (req, res, next) => {
       updatedAt: video.updatedAt?.toISOString()
     }));
 
-    return sendSuccess(res, 200, 'Videos retrieved successfully', {
+    return sendSuccess(res, 200, 'Media retrieved successfully', {
       videos: transformedVideos,
       total: transformedVideos.length
     });
@@ -246,6 +264,8 @@ const getVideoByKey = async (req, res, next) => {
       _id: video._id,
       key: video.key,
       videoUri: video.videoUri,
+      mimeType: video.mimeType || null,
+      type: getMediaType(video.mimeType),
       title: video.title || null,
       description: video.description || null,
       isActive: video.isActive,
@@ -254,7 +274,7 @@ const getVideoByKey = async (req, res, next) => {
       updatedAt: video.updatedAt?.toISOString()
     };
 
-    return sendSuccess(res, 200, 'Video retrieved successfully', {
+    return sendSuccess(res, 200, 'Media retrieved successfully', {
       video: transformedVideo
     });
   } catch (error) {
@@ -285,6 +305,8 @@ const getVideoById = async (req, res, next) => {
       _id: video._id,
       key: video.key,
       videoUri: video.videoUri,
+      mimeType: video.mimeType || null,
+      type: getMediaType(video.mimeType),
       title: video.title || null,
       description: video.description || null,
       isActive: video.isActive,
@@ -293,7 +315,7 @@ const getVideoById = async (req, res, next) => {
       updatedAt: video.updatedAt?.toISOString()
     };
 
-    return sendSuccess(res, 200, 'Video retrieved successfully', {
+    return sendSuccess(res, 200, 'Media retrieved successfully', {
       video: transformedVideo
     });
   } catch (error) {
