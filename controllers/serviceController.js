@@ -61,12 +61,18 @@ const allowedMimeTypes = [
   'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-ms-wmv', 'video/webm', 'video/x-matroska'
 ];
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   limits: {
     fileSize: 10 * 1024 * 1024 // 10MB limit
   },
   fileFilter: function (req, file, cb) {
+    // Allow serviceImage, thumbnail, service_icon, and thumbnailUri file fields
+    const allowedFieldNames = ['serviceImage', 'thumbnail', 'service_icon', 'thumbnailUri'];
+    if (!allowedFieldNames.includes(file.fieldname)) {
+      return cb(new Error(`Unexpected file field: ${file.fieldname}. Allowed fields: ${allowedFieldNames.join(', ')}`));
+    }
+
     const extname = allowedImageTypes.test(path.extname(file.originalname).toLowerCase()) ||
                     allowedVideoTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedMimeTypes.includes(file.mimetype);
@@ -359,23 +365,24 @@ const createService = async (req, res, next) => {
       }));
     }
 
-    // Handle service image upload if provided
-    if (req.file) {
+    // Handle service image upload if provided (serviceImage field)
+    if (req.files && req.files.serviceImage && req.files.serviceImage[0]) {
       try {
+        const serviceImageFile = req.files.serviceImage[0];
         console.log('Starting service image upload...');
-        console.log('File path:', req.file.path);
-        console.log('File size:', req.file.size);
-        console.log('File mimetype:', req.file.mimetype);
-        
+        console.log('File path:', serviceImageFile.path);
+        console.log('File size:', serviceImageFile.size);
+        console.log('File mimetype:', serviceImageFile.mimetype);
+
         // Upload to S3
-        const fileContent = fs.readFileSync(req.file.path);
-        const key = `service-images/${req.user.id}/${req.file.filename}`;
-        
+        const fileContent = fs.readFileSync(serviceImageFile.path);
+        const key = `service-images/${req.user.id}/${serviceImageFile.filename}`;
+
         const uploadParams = {
           Bucket: process.env.AWS_S3_BUCKET_NAME,
           Key: key,
           Body: fileContent,
-          ContentType: req.file.mimetype
+          ContentType: serviceImageFile.mimetype
         };
         
         console.log('Service upload params:', {
@@ -405,9 +412,9 @@ const createService = async (req, res, next) => {
         console.log('Service S3 URL generated:', s3Url);
         
         // Delete local file after S3 upload
-        fs.unlinkSync(req.file.path);
+        fs.unlinkSync(serviceImageFile.path);
         console.log('Service local file deleted successfully');
-        
+
       } catch (s3Error) {
         console.error('Service S3 upload error:', s3Error);
         console.error('Error details:', {
@@ -416,19 +423,60 @@ const createService = async (req, res, next) => {
           statusCode: s3Error.statusCode,
           requestId: s3Error.requestId
         });
-        
+
         // Clean up local file if S3 upload fails
-        if (req.file && fs.existsSync(req.file.path)) {
-          fs.unlinkSync(req.file.path);
+        if (serviceImageFile && fs.existsSync(serviceImageFile.path)) {
+          fs.unlinkSync(serviceImageFile.path);
         }
         return sendError(res, 500, `Failed to upload service image: ${s3Error.message}`, 'S3_UPLOAD_FAILED');
       }
     }
 
+    // Handle service_icon file upload if provided (alternative to serviceImage)
+    if (req.files && req.files.service_icon && req.files.service_icon[0] && !serviceData.service_icon) {
+      try {
+        const serviceIconFile = req.files.service_icon[0];
+        console.log('Starting service icon upload...');
+
+        const fileContent = fs.readFileSync(serviceIconFile.path);
+        const key = `service-icons/${req.user.id}/${serviceIconFile.filename}`;
+
+        const uploadParams = {
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: key,
+          Body: fileContent,
+          ContentType: serviceIconFile.mimetype
+        };
+
+        let result;
+        if (PutObjectCommand) {
+          const command = new PutObjectCommand(uploadParams);
+          result = await s3Client.send(command);
+        } else {
+          result = await s3Client.upload(uploadParams).promise();
+        }
+
+        const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+        serviceData.service_icon = s3Url;
+
+        fs.unlinkSync(serviceIconFile.path);
+        console.log('Service icon uploaded successfully');
+
+      } catch (s3Error) {
+        console.error('Service icon S3 upload error:', s3Error);
+        if (req.files.service_icon && fs.existsSync(req.files.service_icon[0].path)) {
+          fs.unlinkSync(req.files.service_icon[0].path);
+        }
+        return sendError(res, 500, `Failed to upload service icon: ${s3Error.message}`, 'S3_UPLOAD_FAILED');
+      }
+    }
+
     // Handle thumbnail upload (image or video)
-    if (req.files && req.files.thumbnail) {
+    if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
       try {
         const thumbnailFile = req.files.thumbnail[0];
+        console.log('Starting thumbnail upload...');
+
         const fileContent = fs.readFileSync(thumbnailFile.path);
         const key = `service-thumbnails/${req.user.id}/${thumbnailFile.filename}`;
         const uploadParams = {
@@ -450,11 +498,53 @@ const createService = async (req, res, next) => {
         serviceData.thumbnailUri = s3Url;
 
         fs.unlinkSync(thumbnailFile.path);
+        console.log('Thumbnail uploaded successfully');
+
       } catch (s3Error) {
-        if (req.files && req.files.thumbnail && fs.existsSync(req.files.thumbnail[0].path)) {
-          fs.unlinkSync(req.files.thumbnail[0].path);
+        console.error('Thumbnail S3 upload error:', s3Error);
+        if (thumbnailFile && fs.existsSync(thumbnailFile.path)) {
+          fs.unlinkSync(thumbnailFile.path);
         }
         return sendError(res, 500, `Failed to upload thumbnail: ${s3Error.message}`, 'S3_UPLOAD_FAILED');
+      }
+    }
+
+    // Handle thumbnailUri file upload if provided (alternative to thumbnail)
+    if (req.files && req.files.thumbnailUri && req.files.thumbnailUri[0] && !serviceData.thumbnailUri) {
+      try {
+        const thumbnailUriFile = req.files.thumbnailUri[0];
+        console.log('Starting thumbnail URI upload...');
+
+        const fileContent = fs.readFileSync(thumbnailUriFile.path);
+        const key = `service-thumbnails/${req.user.id}/${thumbnailUriFile.filename}`;
+
+        const uploadParams = {
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: key,
+          Body: fileContent,
+          ContentType: thumbnailUriFile.mimetype
+        };
+
+        let result;
+        if (PutObjectCommand) {
+          const command = new PutObjectCommand(uploadParams);
+          result = await s3Client.send(command);
+        } else {
+          result = await s3Client.upload(uploadParams).promise();
+        }
+
+        const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+        serviceData.thumbnailUri = s3Url;
+
+        fs.unlinkSync(thumbnailUriFile.path);
+        console.log('Thumbnail URI uploaded successfully');
+
+      } catch (s3Error) {
+        console.error('Thumbnail URI S3 upload error:', s3Error);
+        if (req.files.thumbnailUri && fs.existsSync(req.files.thumbnailUri[0].path)) {
+          fs.unlinkSync(req.files.thumbnailUri[0].path);
+        }
+        return sendError(res, 500, `Failed to upload thumbnail URI: ${s3Error.message}`, 'S3_UPLOAD_FAILED');
       }
     }
 

@@ -447,14 +447,22 @@ router.get('/commercial', getCommercialServices);
  *                 type: string
  *                 example: '[{"name":"AC Soft Cleaning","items":1,"rate":200,"max":1},{"name":"AC Deep Cleaning","items":1,"rate":350,"max":1}]'
  *                 description: JSON array of nested sub-services (for parent services)
- *               service_icon:
+ *               serviceImage:
  *                 type: string
  *                 format: binary
- *                 description: Service image file (optional)
- *               thumbnailUri:
- *                 type: string,
+ *                 description: Service image file upload (optional - will set both imageUri and service_icon)
+ *               thumbnail:
+ *                 type: string
  *                 format: binary
- *                 description: S3 image URL for service icon (optional)
+ *                 description: Thumbnail image file upload (optional)
+ *               service_icon:
+ *                 type: string
+ *                 description: Service icon URL as string (optional - alternative to serviceImage file upload)
+ *                 example: "https://example.com/service-icon.png"
+ *               thumbnailUri:
+ *                 type: string
+ *                 description: Thumbnail URL as string (optional - alternative to thumbnail file upload)
+ *                 example: "https://example.com/thumbnail.jpg"
  *               serviceType:
  *                 type: string
  *                 enum: [residential, commercial]
@@ -534,7 +542,9 @@ router.post(
   isAdmin,
   upload.fields([
     { name: 'serviceImage', maxCount: 1 },
-    { name: 'thumbnail', maxCount: 1 }
+    { name: 'thumbnail', maxCount: 1 },
+    { name: 'service_icon', maxCount: 1 },
+    { name: 'thumbnailUri', maxCount: 1 }
   ]),
   createServiceValidation,
   createService
