@@ -158,9 +158,17 @@ const login = async (req, res, next) => {
       return sendError(res, 403, 'Your account is deactivated by admin please contact support', 'USER_DEACTIVATED');
     }
 
-    // For vendors, check if they are approved
-    if (role === ROLES.VENDOR && !user.approved) {
-      return sendError(res, 403, 'Your vendor account is pending approval', 'VENDOR_NOT_APPROVED');
+    // For vendors, check if they are approved and active
+    if (role === ROLES.VENDOR) {
+      if (!user.approved) {
+        return sendError(res, 403, 'Your vendor account is pending approval', 'VENDOR_NOT_APPROVED');
+      }
+      if (!user.active) {
+        return sendError(res, 403, 'Your vendor account is currently deactivated', 'VENDOR_DEACTIVATED');
+      }
+      if (user.blocked) {
+        return sendError(res, 403, 'Your vendor account has been blocked', 'VENDOR_BLOCKED');
+      }
     }
 
     sendTokenResponse(user, 200, res);
@@ -1568,6 +1576,164 @@ const createAccount = async (req, res, next) => {
 };
 
 
+/**
+ * @desc    Register individual vendor
+ * @route   POST /api/auth/vendor/register
+ * @access  Public
+ */
+const registerVendor = async (req, res, next) => {
+  try {
+    const {
+      firstName,
+      lastName,
+      coveredCity,
+      serviceId,
+      countryCode,
+      mobileNumber,
+      email,
+      password,
+      gender,
+      privilege,
+      experience,
+      address,
+      country,
+      city,
+      pinCode,
+      serviceAvailability,
+      vatRegistration,
+      collectTax,
+      idType,
+      idNumber,
+      personalIdNumber
+    } = req.body;
+
+    // Validate required fields
+    const requiredFields = [
+      'firstName', 'lastName', 'coveredCity', 'serviceId',
+      'countryCode', 'mobileNumber', 'email', 'password',
+      'idType', 'idNumber'
+    ];
+
+    const missingFields = requiredFields.filter(field => !req.body[field]);
+    if (missingFields.length > 0) {
+      return sendError(res, 400, `Missing required fields: ${missingFields.join(', ')}`, 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Check if vendor already exists
+    const existingVendor = await Vendor.findOne({
+      $or: [
+        { email },
+        { mobileNumber }
+      ]
+    });
+
+    if (existingVendor) {
+      return sendError(res, 409, 'Vendor with this email or mobile number already exists', 'VENDOR_EXISTS');
+    }
+
+    // Validate serviceId exists
+    const Service = require('../models/Service');
+    const service = await Service.findById(serviceId);
+    if (!service || !service.isActive) {
+      return sendError(res, 400, 'Invalid or inactive service', 'INVALID_SERVICE');
+    }
+
+    // Create vendor
+    const vendorData = {
+      type: 'individual',
+      firstName,
+      lastName,
+      coveredCity,
+      serviceId,
+      countryCode,
+      mobileNumber,
+      email,
+      password,
+      gender,
+      privilege: privilege || 'Beginner',
+      experience,
+      address,
+      country,
+      city,
+      pinCode,
+      serviceAvailability: serviceAvailability || 'Full-time',
+      vatRegistration: vatRegistration || false,
+      collectTax: collectTax || false,
+      idType,
+      idNumber,
+      personalIdNumber,
+      kycInfo: {
+        idType,
+        idNumber,
+        personalIdNumber,
+        kycStatus: 'pending'
+      }
+    };
+
+    const vendor = await Vendor.create(vendorData);
+
+    // Generate token
+    const token = vendor.generateAuthToken();
+
+    sendSuccess(res, 201, 'Vendor registered successfully', {
+      vendor: vendor.toJSON(),
+      token
+    });
+
+  } catch (error) {
+    console.error('Error registering vendor:', error);
+    if (error.code === 11000) {
+      return sendError(res, 400, 'Vendor with this information already exists', 'DUPLICATE_VENDOR');
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc    Vendor login
+ * @route   POST /api/auth/vendor/login
+ * @access  Public
+ */
+const loginVendor = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate credentials
+    if (!email || !password) {
+      return sendError(res, 400, 'Please provide an email and password', 'MISSING_CREDENTIALS');
+    }
+
+    // Find vendor
+    const vendor = await Vendor.findOne({ email }).select('+password');
+    if (!vendor) {
+      return sendError(res, 401, 'Invalid credentials', 'INVALID_CREDENTIALS');
+    }
+
+    // Check password
+    const isPasswordValid = await vendor.comparePassword(password);
+    if (!isPasswordValid) {
+      return sendError(res, 401, 'Invalid credentials', 'INVALID_CREDENTIALS');
+    }
+
+    // Check if vendor is approved and not blocked
+    if (!vendor.approved || vendor.blocked) {
+      return sendError(res, 403, 'Your vendor account is not active', 'VENDOR_NOT_ACTIVE');
+    }
+
+    // Generate token
+    const token = vendor.generateAuthToken();
+
+    sendSuccess(res, 200, 'Login successful', {
+      vendor: vendor.toJSON(),
+      token
+    });
+
+  } catch (error) {
+    console.error('Error logging vendor:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -1587,5 +1753,7 @@ module.exports = {
   getAllUsers,
   verifyOTPOnly,
   createAccount,
+  registerVendor,
+  loginVendor,
   upload
 };

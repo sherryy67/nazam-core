@@ -631,6 +631,302 @@ const getAllUsers = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Create new vendor (Admin)
+ * @route   POST /api/admin/vendors
+ * @access  Private (Admin only)
+ */
+const createVendor = async (req, res, next) => {
+  try {
+    const {
+      type,
+      firstName,
+      lastName,
+      coveredCity,
+      serviceId,
+      countryCode,
+      mobileNumber,
+      email,
+      password,
+      gender,
+      privilege,
+      experience,
+      address,
+      country,
+      city,
+      pinCode,
+      serviceAvailability,
+      vatRegistration,
+      collectTax,
+      idType,
+      idNumber,
+      personalIdNumber
+    } = req.body;
+
+    // Validate required fields
+    const requiredFields = [
+      'type', 'firstName', 'lastName', 'coveredCity', 'serviceId',
+      'countryCode', 'mobileNumber', 'email', 'password', 'idType', 'idNumber'
+    ];
+
+    const missingFields = requiredFields.filter(field => !req.body[field]);
+    if (missingFields.length > 0) {
+      return sendError(res, 400, `Missing required fields: ${missingFields.join(', ')}`, 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Check if vendor already exists
+    const existingVendor = await Vendor.findOne({
+      $or: [
+        { email },
+        { mobileNumber }
+      ]
+    });
+
+    if (existingVendor) {
+      return sendError(res, 409, 'Vendor with this email or mobile number already exists', 'VENDOR_EXISTS');
+    }
+
+    // Validate serviceId exists
+    const service = await Service.findById(serviceId);
+    if (!service || !service.isActive) {
+      return sendError(res, 400, 'Invalid or inactive service', 'INVALID_SERVICE');
+    }
+
+    // Create vendor
+    const vendorData = {
+      type,
+      firstName,
+      lastName,
+      coveredCity,
+      serviceId,
+      countryCode,
+      mobileNumber,
+      email,
+      password,
+      gender,
+      privilege: privilege || 'Beginner',
+      experience,
+      address,
+      country,
+      city,
+      pinCode,
+      serviceAvailability: serviceAvailability || 'Full-time',
+      vatRegistration: vatRegistration || false,
+      collectTax: collectTax || false,
+      idType,
+      idNumber,
+      personalIdNumber,
+      kycInfo: {
+        idType,
+        idNumber,
+        personalIdNumber,
+        kycStatus: 'pending'
+      },
+      approved: true // Admin created vendors are auto-approved
+    };
+
+    const vendor = await Vendor.create(vendorData);
+
+    sendSuccess(res, 201, 'Vendor created successfully by admin', {
+      vendor: vendor.toAdminJSON()
+    });
+
+  } catch (error) {
+    console.error('Error creating vendor:', error);
+    if (error.code === 11000) {
+      return sendError(res, 400, 'Vendor with this information already exists', 'DUPLICATE_VENDOR');
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get all vendors (Admin)
+ * @route   GET /api/admin/vendors
+ * @access  Private (Admin only)
+ */
+const getAllVendors = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 10, search, type, status, kycStatus } = req.query;
+
+    // Build query
+    const query = {};
+
+    // Add search filter
+    if (search) {
+      query.$or = [
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { mobileNumber: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Add type filter
+    if (type) {
+      query.type = type;
+    }
+
+    // Add status filter
+    if (status) {
+      if (status === 'approved') {
+        query.approved = true;
+        query.blocked = false;
+      } else if (status === 'pending') {
+        query.approved = false;
+      } else if (status === 'blocked') {
+        query.blocked = true;
+      }
+    }
+
+    // Add KYC status filter
+    if (kycStatus) {
+      query['kycInfo.kycStatus'] = kycStatus;
+    }
+
+    // Calculate pagination
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Execute queries in parallel
+    const [vendors, totalCount] = await Promise.all([
+      Vendor.find(query)
+        .populate('serviceId', 'name description')
+        .populate('companyId', 'companyName')
+        .select('-password')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
+      Vendor.countDocuments(query)
+    ]);
+
+    // Get statistics
+    const [totalVendors, approvedVendors, pendingVendors, blockedVendors] = await Promise.all([
+      Vendor.countDocuments(),
+      Vendor.countDocuments({ approved: true, blocked: false }),
+      Vendor.countDocuments({ approved: false }),
+      Vendor.countDocuments({ blocked: true })
+    ]);
+
+    sendSuccess(res, 200, 'Vendors retrieved successfully', {
+      vendors: vendors.map(vendor => vendor.toAdminJSON()),
+      pagination: {
+        currentPage: pageNum,
+        totalPages: Math.ceil(totalCount / limitNum),
+        totalVendors: totalCount,
+        vendorsPerPage: limitNum,
+        hasNextPage: pageNum < Math.ceil(totalCount / limitNum),
+        hasPrevPage: pageNum > 1
+      },
+      statistics: {
+        totalVendors,
+        approvedVendors,
+        pendingVendors,
+        blockedVendors
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting vendors:', error);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Approve vendor account (Admin)
+ * @route   PATCH /api/admin/vendors/:vendorId/approve
+ * @access  Private (Admin only)
+ */
+const approveVendor = async (req, res, next) => {
+  try {
+    const { vendorId } = req.params;
+    const adminId = req.admin.id;
+
+    // Validate vendorId
+    if (!vendorId || !vendorId.match(/^[0-9a-fA-F]{24}$/)) {
+      return sendError(res, 400, 'Invalid vendor ID format', 'INVALID_VENDOR_ID');
+    }
+
+    // Find vendor
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return sendNotFoundError(res, 'Vendor not found');
+    }
+
+    // Check if already approved
+    if (vendor.approved) {
+      return sendError(res, 400, 'Vendor is already approved', 'VENDOR_ALREADY_APPROVED');
+    }
+
+    // Approve vendor
+    await vendor.approveVendor(adminId);
+
+    sendSuccess(res, 200, 'Vendor approved successfully', {
+      vendor: vendor.toAdminJSON()
+    });
+
+  } catch (error) {
+    console.error('Error approving vendor:', error);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Block/unblock vendor (Admin)
+ * @route   PATCH /api/admin/vendors/:vendorId/block
+ * @access  Private (Admin only)
+ */
+const toggleVendorBlock = async (req, res, next) => {
+  try {
+    const { vendorId } = req.params;
+    const { blocked, reason } = req.body;
+    const adminId = req.admin.id;
+
+    // Validate vendorId
+    if (!vendorId || !vendorId.match(/^[0-9a-fA-F]{24}$/)) {
+      return sendError(res, 400, 'Invalid vendor ID format', 'INVALID_VENDOR_ID');
+    }
+
+    // Validate blocked field
+    if (typeof blocked !== 'boolean') {
+      return sendError(res, 400, 'blocked must be a boolean value', 'INVALID_BLOCK_STATUS');
+    }
+
+    // If blocking, reason is required
+    if (blocked && !reason) {
+      return sendError(res, 400, 'Reason is required when blocking vendor', 'MISSING_BLOCK_REASON');
+    }
+
+    // Find vendor
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) {
+      return sendNotFoundError(res, 'Vendor not found');
+    }
+
+    // Check current block status
+    if (vendor.blocked === blocked) {
+      return sendError(res, 400, `Vendor is already ${blocked ? 'blocked' : 'unblocked'}`, 'NO_STATUS_CHANGE');
+    }
+
+    // Update vendor block status
+    if (blocked) {
+      await vendor.blockVendor(adminId, reason);
+    } else {
+      await vendor.unblockVendor();
+    }
+
+    const action = blocked ? 'blocked' : 'unblocked';
+    sendSuccess(res, 200, `Vendor ${action} successfully`, {
+      vendor: vendor.toAdminJSON()
+    });
+
+  } catch (error) {
+    console.error('Error toggling vendor block:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   getEligibleVendors,
   assignServiceToVendor,
@@ -638,5 +934,9 @@ module.exports = {
   getAssignedServices,
   getAdminDashboard,
   toggleUserStatus,
-  getAllUsers
+  getAllUsers,
+  createVendor,
+  getAllVendors,
+  approveVendor,
+  toggleVendorBlock
 };

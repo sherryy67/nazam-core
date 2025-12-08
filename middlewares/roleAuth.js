@@ -52,6 +52,40 @@ const isVendorOrAdmin = (req, res, next) => {
   }
 };
 
+// Check if user is company admin
+const isCompanyAdmin = (req, res, next) => {
+  if (req.user && req.user.role === ROLES.COMPANY_ADMIN) {
+    next();
+  } else {
+    return sendError(res, 403, 'Company admin access required', 'COMPANY_ADMIN_REQUIRED');
+  }
+};
+
+// Check if company is approved (for company-specific operations)
+const isApprovedCompany = async (req, res, next) => {
+  try {
+    if (req.user.role !== ROLES.COMPANY_ADMIN) {
+      return sendError(res, 403, 'Company admin access required', 'COMPANY_ADMIN_REQUIRED');
+    }
+
+    const Company = require('../models/Company');
+    const company = await Company.findById(req.user.id);
+
+    if (!company) {
+      return sendError(res, 404, 'Company not found', 'COMPANY_NOT_FOUND');
+    }
+
+    if (!company.approved) {
+      return sendError(res, 403, 'Company account not approved', 'COMPANY_NOT_APPROVED');
+    }
+
+    req.company = company;
+    next();
+  } catch (error) {
+    return sendError(res, 500, 'Error checking company status', 'COMPANY_CHECK_ERROR');
+  }
+};
+
 // Check if vendor is approved (for vendor-specific operations)
 const isApprovedVendor = async (req, res, next) => {
   try {
@@ -83,5 +117,7 @@ module.exports = {
   isVendor,
   isUser,
   isVendorOrAdmin,
-  isApprovedVendor
+  isApprovedVendor,
+  isCompanyAdmin,
+  isApprovedCompany
 };

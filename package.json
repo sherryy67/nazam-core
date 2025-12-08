@@ -11,7 +11,11 @@
         "verify-cors": "node verify-cors.js",
         "fix-cors": "node quick-fix-cors.js",
         "migrate:add-subServices": "node scripts/add-subServices-to-services.js",
-        "migrate:service-fields": "node scripts/migrate-service-fields.js"
+        "migrate:service-fields": "node scripts/migrate-service-fields.js",
+        "migrate:vendors-new-schema": "node migrations/migrate-vendors-to-new-schema.js",
+        "verify:migration": "node scripts/verify-migration.js",
+        "staging:reset": "node scripts/reset-staging-data.js --confirm",
+        "staging:create-test-data": "node scripts/create-test-data.js"
     },
     "keywords": [
         "nodejs",
