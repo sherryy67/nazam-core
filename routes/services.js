@@ -447,7 +447,7 @@ router.get('/commercial', getCommercialServices);
  *                 type: string
  *                 example: '[{"name":"AC Soft Cleaning","items":1,"rate":200,"max":1},{"name":"AC Deep Cleaning","items":1,"rate":350,"max":1}]'
  *                 description: JSON array of nested sub-services (for parent services)
- *               serviceImage:
+ *               service_icon:
  *                 type: string
  *                 format: binary
  *                 description: Service image file (optional)
