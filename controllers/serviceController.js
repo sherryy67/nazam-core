@@ -83,11 +83,11 @@ const upload = multer({
 // @access  Admin only
 const createService = async (req, res, next) => {
   try {
-    const { 
+    const {
       _id,
-      name, 
-      description, 
-      basePrice, 
+      name,
+      description,
+      basePrice,
       unitType,
       category_id,
       min_time_required,
@@ -100,7 +100,9 @@ const createService = async (req, res, next) => {
       timeBasedPricing,
       subServices,
       serviceType,
-      badge
+      badge,
+      service_icon,
+      thumbnailUri
     } = req.body;
 
     // Check if this is an update operation
@@ -454,6 +456,15 @@ const createService = async (req, res, next) => {
         }
         return sendError(res, 500, `Failed to upload thumbnail: ${s3Error.message}`, 'S3_UPLOAD_FAILED');
       }
+    }
+
+    // Handle service_icon and thumbnailUri from request body if not set by file uploads
+    if (service_icon && service_icon.trim().length > 0 && !serviceData.service_icon) {
+      serviceData.service_icon = service_icon.trim();
+    }
+
+    if (thumbnailUri && thumbnailUri.trim().length > 0 && !serviceData.thumbnailUri) {
+      serviceData.thumbnailUri = thumbnailUri.trim();
     }
 
     let service;
