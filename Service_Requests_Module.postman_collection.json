@@ -1,0 +1,1099 @@
+{
+	"info": {
+		"_postman_id": "service-requests-module-collection",
+		"name": "Service Requests Module",
+		"description": "Complete Postman collection for Service Requests Module with all use cases",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Submit Service Request",
+			"item": [
+				{
+					"name": "Submit Quotation Request",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has success field\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});",
+									"",
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"service_request_id\", jsonData.content.serviceRequest._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_name\": \"John Doe\",\n    \"user_phone\": \"+971501234567\",\n    \"user_email\": \"john.doe@example.com\",\n    \"address\": \"123 Main Street, Dubai, UAE\",\n    \"service_id\": \"64a1b2c3d4e5f6789abcdef1\",\n    \"service_name\": \"AC Cleaning Service\",\n    \"category_id\": \"64a1b2c3d4e5f6789abcdef0\",\n    \"category_name\": \"Home Cleaning\",\n    \"request_type\": \"Quotation\",\n    \"requested_date\": \"2024-12-15T10:00:00.000Z\",\n    \"number_of_units\": 1,\n    \"message\": \"Please provide a quotation for AC cleaning service\",\n    \"payment_method\": \"Cash On Delivery\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/submit-service-requests",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"submit-service-requests"
+							]
+						},
+						"description": "Submit a service request for quotation. This is a public endpoint (no authentication required)."
+					},
+					"response": []
+				},
+				{
+					"name": "Submit OnTime Request",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has success field\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});",
+									"",
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"service_request_id\", jsonData.content.serviceRequest._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_name\": \"Jane Smith\",\n    \"user_phone\": \"+971509876543\",\n    \"user_email\": \"jane.smith@example.com\",\n    \"address\": \"456 Business Bay, Dubai, UAE\",\n    \"service_id\": \"64a1b2c3d4e5f6789abcdef1\",\n    \"service_name\": \"Emergency Plumbing\",\n    \"category_id\": \"64a1b2c3d4e5f6789abcdef2\",\n    \"category_name\": \"Plumbing\",\n    \"request_type\": \"OnTime\",\n    \"requested_date\": \"2024-12-15T14:00:00.000Z\",\n    \"number_of_units\": 2,\n    \"message\": \"Urgent plumbing service needed for blocked drain\",\n    \"payment_method\": \"Online Payment\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/submit-service-requests",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"submit-service-requests"
+							]
+						},
+						"description": "Submit an OnTime service request. This requires immediate service."
+					},
+					"response": []
+				},
+				{
+					"name": "Submit Scheduled Request",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has success field\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});",
+									"",
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"service_request_id\", jsonData.content.serviceRequest._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_name\": \"Ahmed Al Maktoum\",\n    \"user_phone\": \"+971501112233\",\n    \"user_email\": \"ahmed@example.com\",\n    \"address\": \"789 Jumeirah Beach Road, Dubai, UAE\",\n    \"service_id\": \"64a1b2c3d4e5f6789abcdef3\",\n    \"service_name\": \"Carpet Cleaning\",\n    \"category_id\": \"64a1b2c3d4e5f6789abcdef0\",\n    \"category_name\": \"Home Cleaning\",\n    \"request_type\": \"Scheduled\",\n    \"requested_date\": \"2024-12-20T09:00:00.000Z\",\n    \"number_of_units\": 3,\n    \"message\": \"Scheduled carpet cleaning for 3 rooms\",\n    \"payment_method\": \"Cash On Delivery\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/submit-service-requests",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"submit-service-requests"
+							]
+						},
+						"description": "Submit a scheduled service request for a future date and time."
+					},
+					"response": []
+				},
+				{
+					"name": "Submit Request with Sub-Services",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has success field\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});",
+									"",
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"service_request_id\", jsonData.content.serviceRequest._id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_name\": \"Sarah Johnson\",\n    \"user_phone\": \"+971507778888\",\n    \"user_email\": \"sarah@example.com\",\n    \"address\": \"321 Marina Walk, Dubai, UAE\",\n    \"service_id\": \"64a1b2c3d4e5f6789abcdef1\",\n    \"service_name\": \"AC Cleaning Service\",\n    \"category_id\": \"64a1b2c3d4e5f6789abcdef0\",\n    \"category_name\": \"Home Cleaning\",\n    \"request_type\": \"OnTime\",\n    \"requested_date\": \"2024-12-15T16:00:00.000Z\",\n    \"number_of_units\": 1,\n    \"selectedSubServices\": [\n        {\n            \"name\": \"AC Soft Cleaning\",\n            \"quantity\": 1\n        },\n        {\n            \"name\": \"AC Deep Cleaning\",\n            \"quantity\": 2\n        }\n    ],\n    \"message\": \"Need AC cleaning with soft and deep cleaning options\",\n    \"payment_method\": \"Online Payment\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/submit-service-requests",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"submit-service-requests"
+							]
+						},
+						"description": "Submit a service request with selected sub-services. This is for services that have sub-services available."
+					},
+					"response": []
+				},
+				{
+					"name": "Submit Request - Per Hour Service",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has success field\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_name\": \"Michael Brown\",\n    \"user_phone\": \"+971505556666\",\n    \"user_email\": \"michael@example.com\",\n    \"address\": \"555 Downtown Dubai, UAE\",\n    \"service_id\": \"64a1b2c3d4e5f6789abcdef4\",\n    \"service_name\": \"Handyman Service\",\n    \"category_id\": \"64a1b2c3d4e5f6789abcdef5\",\n    \"category_name\": \"Maintenance\",\n    \"request_type\": \"Scheduled\",\n    \"requested_date\": \"2024-12-18T10:00:00.000Z\",\n    \"number_of_units\": 4,\n    \"message\": \"Need handyman for 4 hours\",\n    \"payment_method\": \"Cash On Delivery\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/submit-service-requests",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"submit-service-requests"
+							]
+						},
+						"description": "Submit a service request for a per-hour service (e.g., handyman service). The number_of_units represents hours."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for submitting service requests. All endpoints are public (no authentication required)."
+		},
+		{
+			"name": "Get Service Requests (Admin)",
+			"item": [
+				{
+					"name": "Get All Service Requests",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has serviceRequests array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.content.serviceRequests).to.be.an('array');",
+									"});",
+									"",
+									"pm.test(\"Response has pagination\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.content.pagination).to.be.an('object');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/service-requests",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests"
+							]
+						},
+						"description": "Get all service requests. Admin authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Service Requests with Pagination",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/service-requests?page=1&limit=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number"
+								},
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Items per page (max 100)"
+								}
+							]
+						},
+						"description": "Get service requests with pagination. Default page=1, limit=10."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Service Requests by Status - Pending",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"All requests have Pending status\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.content.serviceRequests.length > 0) {",
+									"        jsonData.content.serviceRequests.forEach(function(request) {",
+									"            pm.expect(request.status).to.eql('Pending');",
+									"        });",
+									"    }",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/service-requests?status=Pending",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "Pending",
+									"description": "Filter by status: Pending, Assigned, Accepted, Completed, Cancelled"
+								}
+							]
+						},
+						"description": "Get service requests filtered by status (Pending)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Service Requests by Status - Assigned",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/service-requests?status=Assigned",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "Assigned"
+								}
+							]
+						},
+						"description": "Get service requests with Assigned status."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Service Requests by Status - Completed",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/service-requests?status=Completed",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "Completed"
+								}
+							]
+						},
+						"description": "Get service requests with Completed status."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Service Requests by Request Type - Quotation",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/service-requests?request_type=Quotation",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests"
+							],
+							"query": [
+								{
+									"key": "request_type",
+									"value": "Quotation",
+									"description": "Filter by request type: Quotation, OnTime, Scheduled"
+								}
+							]
+						},
+						"description": "Get service requests filtered by request type (Quotation)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Service Requests by Request Type - OnTime",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/service-requests?request_type=OnTime",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests"
+							],
+							"query": [
+								{
+									"key": "request_type",
+									"value": "OnTime"
+								}
+							]
+						},
+						"description": "Get service requests filtered by request type (OnTime)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Service Requests by Request Type - Scheduled",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/service-requests?request_type=Scheduled",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests"
+							],
+							"query": [
+								{
+									"key": "request_type",
+									"value": "Scheduled"
+								}
+							]
+						},
+						"description": "Get service requests filtered by request type (Scheduled)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Service Requests by Service ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/service-requests?serviceId=64a1b2c3d4e5f6789abcdef1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests"
+							],
+							"query": [
+								{
+									"key": "serviceId",
+									"value": "64a1b2c3d4e5f6789abcdef1",
+									"description": "Filter by service ID (MongoDB ObjectId)"
+								}
+							]
+						},
+						"description": "Get service requests filtered by specific service ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Service Requests by Keyword Search",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/service-requests?keyword=plumbing",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests"
+							],
+							"query": [
+								{
+									"key": "keyword",
+									"value": "plumbing",
+									"description": "Search keyword (searches in user name, email, phone, service name, category name, address, message)"
+								}
+							]
+						},
+						"description": "Search service requests by keyword. Searches across multiple fields: user name, email, phone, service name, category name, address, and message."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Service Requests - Combined Filters",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/service-requests?status=Pending&request_type=OnTime&page=1&limit=15",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "Pending"
+								},
+								{
+									"key": "request_type",
+									"value": "OnTime"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "15"
+								}
+							]
+						},
+						"description": "Get service requests with multiple filters combined (status, request_type, pagination)."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for retrieving service requests. All endpoints require Admin authentication (Bearer token)."
+		},
+		{
+			"name": "Update Service Request Status (Admin)",
+			"item": [
+				{
+					"name": "Update Status to Assigned",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Status updated successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"Assigned\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/service-requests/{{service_request_id}}/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests",
+								"{{service_request_id}}",
+								"status"
+							]
+						},
+						"description": "Update service request status to Assigned. Admin authentication required."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Status to Assigned with Vendor",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Status and vendor updated\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.content.serviceRequest.status).to.eql('Assigned');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"Assigned\",\n    \"vendor\": \"64a1b2c3d4e5f6789abcdef2\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/service-requests/{{service_request_id}}/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests",
+								"{{service_request_id}}",
+								"status"
+							]
+						},
+						"description": "Update service request status to Assigned and assign a vendor. When a vendor is assigned to a Pending request, status automatically changes to Assigned."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Status to Accepted",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"Accepted\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/service-requests/{{service_request_id}}/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests",
+								"{{service_request_id}}",
+								"status"
+							]
+						},
+						"description": "Update service request status to Accepted."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Status to Completed",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"Completed\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/service-requests/{{service_request_id}}/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests",
+								"{{service_request_id}}",
+								"status"
+							]
+						},
+						"description": "Update service request status to Completed."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Status to Cancelled",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"Cancelled\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/service-requests/{{service_request_id}}/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests",
+								"{{service_request_id}}",
+								"status"
+							]
+						},
+						"description": "Update service request status to Cancelled."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for updating service request status. All endpoints require Admin authentication (Bearer token). Valid statuses: Pending, Assigned, Accepted, Completed, Cancelled."
+		},
+		{
+			"name": "Delete Service Request (Admin)",
+			"item": [
+				{
+					"name": "Delete Service Request",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Request deleted successfully\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"    pm.expect(jsonData.description).to.include('deleted');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{admin_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/service-requests/{{service_request_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests",
+								"{{service_request_id}}"
+							]
+						},
+						"description": "Delete a service request. Admin authentication required. This action cannot be undone."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoint for deleting service requests. Requires Admin authentication."
+		},
+		{
+			"name": "Get Order Details",
+			"item": [
+				{
+					"name": "Get Order Details by Request ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has orderDetails\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.content.orderDetails).to.be.an('object');",
+									"});",
+									"",
+									"pm.test(\"Order details contain required fields\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    var orderDetails = jsonData.content.orderDetails;",
+									"    pm.expect(orderDetails).to.have.property('orderId');",
+									"    pm.expect(orderDetails).to.have.property('userName');",
+									"    pm.expect(orderDetails).to.have.property('service');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/service-requests/{{service_request_id}}/details",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"service-requests",
+								"{{service_request_id}}",
+								"details"
+							]
+						},
+						"description": "Get detailed order information by service request ID. This is a public endpoint (no authentication required). Returns comprehensive order details including user information, service details, category, payment method, and vendor information if assigned."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoint for retrieving order details. This is a public endpoint (no authentication required)."
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "https://api.zushh.com",
+			"type": "string"
+		},
+		{
+			"key": "admin_token",
+			"value": "your_admin_jwt_token_here",
+			"type": "string"
+		},
+		{
+			"key": "service_request_id",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
