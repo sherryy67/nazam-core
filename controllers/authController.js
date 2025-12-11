@@ -759,6 +759,16 @@ const sendTokenResponse = (user, statusCode, res) => {
     userData.coveredCity = user.coveredCity;
   } else if (user.role === ROLES.ADMIN) {
     userData.name = user.name;
+  } else if (user.role === ROLES.USER) {
+    // For users (role 1), include all user fields for consistent response
+    userData.name = user.name;
+    userData.phoneNumber = user.phoneNumber;
+    userData.isActive = user.isActive;
+    userData.isOTPVerified = user.isOTPVerified;
+    userData.profilePic = user.profilePic || '';
+    userData.address = user.address || '';
+    userData.createdAt = user.createdAt ? user.createdAt.toISOString() : null;
+    userData.updatedAt = user.updatedAt ? user.updatedAt.toISOString() : null;
   } else {
     userData.name = user.name;
   }
