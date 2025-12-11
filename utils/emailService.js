@@ -644,6 +644,169 @@ If you didn't request this code, please ignore this email.
   }
 
   /**
+   * Send contact us email to admin (info@zushh.com)
+   * @param {Object} contactData - Contact form data
+   * @param {string} contactData.firstName - User's first name
+   * @param {string} contactData.lastName - User's last name
+   * @param {string} contactData.email - User's email address
+   * @param {string} contactData.phone - User's phone number
+   * @param {string} contactData.subject - Contact subject
+   * @param {string} contactData.message - Contact message
+   * @returns {Promise<Object>} - Email sending result
+   */
+  async sendContactEmail(contactData) {
+    const { firstName, lastName, email, phone, subject, message } = contactData;
+
+    if (!this.isValidEmail(email)) {
+      throw new Error('Invalid email format');
+    }
+
+    const adminEmail = 'info@zushh.com';
+    const customerName = `${firstName} ${lastName}`.trim();
+
+    const emailSubject = `Contact Us: ${subject}`;
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Contact Us Inquiry</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 20px 0; text-align: center; background-color: #ffffff;">
+              <h1 style="color: #333; margin: 0;">Zushh</h1>
+              <p style="color: #666; margin: 5px 0;">Contact Us Inquiry</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; padding: 30px;">
+                <tr>
+                  <td>
+                    <h2 style="color: #d9534f; margin-top: 0;">New Contact Us Inquiry</h2>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                      You have received a new contact inquiry through the Zushh website.
+                    </p>
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                      <h3 style="color: #333; margin-top: 0;">Contact Information:</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #666; font-weight: bold; width: 120px;">Name:</td>
+                          <td style="padding: 8px 0; color: #333;">${customerName}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666; font-weight: bold;">Email:</td>
+                          <td style="padding: 8px 0; color: #333;">
+                            <a href="mailto:${email}" style="color: #007bff; text-decoration: none;">${email}</a>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666; font-weight: bold;">Phone:</td>
+                          <td style="padding: 8px 0; color: #333;">
+                            <a href="tel:${phone}" style="color: #007bff; text-decoration: none;">${phone}</a>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666; font-weight: bold;">Subject:</td>
+                          <td style="padding: 8px 0; color: #333; font-weight: bold;">${subject}</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+                      <h3 style="color: #333; margin-top: 0;">Message:</h3>
+                      <div style="color: #666; font-size: 16px; line-height: 1.6; white-space: pre-wrap;">
+                        ${message.replace(/\n/g, '<br>')}
+                      </div>
+                    </div>
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #d4edda; border-left: 4px solid #28a745; border-radius: 4px;">
+                      <h3 style="color: #333; margin-top: 0;">Quick Actions:</h3>
+                      <p style="color: #155724; margin: 10px 0;">
+                        <a href="mailto:${email}?subject=Re: ${subject}" style="color: #155724; text-decoration: underline;">
+                          Reply to ${firstName}
+                        </a>
+                      </p>
+                      <p style="color: #155724; margin: 10px 0;">
+                        <a href="tel:${phone}" style="color: #155724; text-decoration: underline;">
+                          Call ${firstName}
+                        </a>
+                      </p>
+                    </div>
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                      <p style="color: #666; font-size: 14px; margin: 0;">
+                        <strong>Inquiry Details:</strong><br>
+                        Received: ${new Date().toLocaleString()}<br>
+                        Source: Contact Us Form
+                      </p>
+                    </div>
+
+                    <p style="color: #666; font-size: 16px; line-height: 1.6; margin-top: 30px;">
+                      Best regards,<br>
+                      <strong>Zushh System</strong>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px; text-align: center; background-color: #ffffff;">
+              <p style="color: #999; font-size: 12px; margin: 0;">
+                © ${new Date().getFullYear()} Zushh. All rights reserved.
+              </p>
+              <p style="color: #999; font-size: 12px; margin: 5px 0 0 0;">
+                This is an automated notification from the Zushh contact system.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Zushh - New Contact Us Inquiry
+
+You have received a new contact inquiry through the Zushh website.
+
+Contact Information:
+- Name: ${customerName}
+- Email: ${email}
+- Phone: ${phone}
+- Subject: ${subject}
+
+Message:
+${message}
+
+Quick Actions:
+- Reply: mailto:${email}?subject=Re: ${subject}
+- Call: tel:${phone}
+
+Inquiry Details:
+- Received: ${new Date().toLocaleString()}
+- Source: Contact Us Form
+
+Best regards,
+Zushh System
+
+© ${new Date().getFullYear()} Zushh. All rights reserved.
+    `;
+
+    return await this.sendEmail({
+      to: adminEmail,
+      subject: emailSubject,
+      html: html,
+      text: text
+    });
+  }
+
+  /**
    * Test email configuration
    * @returns {Promise<Object>} - Test result
    */
