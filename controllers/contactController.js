@@ -21,9 +21,9 @@ const submitContactForm = async (req, res, next) => {
     }
 
     // Validate phone number (basic validation)
-    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
+    const phoneRegex = /^[\+]?[\d]{7,16}$/;
     if (!phoneRegex.test(phone.replace(/[\s\-\(\)]/g, ''))) {
-      return sendError(res, 400, 'Please provide a valid phone number', 'INVALID_PHONE');
+      return sendError(res, 400, 'Please provide a valid phone number (7-16 digits)', 'INVALID_PHONE');
     }
 
     // Validate field lengths

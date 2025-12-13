@@ -167,11 +167,10 @@ const createServiceValidation = [
     .optional()
     .isIn(['residential', 'commercial'])
     .withMessage('Service type must be either "residential" or "commercial"'),
-  body('badge')
+  body('isBannerService')
     .optional()
-    .trim()
-    .isString()
-    .withMessage('Badge must be a string')
+    .isBoolean()
+    .withMessage('isBannerService must be a boolean value')
 ];
 
 // Validation rules for paginated services
@@ -450,28 +449,16 @@ router.get('/commercial', getCommercialServices);
  *               serviceImage:
  *                 type: string
  *                 format: binary
- *                 description: Service image file upload (optional - will set both imageUri and service_icon)
- *               thumbnail:
- *                 type: string
- *                 format: binary
- *                 description: Thumbnail image file upload (optional)
- *               service_icon:
- *                 type: string
- *                 description: Service icon URL as string (optional - alternative to serviceImage file upload)
- *                 example: "https://example.com/service-icon.png"
- *               thumbnailUri:
- *                 type: string
- *                 description: Thumbnail URL as string (optional - alternative to thumbnail file upload)
- *                 example: "https://example.com/thumbnail.jpg"
+ *                 description: Service image file (optional)
  *               serviceType:
  *                 type: string
  *                 enum: [residential, commercial]
  *                 example: "residential"
  *                 description: Service type - residential or commercial (defaults to "residential" if not provided)
- *               badge:
- *                 type: string
- *                 example: "🔥 New"
- *                 description: Optional badge text/emoji to display on the service (defaults to empty string)
+ *               isBannerService:
+ *                 type: boolean
+ *                 example: false
+ *                 description: Whether the service should be displayed as a banner (optional)
  *     responses:
  *       201:
  *         description: Service created successfully
@@ -520,9 +507,8 @@ router.get('/commercial', getCommercialServices);
  *                     serviceType:
  *                       type: string
  *                       enum: [residential, commercial]
- *                     badge:
- *                       type: string
- *                       example: "🔥 New"
+ *                     isBannerService:
+ *                       type: boolean
  *                     isActive:
  *                       type: boolean
  *                     createdBy:
@@ -536,19 +522,7 @@ router.get('/commercial', getCommercialServices);
  *       500:
  *         description: Server error
  */
-router.post(
-  '/',
-  protect,
-  isAdmin,
-  upload.fields([
-    { name: 'serviceImage', maxCount: 1 },
-    { name: 'thumbnail', maxCount: 1 },
-    { name: 'service_icon', maxCount: 1 },
-    { name: 'thumbnailUri', maxCount: 1 }
-  ]),
-  createServiceValidation,
-  createService
-);
+router.post('/', protect, isAdmin, upload.single('serviceImage'), createServiceValidation, createService);
 
 /**
  * @swagger
@@ -653,19 +627,6 @@ router.get('/', protect, getServices);
  *   get:
  *     summary: Get all active services (Public endpoint)
  *     tags: [Services]
- *     parameters:
- *       - in: query
- *         name: category
- *         schema:
- *           type: string
- *         description: Filter by category ID (MongoDB ObjectId)
- *         example: "69059fe182e1bfdb773e31fe"
- *       - in: query
- *         name: category_id
- *         schema:
- *           type: string
- *         description: Filter by category ID (MongoDB ObjectId) - alternative to 'category' parameter
- *         example: "69059fe182e1bfdb773e31fe"
  *     responses:
  *       200:
  *         description: All active services retrieved successfully
@@ -722,14 +683,6 @@ router.get('/', protect, getServices);
  *                             type: string
  *                           subservice_type:
  *                             type: string
- *                           isFeatured:
- *                             type: boolean
- *                           serviceType:
- *                             type: string
- *                             enum: [residential, commercial]
- *                           badge:
- *                             type: string
- *                             example: "🔥 New"
  *                           isActive:
  *                             type: boolean
  *                           createdBy:

@@ -389,7 +389,29 @@ const getHomeCategories = async (req, res, next) => {
 // @access  Public
 const getMobileHomeContent = async (req, res, next) => {
   try {
-    // Helper function to transform service to consistent format
+    /* ---------------- Seeded random helpers ---------------- */
+
+    const seededRandom = (seed) => {
+      let x = Math.sin(seed) * 10000;
+      return x - Math.floor(x);
+    };
+
+    const seededShuffle = (arr, seed) => {
+      const copied = Array.isArray(arr) ? arr.slice() : [];
+      for (let i = copied.length - 1; i > 0; i--) {
+        const j = Math.floor(seededRandom(seed + i) * (i + 1));
+        [copied[i], copied[j]] = [copied[j], copied[i]];
+      }
+      return copied;
+    };
+
+    // Daily seed → same result whole day
+    const seed = Number(
+      new Date().toISOString().slice(0, 10).replace(/-/g, "")
+    );
+
+    /* ---------------- Transform helper ---------------- */
+
     const transformService = (service) => ({
       _id: service._id,
       name: service.name,
@@ -399,28 +421,22 @@ const getMobileHomeContent = async (req, res, next) => {
       category_id: service.category_id,
     });
 
+    /* ---------------- Categories ---------------- */
+
     const categories = await Category.find({ isActive: true })
       .sort({ sortOrder: 1, name: 1 })
       .lean();
 
     if (!categories.length) {
       return sendSuccess(res, 200, "No categories available", {
-        commercialServices: { servicedata: [], commercialBanner: [] },
-        residentialServices: { servicedata: [], residentialBanner: [] },
+        commercialServices: { services: [], commercialBanner: [] },
+        residentialServices: { services: [], residentialBanner: [] },
+        offers: { services: [] },
       });
     }
 
-    const categoryIds = categories.map((category) => category._id);
+    /* ---------------- Banners ---------------- */
 
-    // Get all active services
-    const services = await Service.find({
-      category_id: { $in: categoryIds },
-      isActive: true,
-    })
-      .sort({ name: 1 })
-      .lean();
-
-    // Get banner services from Banner collection
     const banners = await Banner.find({
       isActive: true,
       platform: { $in: ["mobile", "both"] },
@@ -429,9 +445,9 @@ const getMobileHomeContent = async (req, res, next) => {
       .sort({ sortOrder: 1, createdAt: -1 })
       .lean();
 
-    // Separate banners by serviceType
     const commercialBanner = [];
     const residentialBanner = [];
+
     banners.forEach((banner) => {
       const serviceType = banner.service?.serviceType;
       const bannerObj = {
@@ -441,6 +457,7 @@ const getMobileHomeContent = async (req, res, next) => {
         mediaType: banner.mediaType,
         mediaUrl: banner.mediaUrl,
       };
+
       if (serviceType === "commercial") {
         commercialBanner.push(bannerObj);
       } else if (serviceType === "residential") {
@@ -448,7 +465,8 @@ const getMobileHomeContent = async (req, res, next) => {
       }
     });
 
-    // Get commercial services and sample up to 9 random services
+    /* ---------------- Commercial services ---------------- */
+
     const commercialServicesData = await Service.find({
       isActive: true,
       serviceType: "commercial",
@@ -457,21 +475,15 @@ const getMobileHomeContent = async (req, res, next) => {
       .sort({ name: 1 })
       .lean();
 
-    // Helper: shuffle and pick up to n items
-    const sampleArray = (arr, n) => {
-      const copied = Array.isArray(arr) ? arr.slice() : [];
-      for (let i = copied.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [copied[i], copied[j]] = [copied[j], copied[i]];
-      }
-      return copied.slice(0, n);
-    };
+    const commercialServices = seededShuffle(
+      commercialServicesData,
+      seed
+    )
+      .slice(0, 9)
+      .map(transformService);
 
-    const commercialServices = sampleArray(commercialServicesData, 9).map(
-      transformService
-    );
+    /* ---------------- Residential services ---------------- */
 
-    // Get residential services and sample up to 9 random services
     const residentialServicesData = await Service.find({
       isActive: true,
       serviceType: "residential",
@@ -480,25 +492,48 @@ const getMobileHomeContent = async (req, res, next) => {
       .sort({ name: 1 })
       .lean();
 
-    const residentialServices = sampleArray(residentialServicesData, 9).map(
-      transformService
-    );
+    const residentialServices = seededShuffle(
+      residentialServicesData,
+      seed
+    )
+      .slice(0, 9)
+      .map(transformService);
 
-    // Response structure update
+    /* ---------------- Offers (featured services regardless of type) ---------------- */
+
+    const featuredServicesData = await Service.find({
+      isActive: true,
+      isFeatured: true,
+    })
+      .populate("category_id", "_id name")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const offersServices = seededShuffle(featuredServicesData, seed)
+      .slice(0, 9)
+      .map(transformService);
+
+    /* ---------------- Final response ---------------- */
+
     return sendSuccess(res, 200, "Mobile home content retrieved successfully", {
+      offers: {
+        services: offersServices,
+      },
       commercialServices: {
         services: commercialServices,
-        commercialBanner: commercialBanner,
+        commercialBanner,
       },
       residentialServices: {
         services: residentialServices,
-        residentialBanner: residentialBanner,
+        residentialBanner,
       },
+  
     });
   } catch (error) {
     next(error);
   }
 };
+
 
 // @desc    Bulk update category sort order
 // @route   PUT /api/categories/sort

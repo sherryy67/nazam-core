@@ -134,14 +134,16 @@ const contactFormValidation = [
     .withMessage('Please provide a valid email address'),
   body('phone')
     .trim()
-    .matches(/^[\+]?[1-9][\d]{0,15}$/)
-    .withMessage('Please provide a valid phone number')
     .custom((value) => {
       // Remove spaces, dashes, parentheses for validation
       const cleanPhone = value.replace(/[\s\-\(\)]/g, '');
-      return cleanPhone.length >= 7 && cleanPhone.length <= 15;
-    })
-    .withMessage('Phone number must be between 7 and 15 digits'),
+      // Check string is digits and optional plus
+      const phoneRegex = /^[\+]?[\d]{7,16}$/;
+      if (!phoneRegex.test(cleanPhone)) {
+        throw new Error('Please provide a valid phone number (7-16 digits)');
+      }
+      return true;
+    }),
   body('subject')
     .trim()
     .isLength({ min: 5, max: 100 })
