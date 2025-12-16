@@ -449,16 +449,32 @@ router.get('/commercial', getCommercialServices);
  *               serviceImage:
  *                 type: string
  *                 format: binary
- *                 description: Service image file (optional)
+ *                 description: Service image file (optional) - sets both imageUri and service_icon
+ *               thumbnail:
+ *                 type: string
+ *                 format: binary
+ *                 description: Thumbnail image or video file (optional) - sets thumbnailUri
+ *               service_icon:
+ *                 type: string
+ *                 format: binary
+ *                 description: Service icon file (optional) - alternative to serviceImage for service_icon only
+ *               thumbnailUri:
+ *                 type: string
+ *                 format: binary
+ *                 description: Thumbnail file (optional) - alternative field name for thumbnail
+ *               badge:
+ *                 type: string
+ *                 example: "Popular"
+ *                 description: Optional badge text to display on the service
+ *               isFeatured:
+ *                 type: boolean
+ *                 example: false
+ *                 description: Whether the service should be featured
  *               serviceType:
  *                 type: string
  *                 enum: [residential, commercial]
  *                 example: "residential"
  *                 description: Service type - residential or commercial (defaults to "residential" if not provided)
- *               isBannerService:
- *                 type: boolean
- *                 example: false
- *                 description: Whether the service should be displayed as a banner (optional)
  *     responses:
  *       201:
  *         description: Service created successfully
@@ -522,7 +538,12 @@ router.get('/commercial', getCommercialServices);
  *       500:
  *         description: Server error
  */
-router.post('/', protect, isAdmin, upload.single('serviceImage'), createServiceValidation, createService);
+router.post('/', protect, isAdmin, upload.fields([
+  { name: 'serviceImage', maxCount: 1 },
+  { name: 'thumbnail', maxCount: 1 },
+  { name: 'service_icon', maxCount: 1 },
+  { name: 'thumbnailUri', maxCount: 1 }
+]), createServiceValidation, createService);
 
 /**
  * @swagger
