@@ -466,6 +466,10 @@ router.get('/commercial', getCommercialServices);
  *                 type: string
  *                 example: "Popular"
  *                 description: Optional badge text to display on the service
+ *               termsCondition:
+ *                 type: string
+ *                 example: "<ul><li>Terms and conditions apply</li><li>Service is subject to availability</li></ul>"
+ *                 description: HTML content for terms and conditions displayed on client side
  *               isFeatured:
  *                 type: boolean
  *                 example: false
@@ -523,8 +527,11 @@ router.get('/commercial', getCommercialServices);
  *                     serviceType:
  *                       type: string
  *                       enum: [residential, commercial]
- *                     isBannerService:
- *                       type: boolean
+ *                     badge:
+ *                       type: string
+ *                     termsCondition:
+ *                       type: string
+ *                       description: HTML content for terms and conditions
  *                     isActive:
  *                       type: boolean
  *                     createdBy:

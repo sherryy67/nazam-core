@@ -58,6 +58,10 @@ const serviceSchema = new mongoose.Schema({
     type: String,
     default: ""
   },
+  termsCondition: {
+    type: String,
+    default: ""
+  },
   timeBasedPricing: {
     type: [timeBasedPricingSchema],
     default: [],
