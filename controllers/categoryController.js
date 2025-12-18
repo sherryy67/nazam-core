@@ -704,7 +704,7 @@ module.exports = {
           thumbnail: svc.thumbnailUri ?? "",
           price: perHourPrice !== null ? perHourPrice : svc.basePrice,
           unitType: svc.unitType,
-          termsConditions: svc.termsConditions || "",
+         termsCondition: svc.termsCondition ?? "",
         };
       };
 
@@ -733,7 +733,7 @@ module.exports = {
                   timeBasedPricing: 1,
                   imageUri: 1,
                   thumbnailUri: 1,
-                  termsConditions: 1,
+                  termsCondition: 1,
                 })
                 .lean(),
             ]);
