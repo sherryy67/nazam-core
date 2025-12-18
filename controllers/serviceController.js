@@ -107,6 +107,7 @@ const createService = async (req, res, next) => {
       subServices,
       serviceType,
       badge,
+      termsCondition,
       service_icon,
       thumbnailUri
     } = req.body;
@@ -326,6 +327,16 @@ const createService = async (req, res, next) => {
       serviceData.badge = '';
     }
     // For updates, if badge is not provided, it will keep the existing value
+
+    // Handle termsCondition field - optional, stores HTML content
+    // Allow users to set empty string when updating
+    if (termsCondition !== undefined && termsCondition !== null) {
+      serviceData.termsCondition = String(termsCondition);
+    } else if (!existingService) {
+      // Set default empty string for new services
+      serviceData.termsCondition = '';
+    }
+    // For updates, if termsCondition is not provided, it will keep the existing value
 
     // Handle subServices array (optional nested sub-services)
     if (subServices !== undefined && subServices !== null) {
@@ -628,6 +639,7 @@ const getServices = async (req, res, next) => {
       isFeatured: service.isFeatured,
       serviceType: service.serviceType,
       badge: service.badge || '',
+      termsCondition: service.termsCondition || '',
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -731,6 +743,7 @@ const getServicesPaginated = async (req, res, next) => {
       isFeatured: service.isFeatured,
       serviceType: service.serviceType,
       badge: service.badge || '',
+      termsCondition: service.termsCondition || '',
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -797,6 +810,7 @@ const getServiceById = async (req, res, next) => {
       isFeatured: service.isFeatured,
       serviceType: service.serviceType,
       badge: service.badge || '',
+      termsCondition: service.termsCondition || '',
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -918,6 +932,7 @@ const getAllActiveServices = async (req, res, next) => {
       isFeatured: service.isFeatured,
       serviceType: service.serviceType,
       badge: service.badge || '',
+      termsCondition: service.termsCondition || '',
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -1109,6 +1124,7 @@ const getFeaturedServices = async (req, res, next) => {
       thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
       badge: service.badge || '',
+      termsCondition: service.termsCondition || '',
       isFeatured: service.isFeatured,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -1185,6 +1201,7 @@ const getResidentialServices = async (req, res, next) => {
       isFeatured: service.isFeatured,
       serviceType: service.serviceType,
       badge: service.badge || '',
+      termsCondition: service.termsCondition || '',
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
@@ -1262,6 +1279,7 @@ const getCommercialServices = async (req, res, next) => {
       isFeatured: service.isFeatured,
       serviceType: service.serviceType,
       badge: service.badge || '',
+      termsCondition: service.termsCondition || '',
       subServices: service.subServices || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
