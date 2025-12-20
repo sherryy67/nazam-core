@@ -419,6 +419,8 @@ const getMobileHomeContent = async (req, res, next) => {
       imageUri: service.imageUri || undefined,
       service_icon: service.service_icon || undefined,
       category_id: service.category_id,
+               termsCondition: service.termsCondition ?? "",
+
     });
 
     /* ---------------- Categories ---------------- */
@@ -456,6 +458,7 @@ const getMobileHomeContent = async (req, res, next) => {
         discountPercentage: banner.discountPercentage,
         mediaType: banner.mediaType,
         mediaUrl: banner.mediaUrl,
+        
       };
 
       if (serviceType === "commercial") {
