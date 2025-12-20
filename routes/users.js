@@ -22,11 +22,6 @@ const updateProfileValidation = [
     .optional()
     .isMobilePhone('ar-AE')
     .withMessage('Please provide a valid UAE phone number'),
-  body('address')
-    .optional()
-    .trim()
-    .isLength({ max: 500 })
-    .withMessage('Address must not exceed 500 characters')
 ];
 
 const updatePasswordValidation = [

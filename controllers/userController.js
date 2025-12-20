@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const ServiceRequest = require('../models/ServiceRequest');
+const Address = require('../models/Address');
 const { sendSuccess, sendError } = require('../utils/response');
 const multer = require('multer');
 const path = require('path');
@@ -53,7 +54,7 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   limits: {
     fileSize: 10 * 1024 * 1024 // 10MB limit
@@ -62,7 +63,7 @@ const upload = multer({
     const allowedTypes = /jpeg|jpg|png|gif/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
-    
+
     if (mimetype && extname) {
       return cb(null, true);
     } else {
@@ -77,13 +78,24 @@ const upload = multer({
 const getProfile = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    
-    const user = await User.findById(userId).select('-password');
-    
+
+    let user = await User.findById(userId).select('-password');
+
     if (!user) {
       return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
     }
-    
+
+    if (user) {
+      const defaultAddress = await Address.findOne({ user: userId, isDefault: true });
+      user = user.toObject();
+      if (defaultAddress) {
+        user.address = `${defaultAddress.addressLine1}${defaultAddress.addressLine2 ? ', ' + defaultAddress.addressLine2 : ''}${defaultAddress.city ? ', ' + defaultAddress.city : ''}${defaultAddress.country ? ', ' + defaultAddress.country : ''}`;
+        user.defaultAddress = defaultAddress;
+      } else {
+        user.defaultAddress = null;
+      }
+    }
+
     sendSuccess(res, 200, 'User profile retrieved successfully', { user });
   } catch (error) {
     next(error);
@@ -96,14 +108,14 @@ const getProfile = async (req, res, next) => {
 const updateProfile = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { name, email, phoneNumber, address } = req.body;
-    
+    const { name, email, phoneNumber } = req.body;
+
     // Check if user exists
     const user = await User.findById(userId);
     if (!user) {
       return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
     }
-    
+
     // Prepare update data
     const updateData = {};
     if (name) updateData.name = name;
@@ -123,8 +135,7 @@ const updateProfile = async (req, res, next) => {
       }
       updateData.phoneNumber = phoneNumber;
     }
-    if (address !== undefined) updateData.address = address;
-    
+
     // Handle profile picture upload if provided
     if (req.file) {
       try {
@@ -132,25 +143,25 @@ const updateProfile = async (req, res, next) => {
         console.log('File path:', req.file.path);
         console.log('File size:', req.file.size);
         console.log('File mimetype:', req.file.mimetype);
-        
+
         // Upload to S3
         const fileContent = fs.readFileSync(req.file.path);
         const key = `profile-pictures/${userId}/${req.file.filename}`;
-        
+
         const uploadParams = {
           Bucket: process.env.AWS_S3_BUCKET_NAME,
           Key: key,
           Body: fileContent,
           ContentType: req.file.mimetype
         };
-        
+
         console.log('Upload params:', {
           Bucket: uploadParams.Bucket,
           Key: uploadParams.Key,
           ContentType: uploadParams.ContentType,
           BodySize: fileContent.length
         });
-        
+
         let result;
         if (PutObjectCommand) {
           // AWS SDK v3
@@ -160,19 +171,19 @@ const updateProfile = async (req, res, next) => {
           // AWS SDK v2
           result = await s3Client.upload(uploadParams).promise();
         }
-        
+
         console.log('S3 upload result:', result);
-        
+
         // Construct the S3 URL
         const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
         updateData.profilePic = s3Url;
-        
+
         console.log('S3 URL generated:', s3Url);
-        
+
         // Delete local file after S3 upload
         fs.unlinkSync(req.file.path);
         console.log('Local file deleted successfully');
-        
+
       } catch (s3Error) {
         console.error('S3 upload error:', s3Error);
         console.error('Error details:', {
@@ -181,7 +192,7 @@ const updateProfile = async (req, res, next) => {
           statusCode: s3Error.statusCode,
           requestId: s3Error.requestId
         });
-        
+
         // Clean up local file if S3 upload fails
         if (req.file && fs.existsSync(req.file.path)) {
           fs.unlinkSync(req.file.path);
@@ -189,15 +200,28 @@ const updateProfile = async (req, res, next) => {
         return sendError(res, 500, `Failed to upload profile picture: ${s3Error.message}`, 'S3_UPLOAD_FAILED');
       }
     }
-    
+
     // Update user profile
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       updateData,
       { new: true, runValidators: true }
     ).select('-password');
-    
-    sendSuccess(res, 200, 'Profile updated successfully', { user: updatedUser });
+
+    if (updatedUser) {
+      const defaultAddress = await Address.findOne({ user: userId, isDefault: true });
+      const userObj = updatedUser.toObject();
+      if (defaultAddress) {
+        userObj.address = `${defaultAddress.addressLine1}${defaultAddress.addressLine2 ? ', ' + defaultAddress.addressLine2 : ''}${defaultAddress.city ? ', ' + defaultAddress.city : ''}${defaultAddress.country ? ', ' + defaultAddress.country : ''}`;
+        userObj.defaultAddress = defaultAddress;
+      } else {
+        userObj.defaultAddress = null;
+      }
+
+      sendSuccess(res, 200, 'Profile updated successfully', { user: userObj });
+    } else {
+      sendSuccess(res, 200, 'Profile updated successfully', { user: updatedUser });
+    }
   } catch (error) {
     // Clean up local file if error occurs
     if (req.file && fs.existsSync(req.file.path)) {
@@ -213,12 +237,12 @@ const updateProfile = async (req, res, next) => {
 const deleteProfilePicture = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    
+
     const user = await User.findById(userId);
     if (!user) {
       return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
     }
-    
+
     // Delete from S3 if profile picture exists
     if (user.profilePic) {
       try {
@@ -227,7 +251,7 @@ const deleteProfilePicture = async (req, res, next) => {
           Bucket: process.env.AWS_S3_BUCKET_NAME,
           Key: key
         };
-        
+
         if (DeleteObjectCommand) {
           // AWS SDK v3
           const command = new DeleteObjectCommand(deleteParams);
@@ -241,14 +265,14 @@ const deleteProfilePicture = async (req, res, next) => {
         // Continue with database update even if S3 deletion fails
       }
     }
-    
+
     // Update user profile to remove profile picture
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { profilePic: "" },
       { new: true }
     ).select('-password');
-    
+
     sendSuccess(res, 200, 'Profile picture deleted successfully', { user: updatedUser });
   } catch (error) {
     next(error);
@@ -265,7 +289,7 @@ const testS3 = async (req, res, next) => {
     console.log('AWS_S3_BUCKET_NAME:', process.env.AWS_S3_BUCKET_NAME);
     console.log('AWS_ACCESS_KEY_ID:', process.env.AWS_ACCESS_KEY_ID ? 'Set' : 'Not set');
     console.log('AWS_SECRET_ACCESS_KEY:', process.env.AWS_SECRET_ACCESS_KEY ? 'Set' : 'Not set');
-    
+
     // Test S3 connection
     const testParams = {
       Bucket: process.env.AWS_S3_BUCKET_NAME,
@@ -273,7 +297,7 @@ const testS3 = async (req, res, next) => {
       Body: 'Test connection',
       ContentType: 'text/plain'
     };
-    
+
     let result;
     if (PutObjectCommand) {
       // AWS SDK v3
@@ -283,16 +307,16 @@ const testS3 = async (req, res, next) => {
       // AWS SDK v2
       result = await s3Client.upload(testParams).promise();
     }
-    
+
     console.log('S3 test successful:', result);
-    
+
     sendSuccess(res, 200, 'S3 configuration test successful', {
       sdkVersion: PutObjectCommand ? 'v3' : 'v2',
       bucket: process.env.AWS_S3_BUCKET_NAME,
       region: process.env.AWS_REGION,
       result: result
     });
-    
+
   } catch (error) {
     console.error('S3 test failed:', error);
     sendError(res, 500, `S3 test failed: ${error.message}`, 'S3_TEST_FAILED');
@@ -319,14 +343,14 @@ const updatePassword = async (req, res, next) => {
 
     // Find user with password field
     const user = await User.findById(userId).select('+password');
-    
+
     if (!user) {
       return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
     }
 
     // Check if current password is correct
     const isPasswordMatch = await user.comparePassword(currentPassword);
-    
+
     if (!isPasswordMatch) {
       return sendError(res, 401, 'Current password is incorrect', 'INCORRECT_PASSWORD');
     }
@@ -340,8 +364,8 @@ const updatePassword = async (req, res, next) => {
     user.password = newPassword;
     await user.save();
 
-    sendSuccess(res, 200, 'Password updated successfully', { 
-      message: 'Password has been updated successfully' 
+    sendSuccess(res, 200, 'Password updated successfully', {
+      message: 'Password has been updated successfully'
     });
   } catch (error) {
     next(error);

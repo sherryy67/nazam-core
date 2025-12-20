@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Vendor = require('../models/Vendor');
 const Admin = require('../models/Admin');
 const OTP = require('../models/OTP');
+const Address = require('../models/Address');
 const { sendSuccess, sendError } = require('../utils/response');
 const ROLES = require('../constants/roles');
 const smsService = require('../utils/smsService');
@@ -17,7 +18,7 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // Configure multer for vendor profile picture upload (using memory storage for S3 compatibility)
-const upload = multer({ 
+const upload = multer({
   storage: multer.memoryStorage(), // Use memory storage for S3 upload compatibility
   limits: {
     fileSize: 10 * 1024 * 1024 // 10MB limit
@@ -26,7 +27,7 @@ const upload = multer({
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
-    
+
     if (mimetype && extname) {
       return cb(null, true);
     } else {
@@ -48,7 +49,7 @@ const register = async (req, res, next) => {
     }
 
     let user;
-    
+
     if (role === ROLES.VENDOR) {
       // Create vendor with all required fields
       const vendorData = {
@@ -97,7 +98,7 @@ const register = async (req, res, next) => {
     }
 
     // Generate JWT token and send response
-    sendTokenResponse(user, 201, res);
+    await sendTokenResponse(user, 201, res);
   } catch (error) {
     next(error);
   }
@@ -163,7 +164,7 @@ const login = async (req, res, next) => {
       return sendError(res, 403, 'Your vendor account is pending approval', 'VENDOR_NOT_APPROVED');
     }
 
-    sendTokenResponse(user, 200, res);
+    await sendTokenResponse(user, 200, res);
   } catch (error) {
     next(error);
   }
@@ -194,8 +195,15 @@ const getMe = async (req, res, next) => {
       user = await User.findById(userId);
     }
 
-    if (!user) {
-      return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
+    if (userRole === ROLES.USER) {
+      const defaultAddress = await Address.findOne({ user: userId, isDefault: true });
+      user = user.toObject();
+      if (defaultAddress) {
+        user.address = `${defaultAddress.addressLine1}${defaultAddress.addressLine2 ? ', ' + defaultAddress.addressLine2 : ''}${defaultAddress.city ? ', ' + defaultAddress.city : ''}${defaultAddress.country ? ', ' + defaultAddress.country : ''}`;
+        user.defaultAddress = defaultAddress;
+      } else {
+        user.defaultAddress = null;
+      }
     }
 
     sendSuccess(res, 200, 'User profile retrieved successfully', { user });
@@ -233,11 +241,10 @@ const updateDetails = async (req, res, next) => {
         coveredCity: req.body.coveredCity,
         jobService: req.body.jobService,
         mobileNumber: req.body.mobileNumber,
-        address: req.body.address,
         city: req.body.city,
         country: req.body.country
       };
-      
+
       user = await Vendor.findByIdAndUpdate(userId, vendorFields, {
         new: true,
         runValidators: true
@@ -247,6 +254,17 @@ const updateDetails = async (req, res, next) => {
         new: true,
         runValidators: true
       });
+    }
+
+    if (userRole === ROLES.USER) {
+      const defaultAddress = await Address.findOne({ user: userId, isDefault: true });
+      user = user.toObject();
+      if (defaultAddress) {
+        user.address = `${defaultAddress.addressLine1}${defaultAddress.addressLine2 ? ', ' + defaultAddress.addressLine2 : ''}${defaultAddress.city ? ', ' + defaultAddress.city : ''}${defaultAddress.country ? ', ' + defaultAddress.country : ''}`;
+        user.defaultAddress = defaultAddress;
+      } else {
+        user.defaultAddress = null;
+      }
     }
 
     sendSuccess(res, 200, 'User details updated successfully', { user });
@@ -281,7 +299,7 @@ const updatePassword = async (req, res, next) => {
     user.password = req.body.newPassword;
     await user.save();
 
-    sendTokenResponse(user, 200, res);
+    await sendTokenResponse(user, 200, res);
   } catch (error) {
     next(error);
   }
@@ -298,7 +316,7 @@ const adminCreateVendor = async (req, res, next) => {
       const value = req.body[field];
       return !value || (typeof value === 'string' && value.trim() === '');
     });
-    
+
     if (missingFields.length > 0) {
       return sendError(res, 400, `Missing required fields: ${missingFields.join(', ')}`, 'MISSING_REQUIRED_FIELDS');
     }
@@ -332,9 +350,9 @@ const adminCreateVendor = async (req, res, next) => {
     if (req.body.availabilitySchedule) {
       const validDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const timePattern = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-      
+
       let availabilitySchedule = req.body.availabilitySchedule;
-      
+
       // Try to parse if it's a JSON string
       if (typeof availabilitySchedule === 'string') {
         try {
@@ -343,43 +361,43 @@ const adminCreateVendor = async (req, res, next) => {
           return sendError(res, 400, 'availabilitySchedule must be a valid JSON array', 'INVALID_AVAILABILITY_SCHEDULE');
         }
       }
-      
+
       if (!Array.isArray(availabilitySchedule)) {
         return sendError(res, 400, 'availabilitySchedule must be an array. Received: ' + typeof availabilitySchedule, 'INVALID_AVAILABILITY_SCHEDULE');
       }
-      
+
       // Clean and validate each schedule item
       try {
         const cleanedSchedule = availabilitySchedule.map((schedule, index) => {
           if (!schedule || typeof schedule !== 'object') {
             throw new Error(`Availability schedule item at index ${index} must be an object`);
           }
-          
+
           // Remove empty _id fields and other unwanted fields - only keep required fields
           const cleaned = {
             dayOfWeek: schedule.dayOfWeek,
             startTime: schedule.startTime,
             endTime: schedule.endTime
           };
-          
+
           // Validate dayOfWeek
           if (!cleaned.dayOfWeek || !validDays.includes(cleaned.dayOfWeek)) {
             throw new Error(`Invalid dayOfWeek at index ${index}. Must be one of: ${validDays.join(', ')}`);
           }
-          
+
           // Validate startTime
           if (!cleaned.startTime || !timePattern.test(cleaned.startTime)) {
             throw new Error(`Invalid startTime format at index ${index} (use HH:MM format like 09:00)`);
           }
-          
+
           // Validate endTime
           if (!cleaned.endTime || !timePattern.test(cleaned.endTime)) {
             throw new Error(`Invalid endTime format at index ${index} (use HH:MM format like 18:00)`);
           }
-          
+
           return cleaned;
         });
-        
+
         // Update req.body with cleaned data
         req.body.availabilitySchedule = cleanedSchedule;
       } catch (scheduleError) {
@@ -390,7 +408,7 @@ const adminCreateVendor = async (req, res, next) => {
     // Validate unavailableDates if provided
     if (req.body.unavailableDates) {
       let unavailableDates = req.body.unavailableDates;
-      
+
       // Try to parse if it's a JSON string
       if (typeof unavailableDates === 'string') {
         try {
@@ -399,32 +417,32 @@ const adminCreateVendor = async (req, res, next) => {
           return sendError(res, 400, 'unavailableDates must be a valid JSON array', 'INVALID_UNAVAILABLE_DATES');
         }
       }
-      
+
       if (!Array.isArray(unavailableDates)) {
         return sendError(res, 400, 'unavailableDates must be an array. Received: ' + typeof unavailableDates, 'INVALID_UNAVAILABLE_DATES');
       }
-      
+
       // Clean and validate each unavailable date item
       try {
         const cleanedUnavailableDates = unavailableDates.map((unavailable, index) => {
           if (!unavailable || typeof unavailable !== 'object') {
             throw new Error(`Unavailable date item at index ${index} must be an object`);
           }
-          
+
           // Remove empty _id fields and other unwanted fields - only keep required fields
           const cleaned = {
             date: unavailable.date,
             reason: unavailable.reason || undefined
           };
-          
+
           // Validate date
           if (!cleaned.date || isNaN(Date.parse(cleaned.date))) {
             throw new Error(`Invalid date format at index ${index} (use YYYY-MM-DD format)`);
           }
-          
+
           return cleaned;
         });
-        
+
         // Update req.body with cleaned data
         req.body.unavailableDates = cleanedUnavailableDates;
       } catch (dateError) {
@@ -473,14 +491,14 @@ const adminCreateVendor = async (req, res, next) => {
         console.log('File size:', req.file.size);
         console.log('File mimetype:', req.file.mimetype);
         console.log('File originalname:', req.file.originalname);
-        
+
         // Upload to S3 using the same approach as service controller
         const fileContent = req.file.buffer; // Using buffer from memory storage
         const key = `vendor-profiles/${req.user.id}/${Date.now()}-${req.file.originalname}`;
-        
+
         // Try to use AWS SDK v3, fallback to v2 if needed
         let s3Client, PutObjectCommand;
-        
+
         try {
           const awsS3 = require('@aws-sdk/client-s3');
           s3Client = new awsS3.S3Client({
@@ -507,21 +525,21 @@ const adminCreateVendor = async (req, res, next) => {
             throw new Error('AWS SDK not available');
           }
         }
-        
+
         const uploadParams = {
           Bucket: process.env.AWS_S3_BUCKET_NAME,
           Key: key,
           Body: fileContent,
           ContentType: req.file.mimetype
         };
-        
+
         console.log('Vendor profile upload params:', {
           Bucket: uploadParams.Bucket,
           Key: uploadParams.Key,
           ContentType: uploadParams.ContentType,
           BodySize: fileContent.length
         });
-        
+
         let result;
         if (PutObjectCommand) {
           // AWS SDK v3
@@ -531,15 +549,15 @@ const adminCreateVendor = async (req, res, next) => {
           // AWS SDK v2
           result = await s3Client.upload(uploadParams).promise();
         }
-        
+
         console.log('Vendor profile S3 upload result:', result);
-        
+
         // Construct the S3 URL
         const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
         vendorData.profilePic = s3Url;
-        
+
         console.log('Vendor profile S3 URL generated:', s3Url);
-        
+
       } catch (s3Error) {
         console.error('Vendor profile S3 upload error:', s3Error);
         console.error('Error details:', {
@@ -553,23 +571,23 @@ const adminCreateVendor = async (req, res, next) => {
     }
 
     const vendor = await Vendor.create(vendorData);
-    
+
     // Remove password from response
     const vendorResponse = vendor.toJSON();
-    
+
     sendSuccess(res, 201, 'Vendor created successfully by admin', { vendor: vendorResponse });
   } catch (error) {
     // Clean up local file if error occurs
     if (req.file && require('fs').existsSync(req.file.path)) {
       require('fs').unlinkSync(req.file.path);
     }
-    
+
     // Handle specific database errors
     if (error.name === 'ValidationError') {
       const validationErrors = Object.values(error.errors).map(err => err.message);
       return sendError(res, 400, `Validation failed: ${validationErrors.join(', ')}`, 'VALIDATION_ERROR', { errors: validationErrors });
     }
-    
+
     if (error.name === 'MongoServerError' || error.code === 11000) {
       // Duplicate key error
       const duplicateField = Object.keys(error.keyPattern || {})[0];
@@ -581,28 +599,28 @@ const adminCreateVendor = async (req, res, next) => {
       }
       return sendError(res, 409, `A vendor with this ${duplicateField} already exists`, 'DUPLICATE_KEY_ERROR');
     }
-    
+
     if (error.name === 'CastError') {
       const fieldName = error.path || 'field';
       return sendError(res, 400, `Invalid ${fieldName} format: ${error.message}`, 'INVALID_FORMAT');
     }
-    
+
     // Handle mongoose errors
     if (error.name === 'MongooseError') {
       return sendError(res, 400, `Database error: ${error.message}`, 'DATABASE_ERROR');
     }
-    
+
     // Handle other specific errors
     if (error.message && error.message.includes('required')) {
       return sendError(res, 400, error.message, 'VALIDATION_ERROR');
     }
-    
+
     // Log unexpected errors for debugging
     console.error('Unexpected error in adminCreateVendor:', error);
-    
+
     // Return user-friendly error message
     const errorMessage = error.message || 'Failed to create vendor. Please check your input and try again.';
-    return sendError(res, 500, errorMessage, 'VENDOR_CREATION_FAILED', { 
+    return sendError(res, 500, errorMessage, 'VENDOR_CREATION_FAILED', {
       errorType: error.name || 'Unknown',
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
@@ -615,10 +633,10 @@ const adminCreateVendor = async (req, res, next) => {
 const getAllVendors = async (req, res, next) => {
   try {
     const { page = 1, limit = 10, search, type, coveredCity } = req.query;
-    
+
     // Build query
     const query = {};
-    
+
     // Add search filter
     if (search) {
       query.$or = [
@@ -628,12 +646,12 @@ const getAllVendors = async (req, res, next) => {
         { mobileNumber: { $regex: search, $options: 'i' } }
       ];
     }
-    
+
     // Add type filter
     if (type) {
       query.type = type;
     }
-    
+
     // Add coveredCity filter
     if (coveredCity) {
       query.coveredCity = { $regex: coveredCity, $options: 'i' };
@@ -739,7 +757,7 @@ const getAllVendors = async (req, res, next) => {
 };
 
 // Helper function to get token from model, create cookie and send response
-const sendTokenResponse = (user, statusCode, res) => {
+const sendTokenResponse = async (user, statusCode, res) => {
   // Create token
   const token = user.generateAuthToken();
 
@@ -766,7 +784,17 @@ const sendTokenResponse = (user, statusCode, res) => {
     userData.isActive = user.isActive;
     userData.isOTPVerified = user.isOTPVerified;
     userData.profilePic = user.profilePic || '';
-    userData.address = user.address || '';
+
+    // Fetch default address
+    const defaultAddress = await Address.findOne({ user: user._id, isDefault: true });
+    if (defaultAddress) {
+      userData.address = `${defaultAddress.addressLine1}${defaultAddress.addressLine2 ? ', ' + defaultAddress.addressLine2 : ''}${defaultAddress.city ? ', ' + defaultAddress.city : ''}${defaultAddress.country ? ', ' + defaultAddress.country : ''}`;
+      userData.defaultAddress = defaultAddress;
+    } else {
+      userData.address = user.address || '';
+      userData.defaultAddress = null;
+    }
+
     userData.createdAt = user.createdAt ? user.createdAt.toISOString() : null;
     userData.updatedAt = user.updatedAt ? user.updatedAt.toISOString() : null;
   } else {
@@ -806,7 +834,7 @@ const sendOTP = async (req, res, next) => {
 
     // Generate OTP code
     const otpCode = smsService.generateOTP();
-    
+
     // Set expiration time (5 minutes from now)
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
@@ -870,7 +898,7 @@ const sendOTP = async (req, res, next) => {
     if (!smsSuccess && !emailSuccess) {
       // If both methods failed, delete the OTP record
       await OTP.findByIdAndDelete(otpRecord._id);
-      
+
       let errorMessage = 'Failed to send OTP. ';
       if (phoneNumber && email) {
         errorMessage += `SMS error: ${smsError}. Email error: ${emailError}`;
@@ -879,7 +907,7 @@ const sendOTP = async (req, res, next) => {
       } else {
         errorMessage += `Email error: ${emailError}`;
       }
-      
+
       return sendError(res, 500, errorMessage, 'OTP_SEND_FAILED');
     }
 
@@ -1020,7 +1048,7 @@ const verifyOTP = async (req, res, next) => {
     const user = await User.create(userData);
 
     // Generate JWT token and send response
-    sendTokenResponse(user, 201, res);
+    await sendTokenResponse(user, 201, res);
   } catch (error) {
     // If user creation fails, we should increment OTP attempts
     if (error.name === 'ValidationError' || error.code === 11000) {
@@ -1029,16 +1057,16 @@ const verifyOTP = async (req, res, next) => {
           code: req.body.otpCode,
           isUsed: false
         };
-        
+
         if (req.body.phoneNumber) {
           otpQuery.phoneNumber = req.body.phoneNumber;
         }
         if (req.body.email) {
           otpQuery.email = req.body.email;
         }
-        
+
         const otpRecord = await OTP.findOne(otpQuery);
-        
+
         if (otpRecord) {
           await otpRecord.incrementAttempts();
         }
@@ -1046,7 +1074,7 @@ const verifyOTP = async (req, res, next) => {
         console.error('Error updating OTP attempts:', otpError);
       }
     }
-    
+
     next(error);
   }
 };
@@ -1140,7 +1168,7 @@ const resendOTP = async (req, res, next) => {
     if (!smsSuccess && !emailSuccess) {
       // If both methods failed, delete the OTP record
       await OTP.findByIdAndDelete(otpRecord._id);
-      
+
       let errorMessage = 'Failed to resend OTP. ';
       if (phoneNumber && email) {
         errorMessage += `SMS error: ${smsError}. Email error: ${emailError}`;
@@ -1149,7 +1177,7 @@ const resendOTP = async (req, res, next) => {
       } else {
         errorMessage += `Email error: ${emailError}`;
       }
-      
+
       return sendError(res, 500, errorMessage, 'OTP_RESEND_FAILED');
     }
 
@@ -1222,7 +1250,7 @@ const adminLogin = async (req, res, next) => {
       return sendError(res, 401, 'Invalid credentials', 'INVALID_CREDENTIALS');
     }
 
-    sendTokenResponse(admin, 200, res);
+    await sendTokenResponse(admin, 200, res);
   } catch (error) {
     next(error);
   }
@@ -1310,22 +1338,22 @@ const adminDeactivateUser = async (req, res, next) => {
 // @access  Private (Admin only)
 const getAllUsers = async (req, res, next) => {
   try {
-    const { 
-      page = 1, 
-      limit = 10, 
-      name, 
-      fromDate, 
-      toDate 
+    const {
+      page = 1,
+      limit = 10,
+      name,
+      fromDate,
+      toDate
     } = req.query;
 
     // Build query
     const query = {};
-    
+
     // Name filter (case-insensitive search in name)
     if (name) {
       query.name = { $regex: name, $options: 'i' };
     }
-    
+
     // Date range filter (on createdAt)
     if (fromDate || toDate) {
       query.createdAt = {};
@@ -1350,11 +1378,11 @@ const getAllUsers = async (req, res, next) => {
     // Validate pagination parameters
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
-    
+
     if (pageNum < 1) {
       return sendError(res, 400, 'Page number must be greater than 0', 'INVALID_PAGE');
     }
-    
+
     if (limitNum < 1 || limitNum > 100) {
       return sendError(res, 400, 'Limit must be between 1 and 100', 'INVALID_LIMIT');
     }
@@ -1571,7 +1599,7 @@ const createAccount = async (req, res, next) => {
     }
 
     // Generate JWT token and send response
-    sendTokenResponse(user, 201, res);
+    await sendTokenResponse(user, 201, res);
   } catch (error) {
     next(error);
   }

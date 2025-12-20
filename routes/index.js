@@ -13,6 +13,7 @@ const geminiRoutes = require('./gemini');
 const bannerRoutes = require('./banner');
 const emailRoutes = require('./email');
 const contactRoutes = require('./contact');
+const addressRoutes = require('./addresses');
 const { sendSuccess } = require('../utils/response');
 const { getCategoryServiceSummary } = require('../controllers/categoryController');
 const { protect } = require('../middlewares/auth');
@@ -34,6 +35,7 @@ router.use('/submit-service-requests', submitServiceRequestRoutes);
 router.use('/gemini', geminiRoutes);
 router.use('/email', emailRoutes);
 router.use('/contact', contactRoutes);
+router.use('/addresses', addressRoutes);
 router.use('/', bannerRoutes);
 
 /**
