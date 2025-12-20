@@ -74,7 +74,7 @@ const upload = multer({
     }
 
     const extname = allowedImageTypes.test(path.extname(file.originalname).toLowerCase()) ||
-                    allowedVideoTypes.test(path.extname(file.originalname).toLowerCase());
+      allowedVideoTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedMimeTypes.includes(file.mimetype);
     if (mimetype && extname) {
       return cb(null, true);
@@ -132,7 +132,7 @@ const createService = async (req, res, next) => {
 
     // Handle serviceType - has default value "residential" in model, but validate if provided
     let finalServiceType = serviceType;
-    
+
     if (existingService && !serviceType) {
       // Use existing serviceType if not provided in update
       finalServiceType = existingService.serviceType || 'residential';
@@ -347,11 +347,11 @@ const createService = async (req, res, next) => {
       } catch (parseError) {
         return sendError(res, 400, 'subServices must be a valid JSON array', 'INVALID_SUBSERVICES');
       }
-      
+
       if (!Array.isArray(parsedSubServices)) {
         return sendError(res, 400, 'subServices must be an array', 'INVALID_SUBSERVICES');
       }
-      
+
       // Validate each sub-service
       for (const subService of parsedSubServices) {
         if (!subService.name || subService.name.trim().length === 0) {
@@ -367,7 +367,7 @@ const createService = async (req, res, next) => {
           return sendError(res, 400, 'Sub-service max must be at least 1', 'INVALID_SUBSERVICE_MAX');
         }
       }
-      
+
       serviceData.subServices = parsedSubServices.map(sub => ({
         name: sub.name.trim(),
         items: sub.items !== undefined ? parseInt(sub.items) : 1,
@@ -395,14 +395,14 @@ const createService = async (req, res, next) => {
           Body: fileContent,
           ContentType: serviceImageFile.mimetype
         };
-        
+
         console.log('Service upload params:', {
           Bucket: uploadParams.Bucket,
           Key: uploadParams.Key,
           ContentType: uploadParams.ContentType,
           BodySize: fileContent.length
         });
-        
+
         let result;
         if (PutObjectCommand) {
           // AWS SDK v3
@@ -412,16 +412,16 @@ const createService = async (req, res, next) => {
           // AWS SDK v2
           result = await s3Client.upload(uploadParams).promise();
         }
-        
+
         console.log('Service S3 upload result:', result);
-        
+
         // Construct the S3 URL
         const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
         serviceData.imageUri = s3Url;
         serviceData.service_icon = s3Url;
-        
+
         console.log('Service S3 URL generated:', s3Url);
-        
+
         // Delete local file after S3 upload
         fs.unlinkSync(serviceImageFile.path);
         console.log('Service local file deleted successfully');
@@ -576,8 +576,8 @@ const createService = async (req, res, next) => {
         serviceData,
         { new: true, runValidators: true }
       ).populate('createdBy', 'name email')
-       .populate('category_id', 'name description');
-      
+        .populate('category_id', 'name description');
+
       sendSuccess(res, 200, 'Service updated successfully', service);
     } else {
       // Create new service
@@ -599,10 +599,10 @@ const createService = async (req, res, next) => {
 const getServices = async (req, res, next) => {
   try {
     const { category } = req.query;
-    
+
     // Build query
     const query = { isActive: true };
-    
+
     // Add category filter if provided
     if (category) {
       // Validate category_id if provided
@@ -668,22 +668,22 @@ const getServices = async (req, res, next) => {
 // @access  All users
 const getServicesPaginated = async (req, res, next) => {
   try {
-    const { 
-      page = 1, 
-      limit = 10, 
-      category_id, 
-      sortBy = 'createdAt', 
-      sortOrder = 'desc' 
+    const {
+      page = 1,
+      limit = 10,
+      category_id,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
     } = req.body;
 
     // Validate pagination parameters
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
-    
+
     if (pageNum < 1) {
       return sendError(res, 400, 'Page number must be greater than 0', 'INVALID_PAGE');
     }
-    
+
     if (limitNum < 1 || limitNum > 100) {
       return sendError(res, 400, 'Limit must be between 1 and 100', 'INVALID_LIMIT');
     }
@@ -887,10 +887,10 @@ const deleteService = async (req, res, next) => {
 const getAllActiveServices = async (req, res, next) => {
   try {
     const { category, category_id } = req.query;
-    
+
     // Build query
     const query = { isActive: true };
-    
+
     // Add category filter if provided (support both 'category' and 'category_id' for flexibility)
     const categoryFilter = category || category_id;
     if (categoryFilter) {
@@ -898,7 +898,7 @@ const getAllActiveServices = async (req, res, next) => {
       if (!mongoose.Types.ObjectId.isValid(categoryFilter)) {
         return sendError(res, 400, 'Invalid category ID format', 'INVALID_CATEGORY_ID');
       }
-      
+
       const categoryDoc = await Category.findById(categoryFilter);
       if (!categoryDoc || !categoryDoc.isActive) {
         return sendError(res, 400, 'Invalid or inactive category', 'INVALID_CATEGORY');
@@ -1157,7 +1157,7 @@ const getResidentialServices = async (req, res, next) => {
 
     // Build query
     const query = { isActive: true, serviceType: 'residential' };
-    
+
     // Add category filter if provided
     if (category) {
       if (!mongoose.Types.ObjectId.isValid(category)) {
@@ -1235,7 +1235,7 @@ const getCommercialServices = async (req, res, next) => {
 
     // Build query
     const query = { isActive: true, serviceType: 'commercial' };
-    
+
     // Add category filter if provided
     if (category) {
       if (!mongoose.Types.ObjectId.isValid(category)) {
@@ -1349,6 +1349,26 @@ module.exports = {
       });
 
       return sendSuccess(res, 200, 'INTERIOR RENOVATION category services retrieved successfully', result);
+    } catch (error) {
+      next(error);
+    }
+  },
+  // New: Get all active services with limited fields (public)
+  getPopularServices: async (req, res, next) => {
+    try {
+      const services = await Service.find({ isActive: true })
+        .sort({ createdAt: -1 })
+        .select({ _id: 1, name: 1, service_icon: 1, thumbnailUri: 1 })
+        .lean();
+
+      const result = services.map(svc => ({
+        id: svc._id,
+        name: svc.name,
+        icon: svc.service_icon || null,
+        thumbnail: svc.thumbnailUri || null
+      }));
+
+      return sendSuccess(res, 200, 'Popular services retrieved successfully', result);
     } catch (error) {
       next(error);
     }

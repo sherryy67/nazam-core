@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
 const ROLES = require('../constants/roles');
-const { createService, getServices, getServicesPaginated, getServiceById, deleteService, getAllActiveServices, getServiceSubServices, setFeaturedServices, getFeaturedServices, getResidentialServices, getCommercialServices, getHomeCategoryServices, upload } = require('../controllers/serviceController');
+const { createService, getServices, getServicesPaginated, getServiceById, deleteService, getAllActiveServices, getServiceSubServices, setFeaturedServices, getFeaturedServices, getResidentialServices, getCommercialServices, getHomeCategoryServices, getPopularServices, upload } = require('../controllers/serviceController');
 
 const router = express.Router();
 
@@ -770,6 +770,42 @@ router.get('/active', getAllActiveServices);
  *         description: Server error
  */
 router.get('/home', getHomeCategoryServices);
+
+/**
+ * @swagger
+ * /api/services/popular:
+ *   get:
+ *     summary: Get popular services (Public endpoint with limited fields)
+ *     tags: [Services]
+ *     responses:
+ *       200:
+ *         description: Popular services retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 description:
+ *                   type: string
+ *                 content:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       icon:
+ *                         type: string
+ *                       thumbnail:
+ *                         type: string
+ *       500:
+ *         description: Server error
+ */
+router.get('/popular', getPopularServices);
 
 /**
  * @swagger
