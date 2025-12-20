@@ -14,6 +14,8 @@ exports.addAddress = async (req, res, next) => {
         }
 
         req.body.user = req.user.id;
+        req.body.country = 'UAE'; // Always enforce UAE as the country
+
         const address = await Address.create(req.body);
 
         sendSuccess(res, 201, 'Address added successfully', { address });
@@ -63,6 +65,9 @@ exports.updateAddress = async (req, res, next) => {
         if (!address) {
             return sendError(res, 404, 'Address not found', 'ADDRESS_NOT_FOUND');
         }
+
+        // Always enforce UAE as the country and ignore it from input
+        req.body.country = 'UAE';
 
         address = await Address.findByIdAndUpdate(req.params.id, req.body, {
             new: true,

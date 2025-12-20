@@ -89,7 +89,7 @@ const getProfile = async (req, res, next) => {
       const defaultAddress = await Address.findOne({ user: userId, isDefault: true });
       user = user.toObject();
       if (defaultAddress) {
-        user.address = `${defaultAddress.addressLine1}${defaultAddress.addressLine2 ? ', ' + defaultAddress.addressLine2 : ''}${defaultAddress.city ? ', ' + defaultAddress.city : ''}${defaultAddress.country ? ', ' + defaultAddress.country : ''}`;
+        user.address = `${defaultAddress.addressLine1}${defaultAddress.addressLine2 ? ', ' + defaultAddress.addressLine2 : ''}${defaultAddress.city ? ', ' + defaultAddress.city : ''}${defaultAddress.emirate ? ', ' + defaultAddress.emirate : ''}${defaultAddress.country ? ', ' + defaultAddress.country : ''}`;
         user.defaultAddress = defaultAddress;
       } else {
         user.defaultAddress = null;
@@ -212,7 +212,7 @@ const updateProfile = async (req, res, next) => {
       const defaultAddress = await Address.findOne({ user: userId, isDefault: true });
       const userObj = updatedUser.toObject();
       if (defaultAddress) {
-        userObj.address = `${defaultAddress.addressLine1}${defaultAddress.addressLine2 ? ', ' + defaultAddress.addressLine2 : ''}${defaultAddress.city ? ', ' + defaultAddress.city : ''}${defaultAddress.country ? ', ' + defaultAddress.country : ''}`;
+        userObj.address = `${defaultAddress.addressLine1}${defaultAddress.addressLine2 ? ', ' + defaultAddress.addressLine2 : ''}${defaultAddress.city ? ', ' + defaultAddress.city : ''}${defaultAddress.emirate ? ', ' + defaultAddress.emirate : ''}${defaultAddress.country ? ', ' + defaultAddress.country : ''}`;
         userObj.defaultAddress = defaultAddress;
       } else {
         userObj.defaultAddress = null;

@@ -14,8 +14,9 @@ const router = express.Router();
 
 // Validation rules
 const addressValidation = [
-    body('addressLine1').notEmpty().withMessage('Address line 1 is required'),
-    body('city').notEmpty().withMessage('City is required'),
+    body('addressLine1').notEmpty().withMessage('Street/Building (Address Line 1) is required'),
+    body('city').notEmpty().withMessage('Area/Locality (City) is required'),
+    body('emirate').notEmpty().withMessage('Emirate is required').isIn(["Dubai", "Sharjah", "Abu Dhabi", "Ajman", "RAK", "Fujairah", "UAQ"]).withMessage('Invalid Emirate'),
     body('label').optional().isIn(['Home', 'Work', 'Other']).withMessage('Invalid label'),
     body('isDefault').optional().isBoolean().withMessage('isDefault must be a boolean')
 ];
@@ -40,6 +41,7 @@ router.use(protect);
  *             required:
  *               - addressLine1
  *               - city
+ *               - emirate
  *             properties:
  *               label:
  *                 type: string
@@ -47,17 +49,20 @@ router.use(protect);
  *                 default: Home
  *               addressLine1:
  *                 type: string
+ *                 description: "Street / Building"
  *               addressLine2:
  *                 type: string
+ *                 description: "Apartment / Floor"
  *               city:
  *                 type: string
- *               state:
+ *                 description: "Area / Locality (e.g., Deira, JLT)"
+ *               emirate:
  *                 type: string
- *               country:
- *                 type: string
- *                 default: UAE
+ *                 enum: ["Dubai", "Sharjah", "Abu Dhabi", "Ajman", "RAK", "Fujairah", "UAQ"]
+ *                 description: "Emirate"
  *               zipCode:
  *                 type: string
+ *                 description: "Optional (rarely used in UAE)"
  *               isDefault:
  *                 type: boolean
  *               latitude:

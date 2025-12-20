@@ -21,15 +21,19 @@ const addressSchema = new mongoose.Schema({
     },
     city: {
         type: String,
-        required: true
+        required: true,
+        description: "Area / Locality (e.g., Deira, JLT, Business Bay)"
     },
-    state: {
+    emirate: {
         type: String,
-        default: ""
+        enum: ["Dubai", "Sharjah", "Abu Dhabi", "Ajman", "RAK", "Fujairah", "UAQ"],
+        required: true,
+        default: "Dubai"
     },
     country: {
         type: String,
-        default: "UAE"
+        default: "UAE",
+        immutable: true
     },
     zipCode: {
         type: String,

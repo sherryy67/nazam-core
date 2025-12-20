@@ -38,6 +38,7 @@ const migrateUserAddresses = async () => {
                     user: user._id,
                     addressLine1: user.address,
                     city: 'Unknown', // Legacy format doesn't have city separated
+                    emirate: 'Dubai', // Default to Dubai for UAE context
                     label: 'Home',
                     isDefault: true
                 });
