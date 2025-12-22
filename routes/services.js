@@ -425,6 +425,10 @@ router.get('/commercial', getCommercialServices);
  *               min_time_required:
  *                 type: number
  *                 example: 120
+ *               minAdvanceHours:
+ *                 type: integer
+ *                 example: 24
+ *                 description: Minimum hours in advance required for booking (0-720)
  *               availability:
  *                 type: array
  *                 items:
@@ -516,6 +520,9 @@ router.get('/commercial', getCommercialServices);
  *                       type: string
  *                     min_time_required:
  *                       type: number
+ *                     minAdvanceHours:
+ *                       type: integer
+ *                       description: Minimum hours in advance required for booking
  *                     availability:
  *                       type: array
  *                       items:
@@ -626,6 +633,9 @@ router.post('/', protect, isAdmin, upload.fields([
  *                                     type: string
  *                               min_time_required:
  *                                 type: number
+ *                               minAdvanceHours:
+ *                                 type: integer
+ *                                 description: Minimum hours in advance required for booking
  *                               availability:
  *                                 type: array
  *                                 items:
@@ -703,6 +713,9 @@ router.get('/', protect, getServices);
  *                             type: object
  *                           min_time_required:
  *                             type: number
+ *                           minAdvanceHours:
+ *                             type: integer
+ *                             description: Minimum hours in advance required for booking
  *                           availability:
  *                             type: array
  *                             items:
@@ -872,6 +885,9 @@ router.get('/popular', getPopularServices);
  *                               type: string
  *                         min_time_required:
  *                           type: number
+ *                         minAdvanceHours:
+ *                           type: integer
+ *                           description: Minimum hours in advance required for booking
  *                         availability:
  *                           type: array
  *                           items:
@@ -1044,6 +1060,9 @@ router.get('/:id', protect, getServiceById);
  *                                   type: string
  *                           min_time_required:
  *                             type: number
+ *                           minAdvanceHours:
+ *                             type: integer
+ *                             description: Minimum hours in advance required for booking
  *                           availability:
  *                             type: array
  *                             items:
