@@ -109,7 +109,8 @@ const createService = async (req, res, next) => {
       badge,
       termsCondition,
       service_icon,
-      thumbnailUri
+      thumbnailUri,
+      minAdvanceHours
     } = req.body;
 
     // Check if this is an update operation
@@ -316,6 +317,11 @@ const createService = async (req, res, next) => {
       } else {
         serviceData.isFeatured = Boolean(isFeatured);
       }
+    }
+
+    // Handle minAdvanceHours
+    if (minAdvanceHours !== undefined && minAdvanceHours !== null && minAdvanceHours !== '') {
+      serviceData.minAdvanceHours = parseInt(minAdvanceHours);
     }
 
     // Handle badge field - optional, defaults to empty string
@@ -801,6 +807,7 @@ const getServiceById = async (req, res, next) => {
       thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
       min_time_required: service.min_time_required,
+      minAdvanceHours: service.minAdvanceHours || 0,
       availability: service.availability,
       job_service_type: service.job_service_type,
       order_name: service.order_name,

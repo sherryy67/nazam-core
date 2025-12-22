@@ -262,6 +262,20 @@ const submitServiceRequest = async (req, res, next) => {
       return sendError(res, 400, 'Requested date cannot be in the past', 'INVALID_DATE');
     }
 
+    // Validate minimum advance hours requirement
+    if (service.minAdvanceHours && service.minAdvanceHours > 0) {
+      const minAdvanceMs = service.minAdvanceHours * 60 * 60 * 1000; // Convert hours to milliseconds
+      const minAllowedDate = new Date(now.getTime() + minAdvanceMs);
+      if (requestedDate < minAllowedDate) {
+        return sendError(
+          res,
+          400,
+          `This service requires booking at least ${service.minAdvanceHours} hour(s) in advance`,
+          'INSUFFICIENT_ADVANCE_TIME'
+        );
+      }
+    }
+
     // Create service request data
     const serviceRequestData = {
       user_name: user_name.trim(),

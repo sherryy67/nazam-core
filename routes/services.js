@@ -95,6 +95,10 @@ const createServiceValidation = [
   body('min_time_required')
     .isInt({ min: 1, max: 1440 })
     .withMessage('Minimum time required must be between 1 and 1440 minutes'),
+  body('minAdvanceHours')
+    .optional()
+    .isInt({ min: 0, max: 720 })
+    .withMessage('Minimum advance hours must be between 0 and 720 (30 days)'),
   body('availability')
     .isArray({ min: 1 })
     .withMessage('At least one availability day must be selected'),
