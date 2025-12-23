@@ -2,7 +2,7 @@ const express = require('express');
 const { body } = require('express-validator');
 const { sendSuccess } = require('../utils/response');
 const { adminLogin, createAdmin } = require('../controllers/authController');
-const { getEligibleVendors, assignServiceToVendor, unassignServiceFromVendor, getAssignedServices, getAdminDashboard, toggleUserStatus, getAllUsers } = require('../controllers/adminController');
+const { getEligibleVendors, assignServiceToVendor, unassignServiceFromVendor, getAssignedServices, getAdminDashboard, toggleUserStatus, getAllUsers, adminCreateUser } = require('../controllers/adminController');
 const { updateVendorAvailability } = require('../controllers/vendorController');
 const { protect } = require('../middlewares/auth');
 const { isAdmin } = require('../middlewares/roleAuth');
@@ -507,6 +507,154 @@ const toggleUserStatusValidation = [
 ];
 
 router.patch('/users/:userId/status', protect, isAdmin, toggleUserStatusValidation, toggleUserStatus);
+
+// Validation for admin create user
+const adminCreateUserValidation = [
+  body('name')
+    .trim()
+    .notEmpty()
+    .withMessage('Name is required')
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Name must be between 2 and 100 characters'),
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email'),
+  body('phoneNumber')
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number is required'),
+  body('password')
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters long')
+];
+
+/**
+ * @swagger
+ * /api/admin/users/create:
+ *   post:
+ *     summary: Create a new user account (Admin only)
+ *     description: Admin creates a user account. OTP verification is skipped - user is considered verified by default. Admin shares the credentials with the user.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - phoneNumber
+ *               - password
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "John Doe"
+ *                 description: User's full name (2-100 characters)
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "john@example.com"
+ *                 description: User's email address (must be unique)
+ *               phoneNumber:
+ *                 type: string
+ *                 example: "+971501234567"
+ *                 description: User's phone number (must be unique)
+ *               password:
+ *                 type: string
+ *                 example: "password123"
+ *                 description: User's password (min 6 characters). Admin should share this with the user.
+ *     responses:
+ *       201:
+ *         description: User created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 description:
+ *                   type: string
+ *                   example: "User created successfully by admin"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                           example: "60f7b3b3b3b3b3b3b3b3b3b3"
+ *                         name:
+ *                           type: string
+ *                           example: "John Doe"
+ *                         email:
+ *                           type: string
+ *                           example: "john@example.com"
+ *                         phoneNumber:
+ *                           type: string
+ *                           example: "+971501234567"
+ *                         isActive:
+ *                           type: boolean
+ *                           example: true
+ *                         isOTPVerified:
+ *                           type: boolean
+ *                           example: true
+ *                           description: Always true for admin-created users (OTP verification skipped)
+ *                         role:
+ *                           type: number
+ *                           example: 1
+ *                         createdAt:
+ *                           type: string
+ *                           format: date-time
+ *                         updatedAt:
+ *                           type: string
+ *                           format: date-time
+ *       400:
+ *         description: Bad request - validation error or missing fields
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 description:
+ *                   type: string
+ *                   example: "Missing required fields: name, email"
+ *                 exception:
+ *                   type: string
+ *                   example: "MISSING_REQUIRED_FIELDS"
+ *       401:
+ *         description: Unauthorized - admin access required
+ *       403:
+ *         description: Forbidden - admin access required
+ *       409:
+ *         description: Conflict - user with email or phone number already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 description:
+ *                   type: string
+ *                   example: "A user with this email already exists"
+ *                 exception:
+ *                   type: string
+ *                   example: "DUPLICATE_EMAIL"
+ *       500:
+ *         description: Server error
+ */
+router.post('/users/create', protect, isAdmin, adminCreateUserValidation, adminCreateUser);
 
 router.get('/status', (req, res) => {
   sendSuccess(res, 200, 'Admin module is available', {

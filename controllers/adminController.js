@@ -539,6 +539,90 @@ const toggleUserStatus = async (req, res, next) => {
   }
 };
 
+// @desc    Admin create user account (skips OTP verification)
+// @route   POST /api/admin/users/create
+// @access  Admin only
+const adminCreateUser = async (req, res, next) => {
+  try {
+    const { name, email, phoneNumber, password } = req.body;
+
+    // Validate required fields
+    const missingFields = [];
+    if (!name || (typeof name === 'string' && name.trim() === '')) missingFields.push('name');
+    if (!email || (typeof email === 'string' && email.trim() === '')) missingFields.push('email');
+    if (!phoneNumber || (typeof phoneNumber === 'string' && phoneNumber.trim() === '')) missingFields.push('phoneNumber');
+    if (!password || (typeof password === 'string' && password.trim() === '')) missingFields.push('password');
+
+    if (missingFields.length > 0) {
+      return sendError(res, 400, `Missing required fields: ${missingFields.join(', ')}`, 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Check if user already exists with this email or phone number
+    const existingUser = await User.findOne({
+      $or: [
+        { email: email },
+        { phoneNumber: phoneNumber }
+      ]
+    });
+
+    if (existingUser) {
+      if (existingUser.email === email) {
+        return sendError(res, 409, 'A user with this email already exists', 'DUPLICATE_EMAIL');
+      }
+      return sendError(res, 409, 'A user with this phone number already exists', 'DUPLICATE_PHONE_NUMBER');
+    }
+
+    // Create user with OTP verification skipped (admin-created users are verified by default)
+    const userData = {
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      phoneNumber: phoneNumber.trim(),
+      password,
+      isOTPVerified: true, // Admin-created users skip OTP verification
+      isActive: true
+    };
+
+    const user = await User.create(userData);
+
+    // Remove password from response
+    const userResponse = user.toJSON();
+
+    return sendSuccess(res, 201, 'User created successfully by admin', {
+      user: {
+        _id: userResponse._id,
+        name: userResponse.name,
+        email: userResponse.email,
+        phoneNumber: userResponse.phoneNumber,
+        isActive: userResponse.isActive,
+        isOTPVerified: userResponse.isOTPVerified,
+        role: userResponse.role,
+        createdAt: userResponse.createdAt?.toISOString(),
+        updatedAt: userResponse.updatedAt?.toISOString()
+      }
+    });
+  } catch (error) {
+    // Handle specific database errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return sendError(res, 400, `Validation failed: ${validationErrors.join(', ')}`, 'VALIDATION_ERROR', { errors: validationErrors });
+    }
+
+    if (error.name === 'MongoServerError' || error.code === 11000) {
+      // Duplicate key error
+      const duplicateField = Object.keys(error.keyPattern || {})[0];
+      if (duplicateField === 'email') {
+        return sendError(res, 409, 'A user with this email already exists', 'DUPLICATE_EMAIL');
+      }
+      if (duplicateField === 'phoneNumber') {
+        return sendError(res, 409, 'A user with this phone number already exists', 'DUPLICATE_PHONE_NUMBER');
+      }
+      return sendError(res, 409, `A user with this ${duplicateField} already exists`, 'DUPLICATE_KEY_ERROR');
+    }
+
+    next(error);
+  }
+};
+
 // @desc    Get all users with pagination and filters
 // @route   GET /api/admin/users
 // @access  Admin only
@@ -638,5 +722,6 @@ module.exports = {
   getAssignedServices,
   getAdminDashboard,
   toggleUserStatus,
-  getAllUsers
+  getAllUsers,
+  adminCreateUser
 };

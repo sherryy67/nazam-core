@@ -2,12 +2,14 @@ const express = require('express');
 const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
-const { 
-  submitServiceRequest, 
-  getServiceRequests, 
+const {
+  submitServiceRequest,
+  getServiceRequests,
   updateServiceRequestStatus,
   deleteServiceRequest,
-  getOrderDetails
+  getOrderDetails,
+  userUpdateServiceRequest,
+  userDeleteServiceRequest
 } = require('../controllers/serviceRequestController');
 
 const router = express.Router();
@@ -506,5 +508,283 @@ router.delete('/:id', protect, isAdmin, deleteServiceRequest);
  *         description: Order not found
  */
 router.get('/:id/details', getOrderDetails);
+
+// Validation rules for user update service request
+const userUpdateValidation = [
+  body('user_email')
+    .optional()
+    .isEmail()
+    .withMessage('Must be a valid email address')
+    .normalizeEmail(),
+  body('user_phone')
+    .optional()
+    .trim(),
+  body('user_name')
+    .optional()
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('User name must be between 2 and 100 characters'),
+  body('address')
+    .optional()
+    .trim()
+    .isLength({ min: 10, max: 500 })
+    .withMessage('Address must be between 10 and 500 characters'),
+  body('requested_date')
+    .optional()
+    .isISO8601()
+    .withMessage('Requested date must be a valid ISO 8601 date'),
+  body('message')
+    .optional()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('Message must be less than 1000 characters'),
+  body('number_of_units')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Number of units must be a positive integer'),
+  body('payment_method')
+    .optional()
+    .isIn(['Cash On Delivery', 'Online Payment', 'cash on delivery', 'online payment'])
+    .withMessage('Payment method must be Cash On Delivery or Online Payment')
+];
+
+// Validation rules for user delete service request
+const userDeleteValidation = [
+  body('user_email')
+    .optional()
+    .isEmail()
+    .withMessage('Must be a valid email address')
+    .normalizeEmail(),
+  body('user_phone')
+    .optional()
+    .trim()
+];
+
+/**
+ * @swagger
+ * /api/service-requests/{id}/user-update:
+ *   put:
+ *     summary: Update service request by user (only when status is Pending)
+ *     description: Allows users to edit their service request only when the status is "Pending". Once the status changes to Assigned, Accepted, Completed, or Cancelled, editing is no longer allowed. User must verify ownership by providing their email or phone number.
+ *     tags: [Service Requests]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Service request ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - user_email
+ *             properties:
+ *               user_email:
+ *                 type: string
+ *                 format: email
+ *                 example: "john@example.com"
+ *                 description: User's email to verify ownership (either email or phone required)
+ *               user_phone:
+ *                 type: string
+ *                 example: "+971501234567"
+ *                 description: User's phone to verify ownership (either email or phone required)
+ *               user_name:
+ *                 type: string
+ *                 example: "John Doe Updated"
+ *                 description: Updated user name
+ *               address:
+ *                 type: string
+ *                 example: "456 New Street, Dubai, UAE"
+ *                 description: Updated address
+ *               requested_date:
+ *                 type: string
+ *                 format: date-time
+ *                 example: "2025-12-25T14:00:00.000Z"
+ *                 description: Updated requested date
+ *               message:
+ *                 type: string
+ *                 example: "Updated message for the service"
+ *                 description: Updated message/notes
+ *               number_of_units:
+ *                 type: integer
+ *                 example: 3
+ *                 description: Updated number of units (recalculates pricing)
+ *               payment_method:
+ *                 type: string
+ *                 enum: [Cash On Delivery, Online Payment]
+ *                 example: "Online Payment"
+ *                 description: Updated payment method
+ *               selectedSubServices:
+ *                 type: array
+ *                 description: Updated sub-services selection
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                     quantity:
+ *                       type: integer
+ *     responses:
+ *       200:
+ *         description: Service request updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 exception:
+ *                   type: string
+ *                   example: null
+ *                 description:
+ *                   type: string
+ *                   example: "Service request updated successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     serviceRequest:
+ *                       type: object
+ *       400:
+ *         description: Bad request - Invalid data, status not Pending, or no fields to update
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 description:
+ *                   type: string
+ *                   example: "Cannot edit service request. Current status is \"Assigned\". Only requests with \"Pending\" status can be edited."
+ *                 exception:
+ *                   type: string
+ *                   example: "REQUEST_NOT_EDITABLE"
+ *       403:
+ *         description: Forbidden - User not authorized (email/phone doesn't match)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 description:
+ *                   type: string
+ *                   example: "You are not authorized to update this service request"
+ *                 exception:
+ *                   type: string
+ *                   example: "UNAUTHORIZED_ACCESS"
+ *       404:
+ *         description: Service request not found
+ */
+router.put('/:id/user-update', userUpdateValidation, userUpdateServiceRequest);
+
+/**
+ * @swagger
+ * /api/service-requests/{id}/user-delete:
+ *   delete:
+ *     summary: Delete service request by user (only when status is Pending)
+ *     description: Allows users to delete their service request only when the status is "Pending". Once the status changes to Assigned, Accepted, Completed, or Cancelled, deletion is no longer allowed. User must verify ownership by providing their email or phone number.
+ *     tags: [Service Requests]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Service request ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               user_email:
+ *                 type: string
+ *                 format: email
+ *                 example: "john@example.com"
+ *                 description: User's email to verify ownership (either email or phone required)
+ *               user_phone:
+ *                 type: string
+ *                 example: "+971501234567"
+ *                 description: User's phone to verify ownership (either email or phone required)
+ *     responses:
+ *       200:
+ *         description: Service request deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 exception:
+ *                   type: string
+ *                   example: null
+ *                 description:
+ *                   type: string
+ *                   example: "Service request deleted successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     deletedRequest:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         user_name:
+ *                           type: string
+ *                         user_email:
+ *                           type: string
+ *                         service_name:
+ *                           type: string
+ *                         status:
+ *                           type: string
+ *       400:
+ *         description: Bad request - Status not Pending or missing identification
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 description:
+ *                   type: string
+ *                   example: "Cannot delete service request. Current status is \"Assigned\". Only requests with \"Pending\" status can be deleted."
+ *                 exception:
+ *                   type: string
+ *                   example: "REQUEST_NOT_DELETABLE"
+ *       403:
+ *         description: Forbidden - User not authorized (email/phone doesn't match)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 description:
+ *                   type: string
+ *                   example: "You are not authorized to delete this service request"
+ *                 exception:
+ *                   type: string
+ *                   example: "UNAUTHORIZED_ACCESS"
+ *       404:
+ *         description: Service request not found
+ */
+router.delete('/:id/user-delete', userDeleteValidation, userDeleteServiceRequest);
 
 module.exports = router;

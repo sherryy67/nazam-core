@@ -792,11 +792,316 @@ const getOrderDetails = async (req, res, next) => {
   }
 };
 
+// @desc    Update service request by user (only when status is Pending)
+// @route   PUT /api/service-requests/:id/user-update
+// @access  Public (user identifies themselves by email/phone)
+const userUpdateServiceRequest = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      user_email,
+      user_phone,
+      // Editable fields
+      user_name,
+      address,
+      requested_date,
+      message,
+      number_of_units,
+      payment_method,
+      selectedSubServices
+    } = req.body;
+
+    // Validate request ID
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, 'Invalid request ID', 'INVALID_REQUEST_ID');
+    }
+
+    // Require user identification (email or phone)
+    if (!user_email && !user_phone) {
+      return sendError(res, 400, 'User email or phone is required to verify ownership', 'MISSING_USER_IDENTIFICATION');
+    }
+
+    // Find the service request
+    const serviceRequest = await ServiceRequest.findById(id);
+    if (!serviceRequest) {
+      return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
+    }
+
+    // Verify ownership by matching email or phone
+    const emailMatch = user_email && serviceRequest.user_email.toLowerCase() === user_email.toLowerCase();
+    const phoneMatch = user_phone && serviceRequest.user_phone === user_phone;
+
+    if (!emailMatch && !phoneMatch) {
+      return sendError(res, 403, 'You are not authorized to update this service request', 'UNAUTHORIZED_ACCESS');
+    }
+
+    // Check if status is Pending - only allow edit when Pending
+    if (serviceRequest.status !== 'Pending') {
+      return sendError(
+        res,
+        400,
+        `Cannot edit service request. Current status is "${serviceRequest.status}". Only requests with "Pending" status can be edited.`,
+        'REQUEST_NOT_EDITABLE'
+      );
+    }
+
+    // Build update object with only provided fields
+    const updateData = {};
+
+    if (user_name !== undefined) {
+      updateData.user_name = user_name.trim();
+    }
+
+    if (address !== undefined) {
+      updateData.address = address.trim();
+    }
+
+    if (message !== undefined) {
+      updateData.message = message ? message.trim() : '';
+    }
+
+    if (requested_date !== undefined) {
+      const newRequestedDate = new Date(requested_date);
+      const now = new Date();
+      if (newRequestedDate < now) {
+        return sendError(res, 400, 'Requested date cannot be in the past', 'INVALID_DATE');
+      }
+
+      // Check minimum advance hours if service has this requirement
+      const service = await Service.findById(serviceRequest.service_id);
+      if (service && service.minAdvanceHours && service.minAdvanceHours > 0) {
+        const minAdvanceMs = service.minAdvanceHours * 60 * 60 * 1000;
+        const minAllowedDate = new Date(now.getTime() + minAdvanceMs);
+        if (newRequestedDate < minAllowedDate) {
+          return sendError(
+            res,
+            400,
+            `This service requires booking at least ${service.minAdvanceHours} hour(s) in advance`,
+            'INSUFFICIENT_ADVANCE_TIME'
+          );
+        }
+      }
+      updateData.requested_date = newRequestedDate;
+    }
+
+    if (number_of_units !== undefined) {
+      if (!number_of_units || number_of_units <= 0 || !Number.isInteger(Number(number_of_units))) {
+        return sendError(res, 400, 'Number of units must be a positive integer', 'INVALID_NUMBER_OF_UNITS');
+      }
+      updateData.number_of_units = Number(number_of_units);
+
+      // Recalculate pricing if number_of_units changed and it's not a Quotation
+      if (serviceRequest.request_type !== 'Quotation') {
+        const service = await Service.findById(serviceRequest.service_id);
+        if (service) {
+          const numberOfUnits = Number(number_of_units);
+
+          if (service.unitType === 'per_hour') {
+            const tier = resolveTimeBasedTier(service, numberOfUnits);
+            if (tier) {
+              updateData.unit_price = tier.price;
+              updateData.total_price = tier.price;
+            } else if (service.basePrice && service.basePrice > 0) {
+              updateData.unit_price = service.basePrice;
+              updateData.total_price = service.basePrice * numberOfUnits;
+            }
+          } else {
+            updateData.total_price = serviceRequest.unit_price * numberOfUnits;
+          }
+        }
+      }
+    }
+
+    if (payment_method !== undefined) {
+      const normalizedPaymentMethod = payment_method
+        .trim()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+
+      const validPaymentMethods = ['Cash On Delivery', 'Online Payment'];
+      if (!validPaymentMethods.includes(normalizedPaymentMethod)) {
+        return sendError(res, 400, `Payment method must be one of: ${validPaymentMethods.join(', ')}`, 'INVALID_PAYMENT_METHOD');
+      }
+      updateData.paymentMethod = normalizedPaymentMethod;
+    }
+
+    // Handle sub-services update if provided
+    if (selectedSubServices !== undefined) {
+      const service = await Service.findById(serviceRequest.service_id).select('+subServices');
+
+      if (selectedSubServices && selectedSubServices.length > 0) {
+        if (!service.subServices || service.subServices.length === 0) {
+          return sendError(res, 400, 'Service does not have sub-services available', 'SERVICE_NO_SUBSERVICES');
+        }
+
+        // Validate each selected sub-service
+        const parsedSelectedSubServices = typeof selectedSubServices === 'string'
+          ? JSON.parse(selectedSubServices)
+          : selectedSubServices;
+
+        for (const selected of parsedSelectedSubServices) {
+          const matchingSubService = service.subServices.find(
+            sub => sub.name.toLowerCase().trim() === selected.name.toLowerCase().trim()
+          );
+
+          if (!matchingSubService) {
+            return sendError(res, 400, `Sub-service "${selected.name}" not found`, 'SUBSERVICE_NOT_FOUND');
+          }
+        }
+
+        updateData.selectedSubServices = parsedSelectedSubServices.map(selected => {
+          const matchingSubService = service.subServices.find(
+            sub => sub.name.toLowerCase().trim() === selected.name.toLowerCase().trim()
+          );
+          return {
+            name: matchingSubService.name,
+            items: matchingSubService.items || 1,
+            rate: matchingSubService.rate,
+            quantity: selected.quantity !== undefined ? parseInt(selected.quantity) : 1
+          };
+        });
+
+        // Recalculate pricing based on new sub-services
+        if (serviceRequest.request_type !== 'Quotation') {
+          let subServicesTotal = 0;
+          for (const subService of updateData.selectedSubServices) {
+            subServicesTotal += subService.rate * subService.quantity;
+          }
+          updateData.unit_price = subServicesTotal;
+          updateData.total_price = subServicesTotal * (updateData.number_of_units || serviceRequest.number_of_units);
+        }
+      } else {
+        updateData.selectedSubServices = [];
+      }
+    }
+
+    // Check if there's anything to update
+    if (Object.keys(updateData).length === 0) {
+      return sendError(res, 400, 'No valid fields provided to update', 'NO_UPDATE_FIELDS');
+    }
+
+    // Update the service request
+    const updatedRequest = await ServiceRequest.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    ).populate('service_id', 'name description basePrice unitType')
+     .populate('category_id', 'name description');
+
+    // Transform response
+    const transformedRequest = {
+      _id: updatedRequest._id,
+      user_name: updatedRequest.user_name,
+      user_phone: updatedRequest.user_phone,
+      user_email: updatedRequest.user_email,
+      address: updatedRequest.address,
+      service_id: updatedRequest.service_id,
+      service_name: updatedRequest.service_name,
+      category_id: updatedRequest.category_id,
+      category_name: updatedRequest.category_name,
+      request_type: updatedRequest.request_type,
+      requested_date: updatedRequest.requested_date.toISOString(),
+      message: updatedRequest.message,
+      status: updatedRequest.status,
+      unit_type: updatedRequest.unit_type,
+      unit_price: updatedRequest.unit_price,
+      number_of_units: updatedRequest.number_of_units,
+      total_price: updatedRequest.total_price,
+      selectedSubServices: updatedRequest.selectedSubServices || [],
+      paymentMethod: updatedRequest.paymentMethod,
+      createdAt: updatedRequest.createdAt.toISOString(),
+      updatedAt: updatedRequest.updatedAt.toISOString()
+    };
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Service request updated successfully',
+      content: {
+        serviceRequest: transformedRequest
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete service request by user (only when status is Pending)
+// @route   DELETE /api/service-requests/:id/user-delete
+// @access  Public (user identifies themselves by email/phone)
+const userDeleteServiceRequest = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { user_email, user_phone } = req.body;
+
+    // Validate request ID
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, 'Invalid request ID', 'INVALID_REQUEST_ID');
+    }
+
+    // Require user identification (email or phone)
+    if (!user_email && !user_phone) {
+      return sendError(res, 400, 'User email or phone is required to verify ownership', 'MISSING_USER_IDENTIFICATION');
+    }
+
+    // Find the service request
+    const serviceRequest = await ServiceRequest.findById(id);
+    if (!serviceRequest) {
+      return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
+    }
+
+    // Verify ownership by matching email or phone
+    const emailMatch = user_email && serviceRequest.user_email.toLowerCase() === user_email.toLowerCase();
+    const phoneMatch = user_phone && serviceRequest.user_phone === user_phone;
+
+    if (!emailMatch && !phoneMatch) {
+      return sendError(res, 403, 'You are not authorized to delete this service request', 'UNAUTHORIZED_ACCESS');
+    }
+
+    // Check if status is Pending - only allow delete when Pending
+    if (serviceRequest.status !== 'Pending') {
+      return sendError(
+        res,
+        400,
+        `Cannot delete service request. Current status is "${serviceRequest.status}". Only requests with "Pending" status can be deleted.`,
+        'REQUEST_NOT_DELETABLE'
+      );
+    }
+
+    // Delete the service request
+    await ServiceRequest.findByIdAndDelete(id);
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Service request deleted successfully',
+      content: {
+        deletedRequest: {
+          _id: serviceRequest._id,
+          user_name: serviceRequest.user_name,
+          user_email: serviceRequest.user_email,
+          service_name: serviceRequest.service_name,
+          status: serviceRequest.status
+        }
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   submitServiceRequest,
   getServiceRequests,
   updateServiceRequestStatus,
   assignRequest,
   deleteServiceRequest,
-  getOrderDetails
+  getOrderDetails,
+  userUpdateServiceRequest,
+  userDeleteServiceRequest
 };
