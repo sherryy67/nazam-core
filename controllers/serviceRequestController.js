@@ -793,14 +793,12 @@ const getOrderDetails = async (req, res, next) => {
 };
 
 // @desc    Update service request by user (only when status is Pending)
-// @route   PUT /api/service-requests/:id/user-update
-// @access  Public (user identifies themselves by email/phone)
+// @route   PUT /api/service-requests/:id/request-update
+// @access  Private (User only - verified via JWT token)
 const userUpdateServiceRequest = async (req, res, next) => {
   try {
     const { id } = req.params;
     const {
-      user_email,
-      user_phone,
       // Editable fields
       user_name,
       address,
@@ -816,20 +814,23 @@ const userUpdateServiceRequest = async (req, res, next) => {
       return sendError(res, 400, 'Invalid request ID', 'INVALID_REQUEST_ID');
     }
 
-    // Require user identification (email or phone)
-    if (!user_email && !user_phone) {
-      return sendError(res, 400, 'User email or phone is required to verify ownership', 'MISSING_USER_IDENTIFICATION');
-    }
-
     // Find the service request
     const serviceRequest = await ServiceRequest.findById(id);
     if (!serviceRequest) {
       return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
     }
 
-    // Verify ownership by matching email or phone
-    const emailMatch = user_email && serviceRequest.user_email.toLowerCase() === user_email.toLowerCase();
-    const phoneMatch = user_phone && serviceRequest.user_phone === user_phone;
+    // Verify ownership via JWT token - match user's email or phone from token
+    const User = require('../models/User');
+    const currentUser = await User.findById(req.user.id);
+
+    if (!currentUser) {
+      return sendError(res, 401, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    // Check if the service request belongs to the authenticated user
+    const emailMatch = currentUser.email && serviceRequest.user_email.toLowerCase() === currentUser.email.toLowerCase();
+    const phoneMatch = currentUser.phoneNumber && serviceRequest.user_phone === currentUser.phoneNumber;
 
     if (!emailMatch && !phoneMatch) {
       return sendError(res, 403, 'You are not authorized to update this service request', 'UNAUTHORIZED_ACCESS');
@@ -1030,21 +1031,15 @@ const userUpdateServiceRequest = async (req, res, next) => {
 };
 
 // @desc    Delete service request by user (only when status is Pending)
-// @route   DELETE /api/service-requests/:id/user-delete
-// @access  Public (user identifies themselves by email/phone)
+// @route   DELETE /api/service-requests/:id/request-delete
+// @access  Private (User only - verified via JWT token)
 const userDeleteServiceRequest = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { user_email, user_phone } = req.body;
 
     // Validate request ID
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return sendError(res, 400, 'Invalid request ID', 'INVALID_REQUEST_ID');
-    }
-
-    // Require user identification (email or phone)
-    if (!user_email && !user_phone) {
-      return sendError(res, 400, 'User email or phone is required to verify ownership', 'MISSING_USER_IDENTIFICATION');
     }
 
     // Find the service request
@@ -1053,9 +1048,17 @@ const userDeleteServiceRequest = async (req, res, next) => {
       return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
     }
 
-    // Verify ownership by matching email or phone
-    const emailMatch = user_email && serviceRequest.user_email.toLowerCase() === user_email.toLowerCase();
-    const phoneMatch = user_phone && serviceRequest.user_phone === user_phone;
+    // Verify ownership via JWT token - match user's email or phone from token
+    const User = require('../models/User');
+    const currentUser = await User.findById(req.user.id);
+
+    if (!currentUser) {
+      return sendError(res, 401, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    // Check if the service request belongs to the authenticated user
+    const emailMatch = currentUser.email && serviceRequest.user_email.toLowerCase() === currentUser.email.toLowerCase();
+    const phoneMatch = currentUser.phoneNumber && serviceRequest.user_phone === currentUser.phoneNumber;
 
     if (!emailMatch && !phoneMatch) {
       return sendError(res, 403, 'You are not authorized to delete this service request', 'UNAUTHORIZED_ACCESS');

@@ -510,15 +510,7 @@ router.delete('/:id', protect, isAdmin, deleteServiceRequest);
 router.get('/:id/details', getOrderDetails);
 
 // Validation rules for user update service request
-const userUpdateValidation = [
-  body('user_email')
-    .optional()
-    .isEmail()
-    .withMessage('Must be a valid email address')
-    .normalizeEmail(),
-  body('user_phone')
-    .optional()
-    .trim(),
+const requestUpdateValidation = [
   body('user_name')
     .optional()
     .trim()
@@ -548,25 +540,15 @@ const userUpdateValidation = [
     .withMessage('Payment method must be Cash On Delivery or Online Payment')
 ];
 
-// Validation rules for user delete service request
-const userDeleteValidation = [
-  body('user_email')
-    .optional()
-    .isEmail()
-    .withMessage('Must be a valid email address')
-    .normalizeEmail(),
-  body('user_phone')
-    .optional()
-    .trim()
-];
-
 /**
  * @swagger
- * /api/service-requests/{id}/user-update:
+ * /api/service-requests/{id}/request-update:
  *   put:
  *     summary: Update service request by user (only when status is Pending)
- *     description: Allows users to edit their service request only when the status is "Pending". Once the status changes to Assigned, Accepted, Completed, or Cancelled, editing is no longer allowed. User must verify ownership by providing their email or phone number.
+ *     description: Allows authenticated users to edit their service request only when the status is "Pending". Once the status changes to Assigned, Accepted, Completed, or Cancelled, editing is no longer allowed. Ownership is verified via JWT token.
  *     tags: [Service Requests]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -580,18 +562,7 @@ const userDeleteValidation = [
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - user_email
  *             properties:
- *               user_email:
- *                 type: string
- *                 format: email
- *                 example: "john@example.com"
- *                 description: User's email to verify ownership (either email or phone required)
- *               user_phone:
- *                 type: string
- *                 example: "+971501234567"
- *                 description: User's phone to verify ownership (either email or phone required)
  *               user_name:
  *                 type: string
  *                 example: "John Doe Updated"
@@ -666,8 +637,10 @@ const userDeleteValidation = [
  *                 exception:
  *                   type: string
  *                   example: "REQUEST_NOT_EDITABLE"
+ *       401:
+ *         description: Unauthorized - No token or invalid token
  *       403:
- *         description: Forbidden - User not authorized (email/phone doesn't match)
+ *         description: Forbidden - User not authorized (service request doesn't belong to user)
  *         content:
  *           application/json:
  *             schema:
@@ -685,15 +658,17 @@ const userDeleteValidation = [
  *       404:
  *         description: Service request not found
  */
-router.put('/:id/user-update', userUpdateValidation, userUpdateServiceRequest);
+router.put('/:id/request-update', protect, requestUpdateValidation, userUpdateServiceRequest);
 
 /**
  * @swagger
- * /api/service-requests/{id}/user-delete:
+ * /api/service-requests/{id}/request-delete:
  *   delete:
  *     summary: Delete service request by user (only when status is Pending)
- *     description: Allows users to delete their service request only when the status is "Pending". Once the status changes to Assigned, Accepted, Completed, or Cancelled, deletion is no longer allowed. User must verify ownership by providing their email or phone number.
+ *     description: Allows authenticated users to delete their service request only when the status is "Pending". Once the status changes to Assigned, Accepted, Completed, or Cancelled, deletion is no longer allowed. Ownership is verified via JWT token.
  *     tags: [Service Requests]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -701,22 +676,6 @@ router.put('/:id/user-update', userUpdateValidation, userUpdateServiceRequest);
  *         schema:
  *           type: string
  *         description: Service request ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               user_email:
- *                 type: string
- *                 format: email
- *                 example: "john@example.com"
- *                 description: User's email to verify ownership (either email or phone required)
- *               user_phone:
- *                 type: string
- *                 example: "+971501234567"
- *                 description: User's phone to verify ownership (either email or phone required)
  *     responses:
  *       200:
  *         description: Service request deleted successfully
@@ -751,7 +710,7 @@ router.put('/:id/user-update', userUpdateValidation, userUpdateServiceRequest);
  *                         status:
  *                           type: string
  *       400:
- *         description: Bad request - Status not Pending or missing identification
+ *         description: Bad request - Status not Pending
  *         content:
  *           application/json:
  *             schema:
@@ -766,8 +725,10 @@ router.put('/:id/user-update', userUpdateValidation, userUpdateServiceRequest);
  *                 exception:
  *                   type: string
  *                   example: "REQUEST_NOT_DELETABLE"
+ *       401:
+ *         description: Unauthorized - No token or invalid token
  *       403:
- *         description: Forbidden - User not authorized (email/phone doesn't match)
+ *         description: Forbidden - User not authorized (service request doesn't belong to user)
  *         content:
  *           application/json:
  *             schema:
@@ -785,6 +746,6 @@ router.put('/:id/user-update', userUpdateValidation, userUpdateServiceRequest);
  *       404:
  *         description: Service request not found
  */
-router.delete('/:id/user-delete', userDeleteValidation, userDeleteServiceRequest);
+router.delete('/:id/request-delete', protect, userDeleteServiceRequest);
 
 module.exports = router;
