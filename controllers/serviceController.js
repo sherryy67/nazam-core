@@ -1,5 +1,6 @@
 const Service = require('../models/Service');
 const Category = require('../models/Category');
+const Banner = require('../models/Banner');
 const mongoose = require('mongoose');
 const { sendSuccess, sendError, sendCreated } = require('../utils/response');
 const multer = require('multer');
@@ -1365,17 +1366,63 @@ module.exports = {
     try {
       const services = await Service.find({ isActive: true })
         .sort({ createdAt: -1 })
-        .select({ _id: 1, name: 1, service_icon: 1, thumbnailUri: 1 })
+        .select({ _id: 1, name: 1, service_icon: 1, thumbnailUri: 1, serviceType: 1 })
         .lean();
 
-      const result = services.map(svc => ({
+      const transformService = (svc) => ({
         id: svc._id,
         name: svc.name,
         icon: svc.service_icon || null,
         thumbnail: svc.thumbnailUri || null
-      }));
+      });
 
-      return sendSuccess(res, 200, 'Popular services retrieved successfully', result);
+      const commercialServices = services
+        .filter(svc => svc.serviceType === 'commercial')
+        .map(transformService);
+
+      const residentialServices = services
+        .filter(svc => svc.serviceType === 'residential')
+        .map(transformService);
+
+      // Fetch banners
+      const banners = await Banner.find({
+        isActive: true,
+        platform: { $in: ["mobile", "both"] },
+      })
+        .populate("service", "name serviceType")
+        .sort({ sortOrder: 1, createdAt: -1 })
+        .lean();
+
+      const commercialBanner = [];
+      const residentialBanner = [];
+
+      banners.forEach((banner) => {
+        const serviceType = banner.service?.serviceType;
+        const bannerObj = {
+          name: banner.service?.name || "",
+          serviceId: banner.service?._id || banner.service,
+          discountPercentage: banner.discountPercentage,
+          mediaType: banner.mediaType,
+          mediaUrl: banner.mediaUrl,
+        };
+
+        if (serviceType === "commercial") {
+          commercialBanner.push(bannerObj);
+        } else if (serviceType === "residential") {
+          residentialBanner.push(bannerObj);
+        }
+      });
+
+      return sendSuccess(res, 200, 'Popular services retrieved successfully', {
+        commercialServices: {
+          services: commercialServices,
+          commercialBanner,
+        },
+        residentialServices: {
+          services: residentialServices,
+          residentialBanner,
+        },
+      });
     } catch (error) {
       next(error);
     }

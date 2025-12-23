@@ -418,9 +418,9 @@ const getMobileHomeContent = async (req, res, next) => {
       description: service.description || undefined,
       imageUri: service.imageUri || undefined,
       service_icon: service.service_icon || undefined,
+      thumbnailUri: service.thumbnailUri || undefined,
       category_id: service.category_id,
-               termsCondition: service.termsCondition ?? "",
-
+      termsCondition: service.termsCondition ?? "",
     });
 
     /* ---------------- Categories ---------------- */
@@ -458,7 +458,6 @@ const getMobileHomeContent = async (req, res, next) => {
         discountPercentage: banner.discountPercentage,
         mediaType: banner.mediaType,
         mediaUrl: banner.mediaUrl,
-        
       };
 
       if (serviceType === "commercial") {
@@ -478,10 +477,7 @@ const getMobileHomeContent = async (req, res, next) => {
       .sort({ name: 1 })
       .lean();
 
-    const commercialServices = seededShuffle(
-      commercialServicesData,
-      seed
-    )
+    const commercialServices = seededShuffle(commercialServicesData, seed)
       .slice(0, 9)
       .map(transformService);
 
@@ -495,10 +491,7 @@ const getMobileHomeContent = async (req, res, next) => {
       .sort({ name: 1 })
       .lean();
 
-    const residentialServices = seededShuffle(
-      residentialServicesData,
-      seed
-    )
+    const residentialServices = seededShuffle(residentialServicesData, seed)
       .slice(0, 9)
       .map(transformService);
 
@@ -530,13 +523,11 @@ const getMobileHomeContent = async (req, res, next) => {
         services: residentialServices,
         residentialBanner,
       },
-  
     });
   } catch (error) {
     next(error);
   }
 };
-
 
 // @desc    Bulk update category sort order
 // @route   PUT /api/categories/sort
@@ -707,7 +698,7 @@ module.exports = {
           thumbnail: svc.thumbnailUri ?? "",
           price: perHourPrice !== null ? perHourPrice : svc.basePrice,
           unitType: svc.unitType,
-         termsCondition: svc.termsCondition ?? "",
+          termsCondition: svc.termsCondition ?? "",
         };
       };
 

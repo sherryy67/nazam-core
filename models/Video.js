@@ -40,8 +40,7 @@ const videoSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes for better performance
-videoSchema.index({ key: 1 });
+// Indexes for better performance (key index already created by index: true on field)
 videoSchema.index({ isActive: 1 });
 videoSchema.index({ createdAt: -1 });
 
