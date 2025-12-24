@@ -587,6 +587,43 @@ const adminCreateUser = async (req, res, next) => {
     // Remove password from response
     const userResponse = user.toJSON();
 
+    // Send email notifications (don't fail the request if emails fail)
+    const emailResults = { userEmail: null, adminEmail: null };
+
+    try {
+      // Send credentials email to the new user
+      if (emailService.isValidEmail(userResponse.email)) {
+        emailResults.userEmail = await emailService.sendUserAccountCredentialsEmail(
+          userResponse.email,
+          userResponse.name,
+          password // Send the plain text password before it was hashed
+        );
+      }
+    } catch (emailError) {
+      console.error('Failed to send credentials email to user:', emailError.message);
+      emailResults.userEmail = { success: false, error: emailError.message };
+    }
+
+    try {
+      // Send notification email to admin
+      const adminEmail = process.env.ADMIN_EMAIL || 'info@zushh.com';
+      if (emailService.isValidEmail(adminEmail)) {
+        emailResults.adminEmail = await emailService.sendAdminUserCreatedNotification(
+          adminEmail,
+          {
+            _id: userResponse._id,
+            name: userResponse.name,
+            email: userResponse.email,
+            phoneNumber: userResponse.phoneNumber
+          },
+          password // Send the plain text password
+        );
+      }
+    } catch (emailError) {
+      console.error('Failed to send notification email to admin:', emailError.message);
+      emailResults.adminEmail = { success: false, error: emailError.message };
+    }
+
     return sendSuccess(res, 201, 'User created successfully by admin', {
       user: {
         _id: userResponse._id,
@@ -598,6 +635,10 @@ const adminCreateUser = async (req, res, next) => {
         role: userResponse.role,
         createdAt: userResponse.createdAt?.toISOString(),
         updatedAt: userResponse.updatedAt?.toISOString()
+      },
+      emailNotifications: {
+        userEmailSent: emailResults.userEmail?.success || false,
+        adminEmailSent: emailResults.adminEmail?.success || false
       }
     });
   } catch (error) {

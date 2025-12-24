@@ -807,6 +807,283 @@ Zushh System
   }
 
   /**
+   * Send account credentials email when admin creates a user account
+   * @param {string} userEmail - User's email address
+   * @param {string} userName - User's name
+   * @param {string} password - User's password (plain text)
+   * @returns {Promise<Object>} - Email sending result
+   */
+  async sendUserAccountCredentialsEmail(userEmail, userName, password) {
+    if (!this.isValidEmail(userEmail)) {
+      throw new Error('Invalid email format');
+    }
+
+    const subject = 'Your Zushh Account Has Been Created';
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Account Created</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 20px 0; text-align: center; background-color: #ffffff;">
+              <h1 style="color: #333; margin: 0;">Zushh</h1>
+              <p style="color: #666; margin: 5px 0;">Your Trusted Service Partner</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; padding: 30px;">
+                <tr>
+                  <td>
+                    <h2 style="color: #333; margin-top: 0;">Welcome to Zushh, ${userName}!</h2>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                      Your account has been created by the Zushh admin team. You can now log in and start using our services.
+                    </p>
+                    <div style="margin: 30px 0; padding: 20px; background-color: #d4edda; border-left: 4px solid #28a745; border-radius: 4px;">
+                      <h3 style="color: #155724; margin-top: 0;">Your Login Credentials:</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 10px 0; color: #155724; font-weight: bold; width: 100px;">Email:</td>
+                          <td style="padding: 10px 0; color: #155724; font-family: monospace; font-size: 15px;">${userEmail}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 10px 0; color: #155724; font-weight: bold;">Password:</td>
+                          <td style="padding: 10px 0; color: #155724; font-family: monospace; font-size: 15px;">${password}</td>
+                        </tr>
+                      </table>
+                    </div>
+                    <div style="margin: 30px 0; padding: 20px; background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+                      <p style="color: #856404; margin: 0; font-size: 14px;">
+                        <strong>Security Tip:</strong> We recommend changing your password after your first login for better security.
+                      </p>
+                    </div>
+                    <div style="margin: 30px 0; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                      <h3 style="color: #333; margin-top: 0;">What you can do:</h3>
+                      <ul style="color: #666; font-size: 16px; line-height: 1.8; padding-left: 20px;">
+                        <li>Request services from our wide range of offerings</li>
+                        <li>Track your service requests in real-time</li>
+                        <li>Get connected with professional vendors</li>
+                        <li>Manage your account and preferences</li>
+                      </ul>
+                    </div>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                      If you have any questions or need assistance, feel free to contact our support team.
+                    </p>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6; margin-top: 30px;">
+                      Best regards,<br>
+                      <strong>The Zushh Team</strong>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px; text-align: center; background-color: #ffffff;">
+              <p style="color: #999; font-size: 12px; margin: 0;">
+                © ${new Date().getFullYear()} Zushh. All rights reserved.
+              </p>
+              <p style="color: #dc3545; font-size: 12px; margin: 5px 0 0 0;">
+                Please do not share your credentials with anyone.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Welcome to Zushh, ${userName}!
+
+Your account has been created by the Zushh admin team. You can now log in and start using our services.
+
+Your Login Credentials:
+- Email: ${userEmail}
+- Password: ${password}
+
+Security Tip: We recommend changing your password after your first login for better security.
+
+What you can do:
+- Request services from our wide range of offerings
+- Track your service requests in real-time
+- Get connected with professional vendors
+- Manage your account and preferences
+
+If you have any questions or need assistance, feel free to contact our support team.
+
+Best regards,
+The Zushh Team
+
+© ${new Date().getFullYear()} Zushh. All rights reserved.
+Please do not share your credentials with anyone.
+    `;
+
+    return await this.sendEmail({
+      to: userEmail,
+      subject: subject,
+      html: html,
+      text: text
+    });
+  }
+
+  /**
+   * Send notification to admin when a new user account is created
+   * @param {string} adminEmail - Admin's email address
+   * @param {Object} userData - User data (name, email, phoneNumber)
+   * @param {string} password - User's password (plain text)
+   * @returns {Promise<Object>} - Email sending result
+   */
+  async sendAdminUserCreatedNotification(adminEmail, userData, password) {
+    if (!this.isValidEmail(adminEmail)) {
+      throw new Error('Invalid email format');
+    }
+
+    const { name, email, phoneNumber, _id } = userData;
+    const createdAt = new Date().toLocaleString();
+
+    const subject = `New User Account Created: ${name}`;
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>New User Account Created</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 20px 0; text-align: center; background-color: #ffffff;">
+              <h1 style="color: #333; margin: 0;">Zushh Admin</h1>
+              <p style="color: #666; margin: 5px 0;">User Management</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; padding: 30px;">
+                <tr>
+                  <td>
+                    <h2 style="color: #28a745; margin-top: 0;">New User Account Created</h2>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                      A new user account has been created successfully by an admin.
+                    </p>
+                    <div style="margin: 30px 0; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                      <h3 style="color: #333; margin-top: 0;">User Information:</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        ${_id ? `
+                        <tr>
+                          <td style="padding: 8px 0; color: #666; font-weight: bold; width: 120px;">User ID:</td>
+                          <td style="padding: 8px 0; color: #333; font-family: monospace;">${_id}</td>
+                        </tr>
+                        ` : ''}
+                        <tr>
+                          <td style="padding: 8px 0; color: #666; font-weight: bold;">Name:</td>
+                          <td style="padding: 8px 0; color: #333;">${name}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666; font-weight: bold;">Email:</td>
+                          <td style="padding: 8px 0; color: #333;">
+                            <a href="mailto:${email}" style="color: #007bff; text-decoration: none;">${email}</a>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666; font-weight: bold;">Phone:</td>
+                          <td style="padding: 8px 0; color: #333;">
+                            <a href="tel:${phoneNumber}" style="color: #007bff; text-decoration: none;">${phoneNumber}</a>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666; font-weight: bold;">Created At:</td>
+                          <td style="padding: 8px 0; color: #333;">${createdAt}</td>
+                        </tr>
+                      </table>
+                    </div>
+                    <div style="margin: 30px 0; padding: 20px; background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+                      <h3 style="color: #856404; margin-top: 0;">Account Credentials:</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #856404; font-weight: bold; width: 100px;">Email:</td>
+                          <td style="padding: 8px 0; color: #856404; font-family: monospace;">${email}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #856404; font-weight: bold;">Password:</td>
+                          <td style="padding: 8px 0; color: #856404; font-family: monospace;">${password}</td>
+                        </tr>
+                      </table>
+                      <p style="color: #856404; font-size: 13px; margin: 15px 0 0 0;">
+                        <strong>Note:</strong> Please share these credentials with the user securely.
+                      </p>
+                    </div>
+                    <div style="margin: 30px 0; padding: 20px; background-color: #d4edda; border-left: 4px solid #28a745; border-radius: 4px;">
+                      <p style="color: #155724; margin: 0;">
+                        <strong>Status:</strong> Account is active and OTP verified (verification skipped for admin-created users)
+                      </p>
+                    </div>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6; margin-top: 30px;">
+                      Best regards,<br>
+                      <strong>Zushh System</strong>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px; text-align: center; background-color: #ffffff;">
+              <p style="color: #999; font-size: 12px; margin: 0;">
+                © ${new Date().getFullYear()} Zushh. All rights reserved.
+              </p>
+              <p style="color: #999; font-size: 12px; margin: 5px 0 0 0;">
+                This is an automated notification from the Zushh system.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const text = `
+New User Account Created
+
+A new user account has been created successfully by an admin.
+
+User Information:
+${_id ? `- User ID: ${_id}` : ''}
+- Name: ${name}
+- Email: ${email}
+- Phone: ${phoneNumber}
+- Created At: ${createdAt}
+
+Account Credentials:
+- Email: ${email}
+- Password: ${password}
+
+Note: Please share these credentials with the user securely.
+
+Status: Account is active and OTP verified (verification skipped for admin-created users)
+
+Best regards,
+Zushh System
+
+© ${new Date().getFullYear()} Zushh. All rights reserved.
+    `;
+
+    return await this.sendEmail({
+      to: adminEmail,
+      subject: subject,
+      html: html,
+      text: text
+    });
+  }
+
+  /**
    * Test email configuration
    * @returns {Promise<Object>} - Test result
    */
