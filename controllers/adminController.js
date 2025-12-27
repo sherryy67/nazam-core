@@ -596,7 +596,8 @@ const adminCreateUser = async (req, res, next) => {
         emailResults.userEmail = await emailService.sendUserAccountCredentialsEmail(
           userResponse.email,
           userResponse.name,
-          password // Send the plain text password before it was hashed
+          password, // Send the plain text password before it was hashed
+          userResponse.phoneNumber
         );
       }
     } catch (emailError) {

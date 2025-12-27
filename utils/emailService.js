@@ -811,9 +811,10 @@ Zushh System
    * @param {string} userEmail - User's email address
    * @param {string} userName - User's name
    * @param {string} password - User's password (plain text)
+   * @param {string} phoneNumber - User's phone number
    * @returns {Promise<Object>} - Email sending result
    */
-  async sendUserAccountCredentialsEmail(userEmail, userName, password) {
+  async sendUserAccountCredentialsEmail(userEmail, userName, password, phoneNumber) {
     if (!this.isValidEmail(userEmail)) {
       throw new Error('Invalid email format');
     }
@@ -850,6 +851,10 @@ Zushh System
                         <tr>
                           <td style="padding: 10px 0; color: #155724; font-weight: bold; width: 100px;">Email:</td>
                           <td style="padding: 10px 0; color: #155724; font-family: monospace; font-size: 15px;">${userEmail}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 10px 0; color: #155724; font-weight: bold;">Phone:</td>
+                          <td style="padding: 10px 0; color: #155724; font-family: monospace; font-size: 15px;">${phoneNumber}</td>
                         </tr>
                         <tr>
                           <td style="padding: 10px 0; color: #155724; font-weight: bold;">Password:</td>
@@ -905,6 +910,7 @@ Your account has been created by the Zushh admin team. You can now log in and st
 
 Your Login Credentials:
 - Email: ${userEmail}
+- Phone: ${phoneNumber}
 - Password: ${password}
 
 Security Tip: We recommend changing your password after your first login for better security.

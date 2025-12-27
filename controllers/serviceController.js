@@ -1149,19 +1149,19 @@ const toggleServiceStatus = async (req, res, next) => {
     const { isActive } = req.body;
 
     // Validate isActive is provided
-    if (typeof isActive !== 'boolean') {
+    if (typeof isActive !== "boolean") {
       return sendError(
         res,
         400,
-        'isActive must be a boolean value',
-        'INVALID_STATUS'
+        "isActive must be a boolean value",
+        "INVALID_STATUS"
       );
     }
 
     const service = await Service.findById(id);
 
     if (!service) {
-      return sendError(res, 404, 'Service not found', 'SERVICE_NOT_FOUND');
+      return sendError(res, 404, "Service not found", "SERVICE_NOT_FOUND");
     }
 
     // Update the service status
@@ -1171,7 +1171,9 @@ const toggleServiceStatus = async (req, res, next) => {
     const response = {
       success: true,
       exception: null,
-      description: `Service ${isActive ? 'activated' : 'deactivated'} successfully`,
+      description: `Service ${
+        isActive ? "activated" : "deactivated"
+      } successfully`,
       content: {
         service: {
           _id: service._id,
@@ -1837,7 +1839,8 @@ module.exports = {
 
       const banners = bannersData.map((banner) => ({
         name: banner.service?.name || "",
-        serviceId: banner.service?._id || banner.service,
+        serviceId:
+          banner.service?._id?.toString() || banner.service?.toString() || null,
         discountPercentage: banner.discountPercentage,
         mediaType: banner.mediaType,
         mediaUrl: banner.mediaUrl,
