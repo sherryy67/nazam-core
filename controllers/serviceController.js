@@ -1140,6 +1140,53 @@ const getServiceById = async (req, res, next) => {
   }
 };
 
+// @desc    Toggle service active status (Admin only)
+// @route   PATCH /api/services/:id/status
+// @access  Admin only
+const toggleServiceStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { isActive } = req.body;
+
+    // Validate isActive is provided
+    if (typeof isActive !== 'boolean') {
+      return sendError(
+        res,
+        400,
+        'isActive must be a boolean value',
+        'INVALID_STATUS'
+      );
+    }
+
+    const service = await Service.findById(id);
+
+    if (!service) {
+      return sendError(res, 404, 'Service not found', 'SERVICE_NOT_FOUND');
+    }
+
+    // Update the service status
+    service.isActive = isActive;
+    await service.save();
+
+    const response = {
+      success: true,
+      exception: null,
+      description: `Service ${isActive ? 'activated' : 'deactivated'} successfully`,
+      content: {
+        service: {
+          _id: service._id,
+          name: service.name,
+          isActive: service.isActive,
+        },
+      },
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Delete service (Admin only)
 // @route   DELETE /api/services/:id
 // @access  Admin only
@@ -1675,6 +1722,7 @@ module.exports = {
   getServicesPaginated,
   getServiceById,
   deleteService,
+  toggleServiceStatus,
   getAllActiveServices,
   getServiceSubServices,
   setFeaturedServices,

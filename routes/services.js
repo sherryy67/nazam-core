@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
 const ROLES = require('../constants/roles');
-const { createService, getServices, getServicesPaginated, getServiceById, deleteService, getAllActiveServices, getServiceSubServices, setFeaturedServices, getFeaturedServices, getResidentialServices, getCommercialServices, getHomeCategoryServices, getPopularServices, upload } = require('../controllers/serviceController');
+const { createService, getServices, getServicesPaginated, getServiceById, deleteService, toggleServiceStatus, getAllActiveServices, getServiceSubServices, setFeaturedServices, getFeaturedServices, getResidentialServices, getCommercialServices, getHomeCategoryServices, getPopularServices, upload } = require('../controllers/serviceController');
 
 const router = express.Router();
 
@@ -1104,6 +1104,91 @@ router.get('/:id', protect, getServiceById);
  *         description: Unauthorized
  */
 router.post('/paginated', protect, getServicesPaginatedValidation, getServicesPaginated);
+
+/**
+ * @swagger
+ * /api/services/{id}/status:
+ *   patch:
+ *     summary: Toggle service active status (Admin only)
+ *     description: Activate or deactivate a service. Only admin can perform this action.
+ *     tags: [Services]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Service ID
+ *         example: "64a1b2c3d4e5f6789abcdef1"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - isActive
+ *             properties:
+ *               isActive:
+ *                 type: boolean
+ *                 description: Set to true to activate, false to deactivate
+ *                 example: true
+ *     responses:
+ *       200:
+ *         description: Service status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 exception:
+ *                   type: string
+ *                   nullable: true
+ *                   example: null
+ *                 description:
+ *                   type: string
+ *                   example: "Service activated successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     service:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         isActive:
+ *                           type: boolean
+ *       400:
+ *         description: Bad request - Invalid status value
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 exception:
+ *                   type: string
+ *                   example: "INVALID_STATUS"
+ *                 description:
+ *                   type: string
+ *                   example: "isActive must be a boolean value"
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: Service not found
+ */
+router.patch('/:id/status', protect, isAdmin, toggleServiceStatus);
 
 /**
  * @swagger
