@@ -1,42 +1,44 @@
-const express = require('express');
-const authRoutes = require('./auth');
-const adminRoutes = require('./admin');
-const userRoutes = require('./users');
-const uploadRoutes = require('./upload');
-const serviceRoutes = require('./services');
-const requestRoutes = require('./requests');
-const categoryRoutes = require('./categories');
-const mobileRoutes = require('./mobile');
-const serviceRequestRoutes = require('./serviceRequests');
-const submitServiceRequestRoutes = require('./submitServiceRequest');
-const geminiRoutes = require('./gemini');
-const bannerRoutes = require('./banner');
-const emailRoutes = require('./email');
-const contactRoutes = require('./contact');
-const addressRoutes = require('./addresses');
-const { sendSuccess } = require('../utils/response');
-const { getCategoryServiceSummary } = require('../controllers/categoryController');
-const { protect } = require('../middlewares/auth');
-const { getVideoByKey } = require('../controllers/videoController');
+const express = require("express");
+const authRoutes = require("./auth");
+const adminRoutes = require("./admin");
+const userRoutes = require("./users");
+const uploadRoutes = require("./upload");
+const serviceRoutes = require("./services");
+const requestRoutes = require("./requests");
+const categoryRoutes = require("./categories");
+const mobileRoutes = require("./mobile");
+const serviceRequestRoutes = require("./serviceRequests");
+const submitServiceRequestRoutes = require("./submitServiceRequest");
+const geminiRoutes = require("./gemini");
+const bannerRoutes = require("./banner");
+const emailRoutes = require("./email");
+const contactRoutes = require("./contact");
+const addressRoutes = require("./addresses");
+const { sendSuccess } = require("../utils/response");
+const {
+  getCategoryServiceSummary,
+} = require("../controllers/categoryController");
+const { protect } = require("../middlewares/auth");
+const { getVideoByKey } = require("../controllers/videoController");
 
 const router = express.Router();
 
 // Mount routes
-router.use('/auth', authRoutes);
-router.use('/admin', adminRoutes);
-router.use('/users', userRoutes);
-router.use('/upload', uploadRoutes);
-router.use('/services', serviceRoutes);
-router.use('/requests', requestRoutes);
-router.use('/categories', categoryRoutes);
-router.use('/mobile', mobileRoutes);
-router.use('/service-requests', serviceRequestRoutes);
-router.use('/submit-service-requests', submitServiceRequestRoutes);
-router.use('/gemini', geminiRoutes);
-router.use('/email', emailRoutes);
-router.use('/contact', contactRoutes);
-router.use('/addresses', addressRoutes);
-router.use('/', bannerRoutes);
+router.use("/auth", authRoutes);
+router.use("/admin", adminRoutes);
+router.use("/users", userRoutes);
+router.use("/upload", uploadRoutes);
+router.use("/services", serviceRoutes);
+router.use("/requests", requestRoutes);
+router.use("/categories", categoryRoutes);
+router.use("/mobile", mobileRoutes);
+router.use("/service-requests", serviceRequestRoutes);
+router.use("/submit-service-requests", submitServiceRequestRoutes);
+router.use("/gemini", geminiRoutes);
+router.use("/email", emailRoutes);
+router.use("/contact", contactRoutes);
+router.use("/addresses", addressRoutes);
+router.use("/", bannerRoutes);
 
 /**
  * @swagger
@@ -62,7 +64,7 @@ router.use('/', bannerRoutes);
  *       500:
  *         description: Server error
  */
-router.get('/videos/:key', getVideoByKey);
+router.get("/videos/:key", getVideoByKey);
 
 /**
  * @swagger
@@ -133,7 +135,7 @@ router.get('/videos/:key', getVideoByKey);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 // GET /api/getCategoryService - summarized categories with up to 3 services and total count (JWT protected)
-router.get('/getCategoryService', protect, getCategoryServiceSummary);
+router.get("/getCategoryService", getCategoryServiceSummary);
 
 /**
  * @swagger
@@ -160,11 +162,11 @@ router.get('/getCategoryService', protect, getCategoryServiceSummary);
  *                   format: date-time
  *                   example: "2023-12-01T10:30:00.000Z"
  */
-router.get('/health', (req, res) => {
-  sendSuccess(res, 200, 'Server is running', {
+router.get("/health", (req, res) => {
+  sendSuccess(res, 200, "Server is running", {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || "development",
   });
 });
 
