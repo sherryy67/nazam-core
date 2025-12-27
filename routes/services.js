@@ -976,7 +976,7 @@ router.get('/popular', getPopularServices);
  */
 router.get('/:id/sub-services', getServiceSubServices);
 
-router.get('/:id', protect, getServiceById);
+router.get('/:id', getServiceById);
 
 /**
  * @swagger

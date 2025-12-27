@@ -1087,6 +1087,14 @@ const getServiceById = async (req, res, next) => {
       return sendError(res, 404, "Service not found", "SERVICE_NOT_FOUND");
     }
 
+    // Check for active banner with discount for this service
+    const activeBanner = await Banner.findOne({
+      service: id,
+      isActive: true,
+    }).lean();
+
+    const discount = activeBanner?.discountPercentage ?? null;
+
     // Transform service to match frontend interface
     const transformedService = {
       _id: service._id,
@@ -1115,6 +1123,7 @@ const getServiceById = async (req, res, next) => {
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
+      discount: discount,
     };
 
     // Ensure subServices is always an array (for backward compatibility)
