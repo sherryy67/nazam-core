@@ -735,6 +735,7 @@ module.exports = {
             return {
               id: category._id,
               name: category.name,
+              sortOrder: category.sortOrder ?? 0,
               totalServices,
               services: services.map(transformService),
             };
@@ -745,8 +746,11 @@ module.exports = {
         const filteredResults = results
           .filter((cat) => cat.totalServices > 0)
           .sort((a, b) => {
-            if (a.sortOrder !== b.sortOrder) {
-              return a.sortOrder - b.sortOrder;
+            // Sort by sortOrder first, then by name
+            const sortOrderA = a.sortOrder ?? 0;
+            const sortOrderB = b.sortOrder ?? 0;
+            if (sortOrderA !== sortOrderB) {
+              return sortOrderA - sortOrderB;
             }
             return a.name.localeCompare(b.name);
           });
