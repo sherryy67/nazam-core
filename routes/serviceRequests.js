@@ -9,6 +9,7 @@ const {
   deleteServiceRequest,
   getOrderDetails,
   userUpdateServiceRequest,
+  userCancelServiceRequest,
   userDeleteServiceRequest
 } = require('../controllers/serviceRequestController');
 
@@ -659,6 +660,95 @@ const requestUpdateValidation = [
  *         description: Service request not found
  */
 router.put('/:id/request-update', protect, requestUpdateValidation, userUpdateServiceRequest);
+
+/**
+ * @swagger
+ * /api/service-requests/{id}/cancel:
+ *   put:
+ *     summary: Cancel service request by user (only when status is Pending)
+ *     description: Allows authenticated users to cancel their service request only when the status is "Pending". Once the status changes to Assigned, Accepted, Completed, or Cancelled, cancellation is no longer allowed. Ownership is verified via JWT token. This updates the status to "Cancelled" instead of deleting the record.
+ *     tags: [Service Requests]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Service request ID
+ *     responses:
+ *       200:
+ *         description: Service request cancelled successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 exception:
+ *                   type: string
+ *                   example: null
+ *                 description:
+ *                   type: string
+ *                   example: "Service request cancelled successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     serviceRequest:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         user_name:
+ *                           type: string
+ *                         user_email:
+ *                           type: string
+ *                         service_name:
+ *                           type: string
+ *                         status:
+ *                           type: string
+ *                           example: "Cancelled"
+ *       400:
+ *         description: Bad request - Status not Pending
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 description:
+ *                   type: string
+ *                   example: "Cannot cancel service request. Current status is \"Assigned\". Only requests with \"Pending\" status can be cancelled."
+ *                 exception:
+ *                   type: string
+ *                   example: "REQUEST_NOT_CANCELLABLE"
+ *       401:
+ *         description: Unauthorized - No token or invalid token
+ *       403:
+ *         description: Forbidden - User not authorized (service request doesn't belong to user)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 description:
+ *                   type: string
+ *                   example: "You are not authorized to cancel this service request"
+ *                 exception:
+ *                   type: string
+ *                   example: "UNAUTHORIZED_ACCESS"
+ *       404:
+ *         description: Service request not found
+ */
+router.put('/:id/cancel', protect, userCancelServiceRequest);
 
 /**
  * @swagger

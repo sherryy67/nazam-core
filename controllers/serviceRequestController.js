@@ -1030,6 +1030,99 @@ const userUpdateServiceRequest = async (req, res, next) => {
   }
 };
 
+// @desc    Cancel service request by user (only when status is Pending)
+// @route   PUT /api/service-requests/:id/cancel
+// @access  Private (User only - verified via JWT token)
+const userCancelServiceRequest = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Validate request ID
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, 'Invalid request ID', 'INVALID_REQUEST_ID');
+    }
+
+    // Find the service request
+    const serviceRequest = await ServiceRequest.findById(id);
+    if (!serviceRequest) {
+      return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
+    }
+
+    // Verify ownership via JWT token - match user's email or phone from token
+    const User = require('../models/User');
+    const currentUser = await User.findById(req.user.id);
+
+    if (!currentUser) {
+      return sendError(res, 401, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    // Check if the service request belongs to the authenticated user
+    const emailMatch = currentUser.email && serviceRequest.user_email.toLowerCase() === currentUser.email.toLowerCase();
+    const phoneMatch = currentUser.phoneNumber && serviceRequest.user_phone === currentUser.phoneNumber;
+
+    if (!emailMatch && !phoneMatch) {
+      return sendError(res, 403, 'You are not authorized to cancel this service request', 'UNAUTHORIZED_ACCESS');
+    }
+
+    // Check if status is Pending - only allow cancel when Pending
+    if (serviceRequest.status !== 'Pending') {
+      return sendError(
+        res,
+        400,
+        `Cannot cancel service request. Current status is "${serviceRequest.status}". Only requests with "Pending" status can be cancelled.`,
+        'REQUEST_NOT_CANCELLABLE'
+      );
+    }
+
+    // Update status to Cancelled
+    const updatedRequest = await ServiceRequest.findByIdAndUpdate(
+      id,
+      { status: 'Cancelled' },
+      { new: true, runValidators: true }
+    ).populate('service_id', 'name description')
+     .populate('category_id', 'name description');
+
+    // Transform response
+    const transformedRequest = {
+      _id: updatedRequest._id,
+      user_name: updatedRequest.user_name,
+      user_phone: updatedRequest.user_phone,
+      user_email: updatedRequest.user_email,
+      address: updatedRequest.address,
+      service_id: updatedRequest.service_id,
+      service_name: updatedRequest.service_name,
+      category_id: updatedRequest.category_id,
+      category_name: updatedRequest.category_name,
+      request_type: updatedRequest.request_type,
+      requested_date: updatedRequest.requested_date.toISOString(),
+      message: updatedRequest.message,
+      status: updatedRequest.status,
+      vendor: updatedRequest.vendor,
+      unit_type: updatedRequest.unit_type,
+      unit_price: updatedRequest.unit_price,
+      number_of_units: updatedRequest.number_of_units,
+      total_price: updatedRequest.total_price,
+      selectedSubServices: updatedRequest.selectedSubServices || [],
+      paymentMethod: updatedRequest.paymentMethod,
+      createdAt: updatedRequest.createdAt.toISOString(),
+      updatedAt: updatedRequest.updatedAt.toISOString()
+    };
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Service request cancelled successfully',
+      content: {
+        serviceRequest: transformedRequest
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Delete service request by user (only when status is Pending)
 // @route   DELETE /api/service-requests/:id/request-delete
 // @access  Private (User only - verified via JWT token)
@@ -1106,5 +1199,6 @@ module.exports = {
   deleteServiceRequest,
   getOrderDetails,
   userUpdateServiceRequest,
+  userCancelServiceRequest,
   userDeleteServiceRequest
 };
