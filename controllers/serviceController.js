@@ -132,7 +132,6 @@ const createService = async (req, res, next) => {
       min_time_required,
       availability,
       job_service_type,
-      order_name,
       price_type,
       subservice_type,
       isFeatured,
@@ -413,16 +412,7 @@ const createService = async (req, res, next) => {
     }
 
     // Conditional validation based on job_service_type
-    if (job_service_type === "Quotation") {
-      if (!order_name || order_name.trim().length === 0) {
-        return sendError(
-          res,
-          400,
-          "Order name is required for Quotation services",
-          "MISSING_ORDER_NAME"
-        );
-      }
-    } else {
+    if (job_service_type !== "Quotation") {
       if (
         !price_type ||
         !["30min", "1hr", "1day", "fixed"].includes(price_type)
@@ -481,9 +471,7 @@ const createService = async (req, res, next) => {
     }
 
     // Add conditional fields
-    if (job_service_type === "Quotation") {
-      serviceData.order_name = order_name.trim();
-    } else {
+    if (job_service_type !== "Quotation") {
       serviceData.price_type = price_type;
       serviceData.subservice_type = subservice_type;
     }
@@ -915,7 +903,6 @@ const getServices = async (req, res, next) => {
       min_time_required: service.min_time_required,
       availability: service.availability,
       job_service_type: service.job_service_type,
-      order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
@@ -1034,7 +1021,6 @@ const getServicesPaginated = async (req, res, next) => {
       min_time_required: service.min_time_required,
       availability: service.availability,
       job_service_type: service.job_service_type,
-      order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
@@ -1110,7 +1096,6 @@ const getServiceById = async (req, res, next) => {
       minAdvanceHours: service.minAdvanceHours || 0,
       availability: service.availability,
       job_service_type: service.job_service_type,
-      order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
@@ -1302,7 +1287,6 @@ const getAllActiveServices = async (req, res, next) => {
       min_time_required: service.min_time_required,
       availability: service.availability,
       job_service_type: service.job_service_type,
-      order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
@@ -1605,7 +1589,6 @@ const getResidentialServices = async (req, res, next) => {
       min_time_required: service.min_time_required,
       availability: service.availability,
       job_service_type: service.job_service_type,
-      order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
@@ -1703,7 +1686,6 @@ const getCommercialServices = async (req, res, next) => {
       min_time_required: service.min_time_required,
       availability: service.availability,
       job_service_type: service.job_service_type,
-      order_name: service.order_name,
       price_type: service.price_type,
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],

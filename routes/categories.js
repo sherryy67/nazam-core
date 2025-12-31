@@ -217,8 +217,6 @@ router.post('/', protect, isAdmin, createCategoryValidation, createCategory);
  *                                   type: string
  *                               job_service_type:
  *                                 type: string
- *                               order_name:
- *                                 type: string
  *                               price_type:
  *                                 type: string
  *                               subservice_type:

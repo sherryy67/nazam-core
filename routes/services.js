@@ -108,18 +108,6 @@ const createServiceValidation = [
   body('job_service_type')
     .isIn(['OnTime', 'Scheduled', 'Quotation'])
     .withMessage('Job service type must be OnTime, Scheduled, or Quotation'),
-  body('order_name')
-    .optional()
-    .trim()
-    .isLength({ min: 2, max: 100 })
-    .withMessage('Order name must be between 2 and 100 characters')
-    .custom((value, { req }) => {
-      // order_name is required if job_service_type is Quotation
-      if (req.body.job_service_type === 'Quotation' && (!value || value.trim().length === 0)) {
-        throw new Error('Order name is required for Quotation services');
-      }
-      return true;
-    }),
   body('price_type')
     .optional()
     .isIn(['30min', '1hr', '1day', 'fixed'])
@@ -439,9 +427,6 @@ router.get('/commercial', getCommercialServices);
  *                 type: string
  *                 enum: [OnTime, Scheduled, Quotation]
  *                 example: "OnTime"
- *               order_name:
- *                 type: string
- *                 example: "Custom Order"
  *               price_type:
  *                 type: string
  *                 enum: [30min, 1hr, 1day, fixed]
@@ -528,8 +513,6 @@ router.get('/commercial', getCommercialServices);
  *                       items:
  *                         type: string
  *                     job_service_type:
- *                       type: string
- *                     order_name:
  *                       type: string
  *                     price_type:
  *                       type: string
@@ -642,8 +625,6 @@ router.post('/', protect, isAdmin, upload.fields([
  *                                   type: string
  *                               job_service_type:
  *                                 type: string
- *                               order_name:
- *                                 type: string
  *                               price_type:
  *                                 type: string
  *                               subservice_type:
@@ -721,8 +702,6 @@ router.get('/', protect, getServices);
  *                             items:
  *                               type: string
  *                           job_service_type:
- *                             type: string
- *                           order_name:
  *                             type: string
  *                           price_type:
  *                             type: string
@@ -893,8 +872,6 @@ router.get('/popular', getPopularServices);
  *                           items:
  *                             type: string
  *                         job_service_type:
- *                           type: string
- *                         order_name:
  *                           type: string
  *                         price_type:
  *                           type: string
@@ -1068,8 +1045,6 @@ router.get('/:id', getServiceById);
  *                             items:
  *                               type: string
  *                           job_service_type:
- *                             type: string
- *                           order_name:
  *                             type: string
  *                           price_type:
  *                             type: string

@@ -106,12 +106,6 @@ const serviceSchema = new mongoose.Schema({
     enum: ["OnTime", "Scheduled", "Quotation"],
     required: true 
   },
-  order_name: { 
-    type: String,
-    required: function() {
-      return this.job_service_type === "Quotation";
-    }
-  },
   price_type: { 
     type: String, 
     enum: ["30min", "1hr", "1day", "fixed"],
