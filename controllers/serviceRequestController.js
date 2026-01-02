@@ -701,6 +701,56 @@ const deleteServiceRequest = async (req, res, next) => {
   }
 };
 
+// @desc    Bulk delete service requests (Admin only)
+// @route   DELETE /api/service-requests/bulk-delete
+// @access  Admin only
+const bulkDeleteServiceRequests = async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+
+    // Validate ids array
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return sendError(res, 400, 'Request IDs array is required', 'MISSING_IDS');
+    }
+
+    // Validate all IDs are valid MongoDB ObjectIds
+    const invalidIds = ids.filter(id => !mongoose.Types.ObjectId.isValid(id));
+    if (invalidIds.length > 0) {
+      return sendError(res, 400, `Invalid request IDs: ${invalidIds.join(', ')}`, 'INVALID_IDS');
+    }
+
+    // Find all service requests to be deleted (for response)
+    const serviceRequests = await ServiceRequest.find({ _id: { $in: ids } });
+
+    if (serviceRequests.length === 0) {
+      return sendError(res, 404, 'No service requests found with the provided IDs', 'NO_REQUESTS_FOUND');
+    }
+
+    // Delete all service requests
+    const deleteResult = await ServiceRequest.deleteMany({ _id: { $in: ids } });
+
+    const response = {
+      success: true,
+      exception: null,
+      description: `${deleteResult.deletedCount} service request(s) deleted successfully`,
+      content: {
+        deletedCount: deleteResult.deletedCount,
+        requestedCount: ids.length,
+        deletedRequests: serviceRequests.map(req => ({
+          _id: req._id,
+          user_name: req.user_name,
+          service_name: req.service_name,
+          status: req.status
+        }))
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Get order details by request ID
 // @route   GET /api/service-requests/:id/details
 // @access  Public or JWT protected (depending on requirement)
@@ -1197,6 +1247,7 @@ module.exports = {
   updateServiceRequestStatus,
   assignRequest,
   deleteServiceRequest,
+  bulkDeleteServiceRequests,
   getOrderDetails,
   userUpdateServiceRequest,
   userCancelServiceRequest,

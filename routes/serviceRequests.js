@@ -7,6 +7,7 @@ const {
   getServiceRequests,
   updateServiceRequestStatus,
   deleteServiceRequest,
+  bulkDeleteServiceRequests,
   getOrderDetails,
   userUpdateServiceRequest,
   userCancelServiceRequest,
@@ -423,6 +424,79 @@ router.put('/:id/status', protect, isAdmin, updateStatusValidation, updateServic
  *       404:
  *         description: Service request not found
  */
+/**
+ * @swagger
+ * /api/service-requests/bulk-delete:
+ *   delete:
+ *     summary: Bulk delete service requests (Admin only)
+ *     tags: [Service Requests]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - ids
+ *             properties:
+ *               ids:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["64a1b2c3d4e5f6789abcdef1", "64a1b2c3d4e5f6789abcdef2"]
+ *                 description: Array of service request IDs to delete
+ *     responses:
+ *       200:
+ *         description: Service requests deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 exception:
+ *                   type: string
+ *                   example: null
+ *                 description:
+ *                   type: string
+ *                   example: "3 service request(s) deleted successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     deletedCount:
+ *                       type: integer
+ *                       example: 3
+ *                     requestedCount:
+ *                       type: integer
+ *                       example: 3
+ *                     deletedRequests:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: string
+ *                           user_name:
+ *                             type: string
+ *                           service_name:
+ *                             type: string
+ *                           status:
+ *                             type: string
+ *       400:
+ *         description: Bad request - Invalid or missing IDs
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: No service requests found with provided IDs
+ */
+router.delete('/bulk-delete', protect, isAdmin, bulkDeleteServiceRequests);
+
 router.delete('/:id', protect, isAdmin, deleteServiceRequest);
 
 /**
