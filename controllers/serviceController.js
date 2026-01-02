@@ -1135,7 +1135,8 @@ const getServiceById = async (req, res, next) => {
       isActive: true,
     }).lean();
 
-    const discount = activeBanner?.discountPercentage ?? null;
+    // Use service discount if available, otherwise use banner discount
+    const discount = service.discount ?? activeBanner?.discountPercentage ?? null;
 
     // Transform service to match frontend interface
     const transformedService = {
