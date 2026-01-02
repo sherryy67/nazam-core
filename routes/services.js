@@ -550,7 +550,7 @@ router.post('/', protect, isAdmin, upload.fields([
  * @swagger
  * /api/services:
  *   get:
- *     summary: Get all active services with optional category filter
+ *     summary: Get all active services with optional category filter, keyword search, and pagination
  *     tags: [Services]
  *     security:
  *       - bearerAuth: []
@@ -562,6 +562,31 @@ router.post('/', protect, isAdmin, upload.fields([
  *           type: string
  *         description: Category ID to filter services
  *         example: "64a1b2c3d4e5f6789abcdef0"
+ *       - in: query
+ *         name: keywords
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Keywords to search in service name and description (case-insensitive)
+ *         example: "cleaning"
+ *       - in: query
+ *         name: page
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *         description: Number of services per page (0 or omit for all results)
+ *         example: 10
  *     responses:
  *       200:
  *         description: Services retrieved successfully

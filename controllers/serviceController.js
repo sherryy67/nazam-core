@@ -864,7 +864,7 @@ const createService = async (req, res, next) => {
 // @access  All users
 const getServices = async (req, res, next) => {
   try {
-    const { category } = req.query;
+    const { category, keywords, page, limit } = req.query;
 
     // Build query
     const query = { isActive: true };
@@ -884,10 +884,53 @@ const getServices = async (req, res, next) => {
       query.category_id = category;
     }
 
-    const services = await Service.find(query)
+    // Add keywords search if provided (search in name and description)
+    if (keywords && keywords.trim().length > 0) {
+      const searchRegex = new RegExp(keywords.trim(), "i");
+      query.$or = [{ name: searchRegex }, { description: searchRegex }];
+    }
+
+    // Parse pagination parameters
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 0; // 0 means no limit (return all)
+
+    // Validate pagination parameters
+    if (pageNum < 1) {
+      return sendError(
+        res,
+        400,
+        "Page number must be greater than 0",
+        "INVALID_PAGE"
+      );
+    }
+
+    if (limitNum < 0 || limitNum > 100) {
+      return sendError(
+        res,
+        400,
+        "Limit must be between 0 and 100",
+        "INVALID_LIMIT"
+      );
+    }
+
+    // Calculate skip value for pagination
+    const skip = limitNum > 0 ? (pageNum - 1) * limitNum : 0;
+
+    // Execute queries
+    let servicesQuery = Service.find(query)
       .populate("createdBy", "name email")
       .populate("category_id", "name description")
       .sort({ createdAt: -1 });
+
+    // Apply pagination if limit is provided
+    if (limitNum > 0) {
+      servicesQuery = servicesQuery.skip(skip).limit(limitNum);
+    }
+
+    const [services, totalCount] = await Promise.all([
+      servicesQuery,
+      Service.countDocuments(query),
+    ]);
 
     // Transform services to match frontend interface
     const transformedServices = services.map((service) => ({
@@ -917,15 +960,29 @@ const getServices = async (req, res, next) => {
       updatedAt: service.updatedAt?.toISOString(),
     }));
 
+    // Build response with pagination info if limit was provided
     const response = {
       success: true,
       exception: null,
       description: "Services retrieved successfully",
       content: {
         services: transformedServices,
-        total: transformedServices.length,
+        total: totalCount,
       },
     };
+
+    // Add pagination info if limit was provided
+    if (limitNum > 0) {
+      const totalPages = Math.ceil(totalCount / limitNum);
+      response.content.pagination = {
+        currentPage: pageNum,
+        totalPages,
+        totalCount,
+        limit: limitNum,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
+      };
+    }
 
     res.status(200).json(response);
   } catch (error) {
