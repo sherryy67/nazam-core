@@ -46,9 +46,16 @@ const getEligibleVendors = async (req, res, next) => {
     // The assignment will be handled by the assign endpoint
     // Removed the check here to allow viewing eligible vendors even for assigned services
 
-    // Find all approved vendors with their primary service populated
+    // Find all approved vendors with their primary service and category populated
     const vendors = await Vendor.find({ approved: true })
-      .populate('serviceId', 'name description category_id')
+      .populate({
+        path: 'serviceId',
+        select: 'name description category_id',
+        populate: {
+          path: 'category_id',
+          select: 'name'
+        }
+      })
       .select('-password'); // Exclude password from response
 
     // Filter eligible vendors

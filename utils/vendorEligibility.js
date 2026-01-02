@@ -16,17 +16,35 @@ const checkVendorEligibility = (vendor, service) => {
       return false;
     }
 
-    // 2. Check if vendor's primary service matches the requested service
-    // This is the most important check - vendor must have the same service as their primary service
-    if (!vendor.serviceId || !service._id) {
+    // 2. Check if vendor's primary service OR category matches
+    // Vendor must have either:
+    //   - The same service as their primary service, OR
+    //   - A service in the same category as the requested service
+    if (!vendor.serviceId) {
       return false;
     }
-    
+
     const vendorServiceId = vendor.serviceId._id ? vendor.serviceId._id.toString() : vendor.serviceId.toString();
     const requestServiceId = service._id.toString();
-    
-    if (vendorServiceId !== requestServiceId) {
-      return false; // Vendor's primary service doesn't match the requested service
+
+    // Check for exact service match
+    const serviceMatches = vendorServiceId === requestServiceId;
+
+    // Check for category match
+    let categoryMatches = false;
+    if (vendor.serviceId.category_id && service.category_id) {
+      const vendorCategoryId = vendor.serviceId.category_id._id
+        ? vendor.serviceId.category_id._id.toString()
+        : vendor.serviceId.category_id.toString();
+      const serviceCategoryId = service.category_id._id
+        ? service.category_id._id.toString()
+        : service.category_id.toString();
+      categoryMatches = vendorCategoryId === serviceCategoryId;
+    }
+
+    // Vendor must match either service OR category
+    if (!serviceMatches && !categoryMatches) {
+      return false;
     }
 
     // 3. For scheduled services, check availability at specific time
@@ -36,7 +54,7 @@ const checkVendorEligibility = (vendor, service) => {
 
     // 4. For all other service types, just check if vendor has any availability schedule
     return checkGeneralAvailability(vendor, service);
-    
+
   } catch (error) {
     console.error('Error checking vendor eligibility:', error);
     return false;
