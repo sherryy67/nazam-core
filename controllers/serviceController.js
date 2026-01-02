@@ -884,10 +884,9 @@ const getServices = async (req, res, next) => {
       query.category_id = category;
     }
 
-    // Add keywords search if provided (search in name and description)
+    // Add keywords search if provided (search in name only)
     if (keywords && keywords.trim().length > 0) {
-      const searchRegex = new RegExp(keywords.trim(), "i");
-      query.$or = [{ name: searchRegex }, { description: searchRegex }];
+      query.name = new RegExp(keywords.trim(), "i");
     }
 
     // Parse pagination parameters
