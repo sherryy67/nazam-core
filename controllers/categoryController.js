@@ -282,16 +282,18 @@ const deleteCategory = async (req, res, next) => {
       );
     }
 
-    // Soft delete by setting isActive to false
-    await Category.findByIdAndUpdate(id, { isActive: false });
+    // Permanently delete the category
+    await Category.findByIdAndDelete(id);
 
     const response = {
       success: true,
       exception: null,
       description: "Category deleted successfully",
       content: {
-        categories: [],
-        total: 0,
+        category: {
+          _id: category._id,
+          name: category.name,
+        },
       },
     };
 
