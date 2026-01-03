@@ -933,6 +933,7 @@ const userUpdateServiceRequest = async (req, res, next) => {
 
     // Build update object with only provided fields
     const updateData = {};
+    let service = null; // Cache service object for reuse
 
     if (user_name !== undefined) {
       updateData.user_name = user_name.trim();
@@ -954,7 +955,9 @@ const userUpdateServiceRequest = async (req, res, next) => {
       }
 
       // Check minimum advance hours if service has this requirement
-      const service = await Service.findById(serviceRequest.service_id);
+      if (!service) {
+        service = await Service.findById(serviceRequest.service_id);
+      }
       if (service && service.minAdvanceHours && service.minAdvanceHours > 0) {
         const minAdvanceMs = service.minAdvanceHours * 60 * 60 * 1000;
         const minAllowedDate = new Date(now.getTime() + minAdvanceMs);
@@ -978,7 +981,9 @@ const userUpdateServiceRequest = async (req, res, next) => {
 
       // Recalculate pricing if number_of_units changed and it's not a Quotation
       if (serviceRequest.request_type !== 'Quotation') {
-        const service = await Service.findById(serviceRequest.service_id);
+        if (!service) {
+          service = await Service.findById(serviceRequest.service_id);
+        }
         if (service) {
           const numberOfUnits = Number(number_of_units);
 
@@ -1014,7 +1019,8 @@ const userUpdateServiceRequest = async (req, res, next) => {
 
     // Handle sub-services update if provided
     if (selectedSubServices !== undefined) {
-      const service = await Service.findById(serviceRequest.service_id).select('+subServices');
+      // Always fetch with subServices for sub-services validation
+      service = await Service.findById(serviceRequest.service_id).select('+subServices');
 
       if (selectedSubServices && selectedSubServices.length > 0) {
         if (!service.subServices || service.subServices.length === 0) {
@@ -1067,6 +1073,36 @@ const userUpdateServiceRequest = async (req, res, next) => {
       return sendError(res, 400, 'No valid fields provided to update', 'NO_UPDATE_FIELDS');
     }
 
+    // Apply discount if total_price was recalculated and request is not Quotation
+    if (updateData.total_price !== undefined && serviceRequest.request_type !== 'Quotation') {
+      // Get service to check for discount (reuse if already fetched)
+      if (!service) {
+        service = await Service.findById(serviceRequest.service_id);
+      }
+      
+      if (service) {
+        // Check for active banner with discount for this service
+        const activeBanner = await Banner.findOne({
+          service: serviceRequest.service_id,
+          isActive: true,
+        }).lean();
+
+        // Use service discount if available, otherwise use banner discount
+        const discountPercentage = service.discount ?? activeBanner?.discountPercentage ?? null;
+
+        // Apply discount to total price if discount exists
+        if (discountPercentage && discountPercentage > 0) {
+          const originalTotal = updateData.total_price;
+          const discountAmount = (originalTotal * discountPercentage) / 100;
+          updateData.total_price = originalTotal - discountAmount;
+          // Round to 2 decimal places
+          updateData.total_price = Math.round(updateData.total_price * 100) / 100;
+          updateData.discountPercentage = discountPercentage;
+          updateData.discountAmount = Math.round(discountAmount * 100) / 100;
+        }
+      }
+    }
+
     // Update the service request
     const updatedRequest = await ServiceRequest.findByIdAndUpdate(
       id,
@@ -1099,6 +1135,12 @@ const userUpdateServiceRequest = async (req, res, next) => {
       createdAt: updatedRequest.createdAt.toISOString(),
       updatedAt: updatedRequest.updatedAt.toISOString()
     };
+
+    // Add discount information if discount was applied
+    if (updatedRequest.discountPercentage && updatedRequest.discountPercentage > 0) {
+      transformedRequest.discountPercentage = updatedRequest.discountPercentage;
+      transformedRequest.discountAmount = updatedRequest.discountAmount;
+    }
 
     const response = {
       success: true,
