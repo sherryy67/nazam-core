@@ -1279,8 +1279,8 @@ const deleteService = async (req, res, next) => {
       );
     }
 
-    // Soft delete by setting isActive to false
-    await Service.findByIdAndUpdate(id, { isActive: false });
+    // Permanently delete the service
+    await Service.findByIdAndDelete(id);
 
     const response = {
       success: true,
@@ -1290,7 +1290,6 @@ const deleteService = async (req, res, next) => {
         service: {
           _id: service._id,
           name: service.name,
-          isActive: false,
         },
       },
     };
