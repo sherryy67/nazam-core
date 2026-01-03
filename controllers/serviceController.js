@@ -1305,10 +1305,24 @@ const deleteService = async (req, res, next) => {
 // @access  Public
 const getAllActiveServices = async (req, res, next) => {
   try {
-    const { category, category_id } = req.query;
+    const { category, category_id, serviceType } = req.query;
 
     // Build query
     const query = { isActive: true };
+
+    // Add serviceType filter if provided (residential or commercial)
+    if (serviceType) {
+      const validServiceTypes = ["residential", "commercial"];
+      if (!validServiceTypes.includes(serviceType.toLowerCase())) {
+        return sendError(
+          res,
+          400,
+          "Invalid serviceType. Must be 'residential' or 'commercial'",
+          "INVALID_SERVICE_TYPE"
+        );
+      }
+      query.serviceType = serviceType.toLowerCase();
+    }
 
     // Add category filter if provided (support both 'category' and 'category_id' for flexibility)
     const categoryFilter = category || category_id;
