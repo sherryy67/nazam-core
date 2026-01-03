@@ -859,15 +859,26 @@ const createService = async (req, res, next) => {
   }
 };
 
-// @desc    Get all active services
+// @desc    Get all services (admin gets all, others get only active)
 // @route   GET /api/services
 // @access  All users
 const getServices = async (req, res, next) => {
   try {
-    const { category, keywords, page, limit } = req.query;
+    const { category, keywords, page, limit, isActive } = req.query;
+    const ROLES = require("../constants/roles");
+    const isAdmin = req.user && req.user.role === ROLES.ADMIN;
 
-    // Build query
-    const query = { isActive: true };
+    // Build query - admin sees all services (with optional filter), others see only active
+    const query = {};
+    if (isAdmin) {
+      // Admin can filter by isActive status (true, false, or all if not provided)
+      if (isActive !== undefined) {
+        query.isActive = isActive === "true";
+      }
+    } else {
+      // Non-admin users only see active services
+      query.isActive = true;
+    }
 
     // Add category filter if provided
     if (category) {
