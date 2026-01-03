@@ -1,6 +1,7 @@
 const ServiceRequest = require('../models/ServiceRequest');
 const Service = require('../models/Service');
 const Category = require('../models/Category');
+const Banner = require('../models/Banner');
 const mongoose = require('mongoose');
 const { sendSuccess, sendError, sendCreated } = require('../utils/response');
 const emailService = require('../utils/emailService');
@@ -276,6 +277,29 @@ const submitServiceRequest = async (req, res, next) => {
       }
     }
 
+    // Check for discount (from service or active banner)
+    let discount = null;
+    let discountPercentage = null;
+    if (request_type !== 'Quotation' && totalPrice !== null && totalPrice !== undefined) {
+      // Check for active banner with discount for this service
+      const activeBanner = await Banner.findOne({
+        service: service_id,
+        isActive: true,
+      }).lean();
+
+      // Use service discount if available, otherwise use banner discount
+      discountPercentage = service.discount ?? activeBanner?.discountPercentage ?? null;
+
+      // Apply discount to total price if discount exists
+      if (discountPercentage && discountPercentage > 0) {
+        discount = (totalPrice * discountPercentage) / 100;
+        totalPrice = totalPrice - discount;
+        // Round to 2 decimal places
+        totalPrice = Math.round(totalPrice * 100) / 100;
+        discount = Math.round(discount * 100) / 100;
+      }
+    }
+
     // Create service request data
     const serviceRequestData = {
       user_name: user_name.trim(),
@@ -314,6 +338,11 @@ const submitServiceRequest = async (req, res, next) => {
       serviceRequestData.unit_type = unitType;
       serviceRequestData.unit_price = unitPrice;
       serviceRequestData.total_price = totalPrice;
+      // Add discount information if discount was applied
+      if (discountPercentage && discountPercentage > 0) {
+        serviceRequestData.discountPercentage = discountPercentage;
+        serviceRequestData.discountAmount = discount;
+      }
     } else {
       // For Quotation requests, add pricing fields only if available
       if (unitType) {
@@ -366,6 +395,12 @@ const submitServiceRequest = async (req, res, next) => {
       createdAt: serviceRequest.createdAt.toISOString(),
       updatedAt: serviceRequest.updatedAt.toISOString()
     };
+
+    // Add discount information if discount was applied
+    if (serviceRequest.discountPercentage && serviceRequest.discountPercentage > 0) {
+      transformedRequest.discountPercentage = serviceRequest.discountPercentage;
+      transformedRequest.discountAmount = serviceRequest.discountAmount;
+    }
 
     const response = {
       success: true,
