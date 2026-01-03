@@ -1524,7 +1524,12 @@ const setFeaturedServices = async (req, res, next) => {
       modifiedCount += result?.modifiedCount ?? result?.nModified ?? 0;
     }
 
-    const updatedServices = await Service.find({ _id: { $in: allIds } })
+    const updatedServices = await Service.find({ _id: { $in: allIds }, isActive: true })
+      .populate("category_id", "name description")
+      .select("_id name category_id isFeatured isActive");
+
+    // Get all active featured services to return
+    const allFeaturedServices = await Service.find({ isActive: true, isFeatured: true })
       .populate("category_id", "name description")
       .select("_id name category_id isFeatured isActive");
 
@@ -1536,6 +1541,8 @@ const setFeaturedServices = async (req, res, next) => {
         matchedCount,
         modifiedCount,
         services: updatedServices,
+        featuredServices: allFeaturedServices,
+        totalFeatured: allFeaturedServices.length,
       }
     );
   } catch (error) {
