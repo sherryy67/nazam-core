@@ -1515,12 +1515,6 @@ const setFeaturedServices = async (req, res, next) => {
     let matchedCount = 0;
     let modifiedCount = 0;
 
-    // First, unfeatured all currently featured services
-    await Service.updateMany(
-      { isFeatured: true },
-      { $set: { isFeatured: false } }
-    );
-
     for (const op of operations) {
       const result = await Service.updateMany(
         { _id: { $in: op.ids } },
