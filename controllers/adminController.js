@@ -3,6 +3,7 @@ const Vendor = require('../models/Vendor');
 const Category = require('../models/Category');
 const User = require('../models/User');
 const ServiceRequest = require('../models/ServiceRequest');
+const Address = require('../models/Address');
 const mongoose = require('mongoose');
 const { sendSuccess, sendError, sendNotFoundError, sendValidationError } = require('../utils/response');
 const { checkVendorEligibility } = require('../utils/vendorEligibility');
@@ -764,6 +765,63 @@ const getAllUsers = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get all addresses for a specific user
+ * @route   GET /api/admin/users/:userId/addresses
+ * @access  Private (Admin only)
+ */
+const getUserAddresses = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    // Validate user ID
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return sendError(res, 400, 'Invalid user ID', 'INVALID_USER_ID');
+    }
+
+    // Check if user exists
+    const user = await User.findById(userId).select('name email phoneNumber');
+    if (!user) {
+      return sendNotFoundError(res, 'User not found');
+    }
+
+    // Get all addresses for the user
+    const addresses = await Address.find({ user: userId })
+      .sort({ isDefault: -1, createdAt: -1 })
+      .lean();
+
+    // Transform addresses for response
+    const transformedAddresses = addresses.map(address => ({
+      _id: address._id,
+      label: address.label,
+      addressLine1: address.addressLine1,
+      addressLine2: address.addressLine2 || undefined,
+      city: address.city,
+      emirate: address.emirate,
+      country: address.country,
+      zipCode: address.zipCode || undefined,
+      isDefault: address.isDefault,
+      latitude: address.latitude || undefined,
+      longitude: address.longitude || undefined,
+      createdAt: address.createdAt?.toISOString(),
+      updatedAt: address.updatedAt?.toISOString()
+    }));
+
+    return sendSuccess(res, 200, 'User addresses retrieved successfully', {
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phoneNumber: user.phoneNumber
+      },
+      addresses: transformedAddresses,
+      totalAddresses: transformedAddresses.length
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getEligibleVendors,
   assignServiceToVendor,
@@ -772,5 +830,6 @@ module.exports = {
   getAdminDashboard,
   toggleUserStatus,
   getAllUsers,
-  adminCreateUser
+  adminCreateUser,
+  getUserAddresses
 };

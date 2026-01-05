@@ -2,7 +2,7 @@ const express = require('express');
 const { body } = require('express-validator');
 const { sendSuccess } = require('../utils/response');
 const { adminLogin, createAdmin } = require('../controllers/authController');
-const { getEligibleVendors, assignServiceToVendor, unassignServiceFromVendor, getAssignedServices, getAdminDashboard, toggleUserStatus, getAllUsers, adminCreateUser } = require('../controllers/adminController');
+const { getEligibleVendors, assignServiceToVendor, unassignServiceFromVendor, getAssignedServices, getAdminDashboard, toggleUserStatus, getAllUsers, adminCreateUser, getUserAddresses } = require('../controllers/adminController');
 const { updateVendorAvailability } = require('../controllers/vendorController');
 const { protect } = require('../middlewares/auth');
 const { isAdmin } = require('../middlewares/roleAuth');
@@ -507,6 +507,144 @@ const toggleUserStatusValidation = [
 ];
 
 router.patch('/users/:userId/status', protect, isAdmin, toggleUserStatusValidation, toggleUserStatus);
+
+/**
+ * @swagger
+ * /api/admin/users/{userId}/addresses:
+ *   get:
+ *     summary: Get all addresses for a specific user (Admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID (MongoDB ObjectId)
+ *     responses:
+ *       200:
+ *         description: User addresses retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 exception:
+ *                   type: string
+ *                   example: null
+ *                 description:
+ *                   type: string
+ *                   example: "User addresses retrieved successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                           example: "60f7b3b3b3b3b3b3b3b3b3b3"
+ *                         name:
+ *                           type: string
+ *                           example: "John Doe"
+ *                         email:
+ *                           type: string
+ *                           example: "john@example.com"
+ *                         phoneNumber:
+ *                           type: string
+ *                           example: "+971501234567"
+ *                     addresses:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: string
+ *                             example: "60f7b3b3b3b3b3b3b3b3b3b4"
+ *                           label:
+ *                             type: string
+ *                             enum: [Home, Work, Other]
+ *                             example: "Home"
+ *                           addressLine1:
+ *                             type: string
+ *                             example: "Building 123, Street 45"
+ *                           addressLine2:
+ *                             type: string
+ *                             example: "Apartment 10, Floor 5"
+ *                           city:
+ *                             type: string
+ *                             example: "Deira"
+ *                           emirate:
+ *                             type: string
+ *                             enum: [Dubai, Sharjah, Abu Dhabi, Ajman, RAK, Fujairah, UAQ]
+ *                             example: "Dubai"
+ *                           country:
+ *                             type: string
+ *                             example: "UAE"
+ *                           zipCode:
+ *                             type: string
+ *                             example: "12345"
+ *                           isDefault:
+ *                             type: boolean
+ *                             example: true
+ *                           latitude:
+ *                             type: number
+ *                             example: 25.276987
+ *                           longitude:
+ *                             type: number
+ *                             example: 55.296249
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *                           updatedAt:
+ *                             type: string
+ *                             format: date-time
+ *                     totalAddresses:
+ *                       type: integer
+ *                       example: 2
+ *       400:
+ *         description: Bad request - Invalid user ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 description:
+ *                   type: string
+ *                   example: "Invalid user ID"
+ *                 exception:
+ *                   type: string
+ *                   example: "INVALID_USER_ID"
+ *       401:
+ *         description: Unauthorized - admin access required
+ *       403:
+ *         description: Forbidden - admin access required
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 description:
+ *                   type: string
+ *                   example: "User not found"
+ *                 exception:
+ *                   type: string
+ *                   example: "NOT_FOUND"
+ */
+router.get('/users/:userId/addresses', protect, isAdmin, getUserAddresses);
 
 // Validation for admin create user
 const adminCreateUserValidation = [
