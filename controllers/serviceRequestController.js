@@ -417,6 +417,351 @@ const submitServiceRequest = async (req, res, next) => {
   }
 };
 
+// @desc    Admin submit service request on behalf of user
+// @route   POST /api/service-requests/admin-submit
+// @access  Admin only
+const adminSubmitServiceRequest = async (req, res, next) => {
+  try {
+    const {
+      user_name,
+      user_phone,
+      user_email,
+      address,
+      service_id,
+      service_name,
+      category_id,
+      category_name,
+      request_type,
+      requested_date,
+      message,
+      number_of_units,
+      payment_method,
+      selectedSubServices
+    } = req.body;
+
+    // Validate required fields
+    const requiredFields = [
+      'user_name', 'user_phone', 'user_email', 'address',
+      'service_id', 'service_name', 'category_id', 'category_name',
+      'request_type', 'requested_date', 'number_of_units'
+    ];
+
+    const missingFields = requiredFields.filter(field => !req.body[field]);
+    if (missingFields.length > 0) {
+      return sendError(res, 400, `Missing required fields: ${missingFields.join(', ')}`, 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(user_email)) {
+      return sendError(res, 400, 'Invalid email format', 'INVALID_EMAIL');
+    }
+
+    // Validate phone format (basic validation)
+    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
+    if (!phoneRegex.test(user_phone.replace(/[\s\-\(\)]/g, ''))) {
+      return sendError(res, 400, 'Invalid phone number format', 'INVALID_PHONE');
+    }
+
+    // Validate request_type
+    if (!['Quotation', 'OnTime', 'Scheduled'].includes(request_type)) {
+      return sendError(res, 400, 'Invalid request_type. Must be Quotation, OnTime, or Scheduled', 'INVALID_REQUEST_TYPE');
+    }
+
+    // Validate number_of_units
+    if (!number_of_units || number_of_units <= 0 || !Number.isInteger(Number(number_of_units))) {
+      return sendError(res, 400, 'Number of units must be a positive integer', 'INVALID_NUMBER_OF_UNITS');
+    }
+
+    // Validate service exists and is active
+    const service = await Service.findById(service_id).select('+subServices');
+    if (!service || !service.isActive) {
+      return sendError(res, 400, 'Invalid or inactive service', 'INVALID_SERVICE');
+    }
+
+    // Handle sub-services selection if provided
+    let parsedSelectedSubServices = [];
+    if (selectedSubServices !== undefined && selectedSubServices !== null) {
+      try {
+        parsedSelectedSubServices = typeof selectedSubServices === 'string'
+          ? JSON.parse(selectedSubServices)
+          : selectedSubServices;
+      } catch (parseError) {
+        return sendError(res, 400, 'selectedSubServices must be a valid JSON array', 'INVALID_SELECTED_SUBSERVICES');
+      }
+
+      if (!Array.isArray(parsedSelectedSubServices)) {
+        return sendError(res, 400, 'selectedSubServices must be an array', 'INVALID_SELECTED_SUBSERVICES');
+      }
+
+      if (!service.subServices || service.subServices.length === 0) {
+        return sendError(res, 400, 'Service does not have sub-services available', 'SERVICE_NO_SUBSERVICES');
+      }
+
+      for (const selected of parsedSelectedSubServices) {
+        if (!selected.name) {
+          return sendError(res, 400, 'Each selected sub-service must have a name', 'INVALID_SUBSERVICE_NAME');
+        }
+
+        const matchingSubService = service.subServices.find(
+          sub => sub.name.toLowerCase().trim() === selected.name.toLowerCase().trim()
+        );
+
+        if (!matchingSubService) {
+          return sendError(res, 400, `Sub-service "${selected.name}" not found in service sub-services`, 'SUBSERVICE_NOT_FOUND');
+        }
+
+        const quantity = selected.quantity !== undefined ? parseInt(selected.quantity) : 1;
+        if (quantity < 1) {
+          return sendError(res, 400, `Quantity for sub-service "${selected.name}" must be at least 1`, 'INVALID_SUBSERVICE_QUANTITY');
+        }
+        if (matchingSubService.max && quantity > matchingSubService.max) {
+          return sendError(res, 400, `Quantity for sub-service "${selected.name}" cannot exceed ${matchingSubService.max}`, 'INVALID_SUBSERVICE_QUANTITY');
+        }
+      }
+    }
+
+    // Validate and normalize payment method
+    let paymentMethod = 'Cash On Delivery';
+    if (payment_method) {
+      const normalizedPaymentMethod = payment_method
+        .trim()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+
+      const validPaymentMethods = ['Cash On Delivery', 'Online Payment'];
+
+      if (!validPaymentMethods.includes(normalizedPaymentMethod)) {
+        return sendError(res, 400, `Payment method must be one of: ${validPaymentMethods.join(', ')}`, 'INVALID_PAYMENT_METHOD');
+      }
+
+      paymentMethod = normalizedPaymentMethod;
+    }
+
+    // Calculate pricing
+    let unitType, unitPrice, totalPrice;
+    const numberOfUnits = Number(number_of_units);
+
+    const hasSubServices = service.subServices && service.subServices.length > 0;
+    const hasSelectedSubServices = parsedSelectedSubServices && parsedSelectedSubServices.length > 0;
+
+    if (request_type === 'Quotation') {
+      unitType = service.unitType || null;
+
+      if (hasSubServices && hasSelectedSubServices) {
+        let subServicesTotal = 0;
+        for (const selected of parsedSelectedSubServices) {
+          const matchingSubService = service.subServices.find(
+            sub => sub.name.toLowerCase().trim() === selected.name.toLowerCase().trim()
+          );
+          if (matchingSubService) {
+            const quantity = selected.quantity !== undefined ? parseInt(selected.quantity) : 1;
+            subServicesTotal += matchingSubService.rate * quantity;
+          }
+        }
+        if (subServicesTotal > 0) {
+          unitPrice = subServicesTotal;
+        } else if (service.unitType === 'per_hour') {
+          const tier = resolveTimeBasedTier(service, numberOfUnits);
+          unitPrice = tier ? tier.price : (service.basePrice || null);
+        } else {
+          unitPrice = service.basePrice || null;
+        }
+      } else {
+        if (service.unitType === 'per_hour') {
+          const tier = resolveTimeBasedTier(service, numberOfUnits);
+          unitPrice = tier ? tier.price : (service.basePrice || null);
+        } else {
+          unitPrice = service.basePrice || null;
+        }
+      }
+
+      totalPrice = null;
+    } else {
+      if (hasSubServices && hasSelectedSubServices) {
+        let subServicesTotal = 0;
+        for (const selected of parsedSelectedSubServices) {
+          const matchingSubService = service.subServices.find(
+            sub => sub.name.toLowerCase().trim() === selected.name.toLowerCase().trim()
+          );
+          if (matchingSubService) {
+            const quantity = selected.quantity !== undefined ? parseInt(selected.quantity) : 1;
+            subServicesTotal += matchingSubService.rate * quantity;
+          }
+        }
+
+        if (subServicesTotal <= 0) {
+          return sendError(res, 400, 'Invalid sub-services selection or pricing', 'INVALID_SUBSERVICES_PRICING');
+        }
+
+        unitType = service.unitType || 'per_unit';
+        unitPrice = subServicesTotal;
+        totalPrice = unitPrice * numberOfUnits;
+      } else {
+        unitType = service.unitType;
+
+        if (!unitType || !['per_unit', 'per_hour'].includes(unitType)) {
+          return sendError(res, 400, 'Service unit type must be per_unit or per_hour', 'INVALID_UNIT_TYPE');
+        }
+
+        if (unitType === 'per_hour') {
+          const tier = resolveTimeBasedTier(service, numberOfUnits);
+
+          if (tier) {
+            unitPrice = tier.price;
+            totalPrice = tier.price;
+          } else if (service.basePrice && service.basePrice > 0) {
+            unitPrice = service.basePrice;
+            totalPrice = service.basePrice * numberOfUnits;
+          } else {
+            return sendError(res, 400, `No time-based pricing found for ${numberOfUnits} hour(s)`, 'MISSING_TIME_BASED_TIER');
+          }
+        } else {
+          const basePrice = service.basePrice;
+
+          if (!basePrice || basePrice <= 0) {
+            return sendError(res, 400, 'Service must have a valid base price for OnTime and Scheduled requests', 'INVALID_SERVICE_PRICE');
+          }
+
+          unitPrice = basePrice;
+          totalPrice = unitPrice * numberOfUnits;
+        }
+      }
+    }
+
+    // Validate category exists and is active
+    const category = await Category.findById(category_id);
+    if (!category || !category.isActive) {
+      return sendError(res, 400, 'Invalid or inactive category', 'INVALID_CATEGORY');
+    }
+
+    // Parse requested_date (admin can set any date, no past date validation)
+    const requestedDate = new Date(requested_date);
+
+    // Check for discount
+    let discount = null;
+    let discountPercentage = null;
+    if (request_type !== 'Quotation' && totalPrice !== null && totalPrice !== undefined) {
+      const activeBanner = await Banner.findOne({
+        service: service_id,
+        isActive: true,
+      }).lean();
+
+      discountPercentage = service.discount ?? activeBanner?.discountPercentage ?? null;
+
+      if (discountPercentage && discountPercentage > 0) {
+        discount = (totalPrice * discountPercentage) / 100;
+        totalPrice = totalPrice - discount;
+        totalPrice = Math.round(totalPrice * 100) / 100;
+        discount = Math.round(discount * 100) / 100;
+      }
+    }
+
+    // Create service request data
+    const serviceRequestData = {
+      user_name: user_name.trim(),
+      user_phone: user_phone.trim(),
+      user_email: user_email.trim().toLowerCase(),
+      address: address.trim(),
+      service_id,
+      service_name: service_name.trim(),
+      category_id,
+      category_name: category_name.trim(),
+      request_type,
+      requested_date: requestedDate,
+      message: message ? message.trim() : undefined,
+      status: 'Pending',
+      number_of_units: numberOfUnits,
+      paymentMethod: paymentMethod,
+      createdByAdmin: req.user._id
+    };
+
+    // Add selected sub-services if provided
+    if (parsedSelectedSubServices.length > 0) {
+      serviceRequestData.selectedSubServices = parsedSelectedSubServices.map(selected => {
+        const matchingSubService = service.subServices.find(
+          sub => sub.name.toLowerCase().trim() === selected.name.toLowerCase().trim()
+        );
+        return {
+          name: matchingSubService.name,
+          items: matchingSubService.items || 1,
+          rate: matchingSubService.rate,
+          quantity: selected.quantity !== undefined ? parseInt(selected.quantity) : 1
+        };
+      });
+    }
+
+    // Add pricing fields
+    if (request_type !== 'Quotation') {
+      serviceRequestData.unit_type = unitType;
+      serviceRequestData.unit_price = unitPrice;
+      serviceRequestData.total_price = totalPrice;
+      if (discountPercentage && discountPercentage > 0) {
+        serviceRequestData.discountPercentage = discountPercentage;
+        serviceRequestData.discountAmount = discount;
+      }
+    } else {
+      if (unitType) {
+        serviceRequestData.unit_type = unitType;
+      }
+      if (unitPrice !== null && unitPrice !== undefined) {
+        serviceRequestData.unit_price = unitPrice;
+      }
+      if (totalPrice !== null && totalPrice !== undefined) {
+        serviceRequestData.total_price = totalPrice;
+      }
+    }
+
+    // Create the service request
+    const serviceRequest = await ServiceRequest.create(serviceRequestData);
+
+    // Transform response
+    const transformedRequest = {
+      _id: serviceRequest._id,
+      user_name: serviceRequest.user_name,
+      user_phone: serviceRequest.user_phone,
+      user_email: serviceRequest.user_email,
+      address: serviceRequest.address,
+      service_id: serviceRequest.service_id,
+      service_name: serviceRequest.service_name,
+      category_id: serviceRequest.category_id,
+      category_name: serviceRequest.category_name,
+      request_type: serviceRequest.request_type,
+      requested_date: serviceRequest.requested_date.toISOString(),
+      message: serviceRequest.message,
+      status: serviceRequest.status,
+      unit_type: serviceRequest.unit_type,
+      unit_price: serviceRequest.unit_price,
+      number_of_units: serviceRequest.number_of_units,
+      total_price: serviceRequest.total_price,
+      selectedSubServices: serviceRequest.selectedSubServices || [],
+      paymentMethod: serviceRequest.paymentMethod,
+      createdByAdmin: serviceRequest.createdByAdmin,
+      createdAt: serviceRequest.createdAt.toISOString(),
+      updatedAt: serviceRequest.updatedAt.toISOString()
+    };
+
+    if (serviceRequest.discountPercentage && serviceRequest.discountPercentage > 0) {
+      transformedRequest.discountPercentage = serviceRequest.discountPercentage;
+      transformedRequest.discountAmount = serviceRequest.discountAmount;
+    }
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Service request submitted by admin successfully',
+      content: {
+        serviceRequest: transformedRequest
+      }
+    };
+
+    res.status(201).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Get all service requests (Admin only)
 // @route   GET /api/service-requests
 // @access  Admin only
@@ -1320,6 +1665,7 @@ const userDeleteServiceRequest = async (req, res, next) => {
 
 module.exports = {
   submitServiceRequest,
+  adminSubmitServiceRequest,
   getServiceRequests,
   updateServiceRequestStatus,
   assignRequest,

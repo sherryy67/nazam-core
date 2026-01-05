@@ -4,6 +4,7 @@ const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
 const {
   submitServiceRequest,
+  adminSubmitServiceRequest,
   getServiceRequests,
   updateServiceRequestStatus,
   deleteServiceRequest,
@@ -195,6 +196,96 @@ const updateStatusValidation = [
  *         description: Server error
  */
 router.post('/submit-service-requests', submitServiceRequestValidation, submitServiceRequest);
+
+/**
+ * @swagger
+ * /api/service-requests/admin-submit:
+ *   post:
+ *     summary: Admin submit service request on behalf of user
+ *     tags: [Service Requests]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - user_name
+ *               - user_phone
+ *               - user_email
+ *               - address
+ *               - service_id
+ *               - service_name
+ *               - category_id
+ *               - category_name
+ *               - request_type
+ *               - requested_date
+ *               - number_of_units
+ *             properties:
+ *               user_name:
+ *                 type: string
+ *                 example: "John Doe"
+ *               user_phone:
+ *                 type: string
+ *                 example: "+1234567890"
+ *               user_email:
+ *                 type: string
+ *                 example: "john@example.com"
+ *               address:
+ *                 type: string
+ *                 example: "123 Main St, City, State 12345"
+ *               service_id:
+ *                 type: string
+ *                 example: "64a1b2c3d4e5f6789abcdef1"
+ *               service_name:
+ *                 type: string
+ *                 example: "AC Cleaning Service"
+ *               category_id:
+ *                 type: string
+ *                 example: "64a1b2c3d4e5f6789abcdef0"
+ *               category_name:
+ *                 type: string
+ *                 example: "Home Cleaning"
+ *               request_type:
+ *                 type: string
+ *                 enum: [Quotation, OnTime, Scheduled]
+ *                 example: "OnTime"
+ *               requested_date:
+ *                 type: string
+ *                 format: date-time
+ *                 example: "2023-12-15T10:00:00.000Z"
+ *               number_of_units:
+ *                 type: integer
+ *                 example: 1
+ *               message:
+ *                 type: string
+ *                 example: "Customer called to book this service"
+ *               payment_method:
+ *                 type: string
+ *                 enum: [Cash On Delivery, Online Payment]
+ *                 example: "Cash On Delivery"
+ *               selectedSubServices:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                     quantity:
+ *                       type: integer
+ *     responses:
+ *       201:
+ *         description: Service request submitted by admin successfully
+ *       400:
+ *         description: Bad request - validation error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ */
+router.post('/service-requests/admin-submit', protect, isAdmin, adminSubmitServiceRequest);
 
 /**
  * @swagger

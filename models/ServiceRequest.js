@@ -66,6 +66,9 @@ const serviceRequestSchema = new mongoose.Schema({
     quantity: { type: Number, default: 1 } // Quantity selected by user
   }],
   
+  // Admin created order tracking
+  createdByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
+
   // Legacy fields (for backward compatibility)
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   service: { type: mongoose.Schema.Types.ObjectId, ref: "Service" },
