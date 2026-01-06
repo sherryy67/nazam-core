@@ -1090,6 +1090,261 @@ Zushh System
   }
 
   /**
+   * Send order confirmation email to customer when admin submits order on their behalf
+   * @param {string} email - Customer's email address
+   * @param {Object} serviceRequest - Service request details
+   * @returns {Promise<Object>} - Email sending result
+   */
+  async sendOrderConfirmationEmail(email, serviceRequest) {
+    if (!this.isValidEmail(email)) {
+      throw new Error('Invalid email format');
+    }
+
+    const customerName = serviceRequest.user_name || 'Customer';
+    const serviceName = serviceRequest.service_name || 'Service';
+    const categoryName = serviceRequest.category_name || 'Category';
+    const requestDate = serviceRequest.requested_date ? new Date(serviceRequest.requested_date).toLocaleDateString('en-AE', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }) : 'TBD';
+    const requestType = serviceRequest.request_type || 'Service Request';
+    const address = serviceRequest.address || 'N/A';
+    const orderId = serviceRequest._id || 'N/A';
+    const paymentMethod = serviceRequest.paymentMethod || 'Cash On Delivery';
+    const numberOfUnits = serviceRequest.number_of_units || 1;
+    const unitType = serviceRequest.unit_type || 'unit';
+    const unitPrice = serviceRequest.unit_price;
+    const totalPrice = serviceRequest.total_price;
+    const message = serviceRequest.message || '';
+
+    // Format sub-services if available
+    let subServicesHtml = '';
+    let subServicesText = '';
+    if (serviceRequest.selectedSubServices && serviceRequest.selectedSubServices.length > 0) {
+      subServicesHtml = `
+        <tr>
+          <td style="padding: 8px 0; color: #666; vertical-align: top;"><strong>Selected Services:</strong></td>
+          <td style="padding: 8px 0; color: #333;">
+            <ul style="margin: 0; padding-left: 20px;">
+              ${serviceRequest.selectedSubServices.map(sub =>
+                `<li>${sub.name} (Qty: ${sub.quantity || 1}) - AED ${(sub.rate * (sub.quantity || 1)).toFixed(2)}</li>`
+              ).join('')}
+            </ul>
+          </td>
+        </tr>
+      `;
+      subServicesText = `Selected Services:\n${serviceRequest.selectedSubServices.map(sub =>
+        `  - ${sub.name} (Qty: ${sub.quantity || 1}) - AED ${(sub.rate * (sub.quantity || 1)).toFixed(2)}`
+      ).join('\n')}`;
+    }
+
+    // Format discount if available
+    let discountHtml = '';
+    let discountText = '';
+    if (serviceRequest.discountPercentage && serviceRequest.discountAmount) {
+      discountHtml = `
+        <tr>
+          <td style="padding: 8px 0; color: #666;"><strong>Discount (${serviceRequest.discountPercentage}%):</strong></td>
+          <td style="padding: 8px 0; color: #28a745;">-AED ${serviceRequest.discountAmount.toFixed(2)}</td>
+        </tr>
+      `;
+      discountText = `Discount (${serviceRequest.discountPercentage}%): -AED ${serviceRequest.discountAmount.toFixed(2)}`;
+    }
+
+    const subject = `Order Confirmation - ${serviceName} #${orderId.toString().slice(-6).toUpperCase()}`;
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Order Confirmation</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 20px 0; text-align: center; background-color: #ffffff;">
+              <h1 style="color: #333; margin: 0;">Zushh</h1>
+              <p style="color: #666; margin: 5px 0;">Your Trusted Service Partner</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; padding: 30px;">
+                <tr>
+                  <td>
+                    <div style="text-align: center; margin-bottom: 30px;">
+                      <div style="background-color: #28a745; color: white; width: 60px; height: 60px; border-radius: 50%; display: inline-block; line-height: 60px; font-size: 30px;">✓</div>
+                      <h2 style="color: #28a745; margin: 15px 0 5px 0;">Order Confirmed!</h2>
+                      <p style="color: #666; margin: 0;">Thank you for your order, ${customerName}</p>
+                    </div>
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #f8f9fa; border-radius: 8px; text-align: center;">
+                      <p style="color: #666; margin: 0 0 5px 0; font-size: 14px;">Order ID</p>
+                      <p style="color: #333; margin: 0; font-size: 20px; font-weight: bold; font-family: monospace;">#${orderId.toString().slice(-8).toUpperCase()}</p>
+                    </div>
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #e7f5ff; border-left: 4px solid #007bff; border-radius: 4px;">
+                      <h3 style="color: #333; margin-top: 0;">Service Details:</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Category:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${categoryName}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Service:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${serviceName}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Request Type:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${requestType}</td>
+                        </tr>
+                        ${subServicesHtml}
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Quantity:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${numberOfUnits} ${unitType === 'per_hour' ? 'hour(s)' : 'unit(s)'}</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                      <h3 style="color: #333; margin-top: 0;">Appointment Details:</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Scheduled Date:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${requestDate}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Service Address:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${address}</td>
+                        </tr>
+                        ${message ? `
+                        <tr>
+                          <td style="padding: 8px 0; color: #666; vertical-align: top;"><strong>Notes:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${message}</td>
+                        </tr>
+                        ` : ''}
+                      </table>
+                    </div>
+
+                    ${requestType !== 'Quotation' && totalPrice ? `
+                    <div style="margin: 30px 0; padding: 20px; background-color: #d4edda; border-radius: 8px;">
+                      <h3 style="color: #155724; margin-top: 0;">Payment Summary:</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        ${unitPrice ? `
+                        <tr>
+                          <td style="padding: 8px 0; color: #155724;"><strong>Unit Price:</strong></td>
+                          <td style="padding: 8px 0; color: #155724;">AED ${unitPrice.toFixed(2)}</td>
+                        </tr>
+                        ` : ''}
+                        ${discountHtml}
+                        <tr style="border-top: 2px solid #28a745;">
+                          <td style="padding: 12px 0; color: #155724; font-size: 18px;"><strong>Total Amount:</strong></td>
+                          <td style="padding: 12px 0; color: #155724; font-size: 18px;"><strong>AED ${totalPrice.toFixed(2)}</strong></td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #155724;"><strong>Payment Method:</strong></td>
+                          <td style="padding: 8px 0; color: #155724;">${paymentMethod}</td>
+                        </tr>
+                      </table>
+                    </div>
+                    ` : `
+                    <div style="margin: 30px 0; padding: 20px; background-color: #fff3cd; border-radius: 8px;">
+                      <p style="color: #856404; margin: 0;">
+                        <strong>Quotation Request:</strong> Our team will contact you shortly with a detailed quote.
+                      </p>
+                    </div>
+                    `}
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                      <h3 style="color: #333; margin-top: 0;">What Happens Next?</h3>
+                      <ol style="color: #666; font-size: 14px; line-height: 1.8; padding-left: 20px;">
+                        <li>Our team will review your order and assign a professional vendor</li>
+                        <li>You will receive a notification once a vendor is assigned</li>
+                        <li>The vendor will contact you to confirm the appointment</li>
+                        <li>Enjoy your service!</li>
+                      </ol>
+                    </div>
+
+                    <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                      If you have any questions about your order, please don't hesitate to contact our support team.
+                    </p>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6; margin-top: 30px;">
+                      Best regards,<br>
+                      <strong>The Zushh Team</strong>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px; text-align: center; background-color: #ffffff;">
+              <p style="color: #999; font-size: 12px; margin: 0;">
+                © ${new Date().getFullYear()} Zushh. All rights reserved.
+              </p>
+              <p style="color: #999; font-size: 12px; margin: 5px 0 0 0;">
+                Need help? Contact us at info@zushh.com
+              </p>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Order Confirmation - Zushh
+
+Thank you for your order, ${customerName}!
+
+Order ID: #${orderId.toString().slice(-8).toUpperCase()}
+
+Service Details:
+- Category: ${categoryName}
+- Service: ${serviceName}
+- Request Type: ${requestType}
+${subServicesText ? subServicesText + '\n' : ''}- Quantity: ${numberOfUnits} ${unitType === 'per_hour' ? 'hour(s)' : 'unit(s)'}
+
+Appointment Details:
+- Scheduled Date: ${requestDate}
+- Service Address: ${address}
+${message ? `- Notes: ${message}\n` : ''}
+${requestType !== 'Quotation' && totalPrice ? `
+Payment Summary:
+${unitPrice ? `- Unit Price: AED ${unitPrice.toFixed(2)}\n` : ''}${discountText ? discountText + '\n' : ''}- Total Amount: AED ${totalPrice.toFixed(2)}
+- Payment Method: ${paymentMethod}
+` : `
+Quotation Request: Our team will contact you shortly with a detailed quote.
+`}
+What Happens Next?
+1. Our team will review your order and assign a professional vendor
+2. You will receive a notification once a vendor is assigned
+3. The vendor will contact you to confirm the appointment
+4. Enjoy your service!
+
+If you have any questions about your order, please don't hesitate to contact our support team.
+
+Best regards,
+The Zushh Team
+
+© ${new Date().getFullYear()} Zushh. All rights reserved.
+Need help? Contact us at info@zushh.com
+    `;
+
+    return await this.sendEmail({
+      to: email,
+      subject: subject,
+      html: html,
+      text: text
+    });
+  }
+
+  /**
    * Test email configuration
    * @returns {Promise<Object>} - Test result
    */

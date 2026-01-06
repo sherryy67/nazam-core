@@ -5,6 +5,7 @@ const Banner = require('../models/Banner');
 const mongoose = require('mongoose');
 const { sendSuccess, sendError, sendCreated } = require('../utils/response');
 const emailService = require('../utils/emailService');
+const whatsappService = require('../utils/whatsappService');
 const Admin = require('../models/Admin');
 
 const resolveTimeBasedTier = (service, units) => {
@@ -716,6 +717,36 @@ const adminSubmitServiceRequest = async (req, res, next) => {
     // Create the service request
     const serviceRequest = await ServiceRequest.create(serviceRequestData);
 
+    // Send notifications to customer (email and WhatsApp)
+    const notificationResults = { email: null, whatsapp: null };
+
+    // Send email confirmation to customer
+    try {
+      if (emailService.isValidEmail(serviceRequest.user_email)) {
+        notificationResults.email = await emailService.sendOrderConfirmationEmail(
+          serviceRequest.user_email,
+          serviceRequest
+        );
+      }
+    } catch (emailError) {
+      console.error('Failed to send order confirmation email:', emailError.message);
+      notificationResults.email = { success: false, error: emailError.message };
+    }
+
+    // Send WhatsApp confirmation to customer
+    try {
+      const formattedPhone = whatsappService.formatPhoneNumber(serviceRequest.user_phone);
+      if (formattedPhone) {
+        notificationResults.whatsapp = await whatsappService.sendOrderConfirmation(
+          serviceRequest.user_phone,
+          serviceRequest
+        );
+      }
+    } catch (whatsappError) {
+      console.error('Failed to send order confirmation WhatsApp:', whatsappError.message);
+      notificationResults.whatsapp = { success: false, error: whatsappError.message };
+    }
+
     // Transform response
     const transformedRequest = {
       _id: serviceRequest._id,
@@ -752,7 +783,11 @@ const adminSubmitServiceRequest = async (req, res, next) => {
       exception: null,
       description: 'Service request submitted by admin successfully',
       content: {
-        serviceRequest: transformedRequest
+        serviceRequest: transformedRequest,
+        notifications: {
+          emailSent: notificationResults.email?.success || false,
+          whatsappSent: notificationResults.whatsapp?.success || false
+        }
       }
     };
 
