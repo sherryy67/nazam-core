@@ -5,7 +5,7 @@ const Banner = require('../models/Banner');
 const mongoose = require('mongoose');
 const { sendSuccess, sendError, sendCreated } = require('../utils/response');
 const emailService = require('../utils/emailService');
-const whatsappService = require('../utils/whatsappService');
+const smsService = require('../utils/smsService');
 const Admin = require('../models/Admin');
 
 const resolveTimeBasedTier = (service, units) => {
@@ -717,8 +717,8 @@ const adminSubmitServiceRequest = async (req, res, next) => {
     // Create the service request
     const serviceRequest = await ServiceRequest.create(serviceRequestData);
 
-    // Send notifications to customer (email and WhatsApp)
-    const notificationResults = { email: null, whatsapp: null };
+    // Send notifications to customer (email and SMS)
+    const notificationResults = { email: null, sms: null };
 
     // Send email confirmation to customer
     try {
@@ -733,18 +733,17 @@ const adminSubmitServiceRequest = async (req, res, next) => {
       notificationResults.email = { success: false, error: emailError.message };
     }
 
-    // Send WhatsApp confirmation to customer
+    // Send SMS confirmation to customer
     try {
-      const formattedPhone = whatsappService.formatPhoneNumber(serviceRequest.user_phone);
-      if (formattedPhone) {
-        notificationResults.whatsapp = await whatsappService.sendOrderConfirmation(
+      if (smsService.isValidUAEPhoneNumber(serviceRequest.user_phone)) {
+        notificationResults.sms = await smsService.sendOrderConfirmation(
           serviceRequest.user_phone,
           serviceRequest
         );
       }
-    } catch (whatsappError) {
-      console.error('Failed to send order confirmation WhatsApp:', whatsappError.message);
-      notificationResults.whatsapp = { success: false, error: whatsappError.message };
+    } catch (smsError) {
+      console.error('Failed to send order confirmation SMS:', smsError.message);
+      notificationResults.sms = { success: false, error: smsError.message };
     }
 
     // Transform response
@@ -786,7 +785,7 @@ const adminSubmitServiceRequest = async (req, res, next) => {
         serviceRequest: transformedRequest,
         notifications: {
           emailSent: notificationResults.email?.success || false,
-          whatsappSent: notificationResults.whatsapp?.success || false
+          smsSent: notificationResults.sms?.success || false
         }
       }
     };

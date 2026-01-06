@@ -222,6 +222,42 @@ class SMSService {
   generateOTP() {
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
+
+  /**
+   * Send order confirmation SMS to customer
+   * @param {string} phoneNumber - Customer's phone number
+   * @param {Object} serviceRequest - Service request details
+   * @returns {Promise<Object>} - SMS sending result
+   */
+  async sendOrderConfirmation(phoneNumber, serviceRequest) {
+    const customerName = serviceRequest.user_name || 'Customer';
+    const serviceName = serviceRequest.service_name || 'Service';
+    const orderId = serviceRequest._id?.toString().slice(-6).toUpperCase() || 'N/A';
+
+    // Format date
+    let requestDate = 'TBD';
+    if (serviceRequest.requested_date) {
+      const date = new Date(serviceRequest.requested_date);
+      requestDate = date.toLocaleDateString('en-AE', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    // Build pricing text
+    let priceText = '';
+    if (serviceRequest.request_type !== 'Quotation' && serviceRequest.total_price) {
+      priceText = ` Total: AED ${serviceRequest.total_price.toFixed(2)}.`;
+    }
+
+    // SMS has character limits, so keep it concise
+    const message = `Zushh Order Confirmed! Hi ${customerName}, your order #${orderId} for ${serviceName} is confirmed. Date: ${requestDate}.${priceText} We'll assign a vendor soon. Questions? Contact info@zushh.com. OptOut 4741`;
+
+    return await this.sendNotification(phoneNumber, message);
+  }
 }
 
 module.exports = new SMSService();
