@@ -285,7 +285,7 @@ router.post('/submit-service-requests', submitServiceRequestValidation, submitSe
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.post('/service-requests/admin-submit', protect, isAdmin, adminSubmitServiceRequest);
+router.post('/admin-submit', protect, isAdmin, adminSubmitServiceRequest);
 
 /**
  * @swagger
