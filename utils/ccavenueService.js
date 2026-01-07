@@ -15,29 +15,22 @@ class CCAvenueService {
 
   /**
    * Encrypt payment parameters using AES encryption
+   * Based on CCAvenue Node.js integration guide
    * @param {string} plainText - Plain text to encrypt
    * @returns {string} - Encrypted string
    */
   encrypt(plainText) {
     try {
-      // CCAvenue working key: 3975E51578741CE0758A7C8B148F642A (32 hex chars = 16 bytes)
-      // Remove any whitespace and convert from hex string to buffer
-      const keyHex = this.workingKey.trim().replace(/\s+/g, '');
+      // CCAvenue requires MD5 hash of the working key to create the encryption key
+      // The working key is provided as a hex string: 3975E51578741CE0758A7C8B148F642A
+      const workingKey = this.workingKey.trim().replace(/\s+/g, '');
       
-      // Validate hex string format
-      if (!/^[0-9A-Fa-f]{32}$/.test(keyHex)) {
-        throw new Error(`Invalid working key format. Expected 32 hex characters, got: ${keyHex.length} chars`);
-      }
+      // Create encryption key by hashing the working key with MD5
+      const key = crypto.createHash('md5').update(workingKey).digest();
       
-      // Convert hex string to 16-byte buffer for AES-128-CBC
-      const key = Buffer.from(keyHex, 'hex');
+      // CCAvenue uses a specific IV: [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]
+      const iv = Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
       
-      if (key.length !== 16) {
-        throw new Error(`Invalid key length: expected 16 bytes, got ${key.length} bytes`);
-      }
-      
-      // Use zero IV as per CCAvenue specification
-      const iv = Buffer.alloc(16, 0);
       const cipher = crypto.createCipheriv('aes-128-cbc', key, iv);
       let encrypted = cipher.update(plainText, 'utf8', 'hex');
       encrypted += cipher.final('hex');
@@ -49,29 +42,22 @@ class CCAvenueService {
 
   /**
    * Decrypt payment response using AES decryption
+   * Based on CCAvenue Node.js integration guide
    * @param {string} encryptedText - Encrypted text to decrypt
    * @returns {string} - Decrypted string
    */
   decrypt(encryptedText) {
     try {
-      // CCAvenue working key: 3975E51578741CE0758A7C8B148F642A (32 hex chars = 16 bytes)
-      // Remove any whitespace and convert from hex string to buffer
-      const keyHex = this.workingKey.trim().replace(/\s+/g, '');
+      // CCAvenue requires MD5 hash of the working key to create the decryption key
+      // The working key is provided as a hex string: 3975E51578741CE0758A7C8B148F642A
+      const workingKey = this.workingKey.trim().replace(/\s+/g, '');
       
-      // Validate hex string format
-      if (!/^[0-9A-Fa-f]{32}$/.test(keyHex)) {
-        throw new Error(`Invalid working key format. Expected 32 hex characters, got: ${keyHex.length} chars`);
-      }
+      // Create decryption key by hashing the working key with MD5
+      const key = crypto.createHash('md5').update(workingKey).digest();
       
-      // Convert hex string to 16-byte buffer for AES-128-CBC
-      const key = Buffer.from(keyHex, 'hex');
+      // CCAvenue uses a specific IV: [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]
+      const iv = Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f]);
       
-      if (key.length !== 16) {
-        throw new Error(`Invalid key length: expected 16 bytes, got ${key.length} bytes`);
-      }
-      
-      // Use zero IV as per CCAvenue specification
-      const iv = Buffer.alloc(16, 0);
       const decipher = crypto.createDecipheriv('aes-128-cbc', key, iv);
       let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
       decrypted += decipher.final('utf8');
@@ -122,6 +108,7 @@ class CCAvenueService {
     }
 
     // Prepare merchant parameters
+    // CCAvenue expects parameters in a specific order - put required fields first
     const merchantParams = {
       merchant_id: this.merchantId,
       order_id: orderId,
@@ -129,38 +116,57 @@ class CCAvenueService {
       currency: currency,
       redirect_url: redirectUrl,
       cancel_url: cancelUrl,
-      language: 'EN',
-      billing_name: customerName || '',
-      billing_address: billingAddress || '',
-      billing_city: billingCity || '',
-      billing_state: billingState || '',
-      billing_zip: billingZip || '',
-      billing_country: billingCountry,
-      billing_tel: customerPhone || '',
-      billing_email: customerEmail || '',
-      delivery_name: customerName || '',
-      delivery_address: billingAddress || '',
-      delivery_city: billingCity || '',
-      delivery_state: billingState || '',
-      delivery_zip: billingZip || '',
-      delivery_country: billingCountry,
-      delivery_tel: customerPhone || '',
-      merchant_param1: orderId, // Store order ID for reference
-      merchant_param2: '', // Additional parameter if needed
-      merchant_param3: '', // Additional parameter if needed
-      merchant_param4: '', // Additional parameter if needed
-      merchant_param5: '', // Additional parameter if needed
-      promo_code: '', // Promo code if applicable
-      customer_identifier: customerEmail || '' // Customer identifier
+      language: 'EN'
     };
 
+    // Add billing information if available
+    if (customerName) merchantParams.billing_name = customerName;
+    if (billingAddress) merchantParams.billing_address = billingAddress;
+    if (billingCity) merchantParams.billing_city = billingCity;
+    if (billingState) merchantParams.billing_state = billingState;
+    if (billingZip) merchantParams.billing_zip = billingZip;
+    if (billingCountry) merchantParams.billing_country = billingCountry;
+    if (customerPhone) merchantParams.billing_tel = customerPhone;
+    if (customerEmail) merchantParams.billing_email = customerEmail;
+
+    // Add delivery information (same as billing if not provided separately)
+    if (customerName) merchantParams.delivery_name = customerName;
+    if (billingAddress) merchantParams.delivery_address = billingAddress;
+    if (billingCity) merchantParams.delivery_city = billingCity;
+    if (billingState) merchantParams.delivery_state = billingState;
+    if (billingZip) merchantParams.delivery_zip = billingZip;
+    if (billingCountry) merchantParams.delivery_country = billingCountry;
+    if (customerPhone) merchantParams.delivery_tel = customerPhone;
+
+    // Add merchant parameters
+    merchantParams.merchant_param1 = orderId; // Store order ID for reference
+    
+    // Add customer identifier if email is available
+    if (customerEmail) merchantParams.customer_identifier = customerEmail;
+
     // Convert merchant parameters to query string
+    // IMPORTANT: CCAvenue expects parameters WITHOUT URL encoding in the encrypted string
+    // The values should be raw (not encoded) when encrypting
     const merchantParamString = Object.keys(merchantParams)
-      .map(key => `${key}=${encodeURIComponent(merchantParams[key])}`)
+      .map(key => {
+        const value = merchantParams[key];
+        // Use raw value without encoding - CCAvenue will handle encoding after decryption
+        return `${key}=${value || ''}`;
+      })
       .join('&');
+
+    // Debug: Log the parameter string (remove in production)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('CCAvenue Parameter String:', merchantParamString.substring(0, 200) + '...');
+    }
 
     // Encrypt the merchant parameters
     const encryptedData = this.encrypt(merchantParamString);
+    
+    // Debug: Log encrypted data length (remove in production)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Encrypted Data Length:', encryptedData.length);
+    }
 
     // Return payment form data
     return {

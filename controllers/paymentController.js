@@ -46,13 +46,16 @@ const initiatePayment = async (req, res, next) => {
     const backendUrl = process.env.BACKEND_URL || 
       (req.protocol + '://' + req.get('host'));
     
+    // Get frontend URL for user redirects
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    
     // Prepare payment data
     const paymentData = {
       orderId: orderId,
       amount: serviceRequest.total_price,
       currency: 'AED',
       redirectUrl: `${backendUrl}/api/payments/callback`,
-      cancelUrl: `${backendUrl}/api/payments/cancel?orderId=${orderId}`,
+      cancelUrl: `${frontendUrl}/payment/cancelled?orderId=${orderId}`,
       customerName: serviceRequest.user_name,
       customerEmail: serviceRequest.user_email,
       customerPhone: serviceRequest.user_phone,
@@ -66,6 +69,15 @@ const initiatePayment = async (req, res, next) => {
     // Generate encrypted payment form data
     const paymentFormData = ccavenueService.generatePaymentData(paymentData);
 
+    // Debug: Log payment form data (remove in production)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Payment Form Data:', {
+        encRequestLength: paymentFormData.encRequest?.length,
+        access_code: paymentFormData.access_code,
+        paymentUrl: ccavenueService.paymentUrl
+      });
+    }
+
     // Update service request with payment initiation
     serviceRequest.paymentStatus = 'Pending';
     serviceRequest.paymentDetails = {
@@ -74,6 +86,11 @@ const initiatePayment = async (req, res, next) => {
       currency: 'AED'
     };
     await serviceRequest.save();
+
+    // Validate that encrypted data exists
+    if (!paymentFormData.encRequest || paymentFormData.encRequest.length === 0) {
+      return sendError(res, 500, 'Failed to generate encrypted payment data', 'ENCRYPTION_FAILED');
+    }
 
     // Return payment form data and URL
     const response = {
