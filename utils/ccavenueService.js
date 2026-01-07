@@ -20,8 +20,24 @@ class CCAvenueService {
    */
   encrypt(plainText) {
     try {
-      const key = Buffer.from(this.workingKey, 'utf8');
-      const iv = Buffer.from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+      // CCAvenue working key: 3975E51578741CE0758A7C8B148F642A (32 hex chars = 16 bytes)
+      // Remove any whitespace and convert from hex string to buffer
+      const keyHex = this.workingKey.trim().replace(/\s+/g, '');
+      
+      // Validate hex string format
+      if (!/^[0-9A-Fa-f]{32}$/.test(keyHex)) {
+        throw new Error(`Invalid working key format. Expected 32 hex characters, got: ${keyHex.length} chars`);
+      }
+      
+      // Convert hex string to 16-byte buffer for AES-128-CBC
+      const key = Buffer.from(keyHex, 'hex');
+      
+      if (key.length !== 16) {
+        throw new Error(`Invalid key length: expected 16 bytes, got ${key.length} bytes`);
+      }
+      
+      // Use zero IV as per CCAvenue specification
+      const iv = Buffer.alloc(16, 0);
       const cipher = crypto.createCipheriv('aes-128-cbc', key, iv);
       let encrypted = cipher.update(plainText, 'utf8', 'hex');
       encrypted += cipher.final('hex');
@@ -38,8 +54,24 @@ class CCAvenueService {
    */
   decrypt(encryptedText) {
     try {
-      const key = Buffer.from(this.workingKey, 'utf8');
-      const iv = Buffer.from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+      // CCAvenue working key: 3975E51578741CE0758A7C8B148F642A (32 hex chars = 16 bytes)
+      // Remove any whitespace and convert from hex string to buffer
+      const keyHex = this.workingKey.trim().replace(/\s+/g, '');
+      
+      // Validate hex string format
+      if (!/^[0-9A-Fa-f]{32}$/.test(keyHex)) {
+        throw new Error(`Invalid working key format. Expected 32 hex characters, got: ${keyHex.length} chars`);
+      }
+      
+      // Convert hex string to 16-byte buffer for AES-128-CBC
+      const key = Buffer.from(keyHex, 'hex');
+      
+      if (key.length !== 16) {
+        throw new Error(`Invalid key length: expected 16 bytes, got ${key.length} bytes`);
+      }
+      
+      // Use zero IV as per CCAvenue specification
+      const iv = Buffer.alloc(16, 0);
       const decipher = crypto.createDecipheriv('aes-128-cbc', key, iv);
       let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
       decrypted += decipher.final('utf8');
