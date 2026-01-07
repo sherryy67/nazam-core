@@ -119,11 +119,40 @@ const initiatePayment = async (req, res, next) => {
  */
 const handlePaymentCallback = async (req, res, next) => {
   try {
-    // CCAvenue may send callback via POST or GET
-    const encResponse = req.body.encResponse || req.query.encResponse;
+    // CCAvenue sends callback via POST with form data (application/x-www-form-urlencoded)
+    // Check multiple possible locations and field names for encResponse
+    const encResponse = req.body?.encResponse || 
+                       req.body?.encResp || 
+                       req.query?.encResponse || 
+                       req.query?.encResp;
+
+    // Debug: Log what we received
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Payment callback received:', {
+        method: req.method,
+        contentType: req.headers['content-type'],
+        body: req.body,
+        query: req.query,
+        bodyKeys: req.body ? Object.keys(req.body) : [],
+        encResponse: encResponse ? encResponse.substring(0, 50) + '...' : null
+      });
+    }
 
     if (!encResponse) {
-      return sendError(res, 400, 'Missing payment response', 'MISSING_PAYMENT_RESPONSE');
+      const errorDetails = {
+        method: req.method,
+        contentType: req.headers['content-type'],
+        body: req.body,
+        query: req.query,
+        bodyType: typeof req.body,
+        bodyKeys: req.body ? Object.keys(req.body) : [],
+        rawBody: req.body ? JSON.stringify(req.body).substring(0, 200) : 'No body'
+      };
+      
+      console.error('Missing encResponse. Request details:', errorDetails);
+      
+      // Return more detailed error for debugging
+      return sendError(res, 400, `Missing payment response. Received: ${JSON.stringify(errorDetails)}`, 'MISSING_PAYMENT_RESPONSE');
     }
 
     // Parse and decrypt payment response

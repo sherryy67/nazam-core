@@ -105,6 +105,7 @@ router.post('/initiate', initiatePaymentValidation, initiatePayment);
  *       400:
  *         description: Bad request
  */
+// CCAvenue sends callback as POST with form data (application/x-www-form-urlencoded)
 router.post('/callback', handlePaymentCallback);
 router.get('/callback', handlePaymentCallback);
 
