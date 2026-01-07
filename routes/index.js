@@ -14,6 +14,7 @@ const bannerRoutes = require("./banner");
 const emailRoutes = require("./email");
 const contactRoutes = require("./contact");
 const addressRoutes = require("./addresses");
+const paymentRoutes = require("./payments");
 const { sendSuccess } = require("../utils/response");
 const {
   getCategoryServiceSummary,
@@ -38,6 +39,7 @@ router.use("/gemini", geminiRoutes);
 router.use("/email", emailRoutes);
 router.use("/contact", contactRoutes);
 router.use("/addresses", addressRoutes);
+router.use("/payments", paymentRoutes);
 router.use("/", bannerRoutes);
 
 /**

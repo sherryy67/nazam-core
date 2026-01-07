@@ -57,6 +57,20 @@ const serviceRequestSchema = new mongoose.Schema({
     enum: ["Cash On Delivery", "Online Payment"],
     default: "Cash On Delivery"
   },
+  paymentStatus: {
+    type: String,
+    enum: ["Pending", "Success", "Failure", "Cancelled"],
+    default: "Pending"
+  },
+  paymentDetails: {
+    transactionId: { type: String }, // CCAvenue tracking_id
+    orderId: { type: String }, // CCAvenue order_id
+    amount: { type: Number },
+    currency: { type: String, default: "AED" },
+    paymentDate: { type: Date },
+    failureReason: { type: String },
+    bankReferenceNumber: { type: String }
+  },
   
   // Sub-services selection (optional - for services with subServices array)
   selectedSubServices: [{
