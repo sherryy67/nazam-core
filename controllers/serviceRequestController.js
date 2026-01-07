@@ -316,7 +316,8 @@ const submitServiceRequest = async (req, res, next) => {
       message: message ? message.trim() : undefined,
       status: 'Pending',
       number_of_units: numberOfUnits,
-      paymentMethod: paymentMethod
+      paymentMethod: paymentMethod,
+      paymentStatus: paymentMethod === 'Online Payment' ? 'Pending' : undefined
     };
 
     // Add selected sub-services if provided
@@ -393,6 +394,8 @@ const submitServiceRequest = async (req, res, next) => {
       total_price: serviceRequest.total_price,
       selectedSubServices: serviceRequest.selectedSubServices || [],
       paymentMethod: serviceRequest.paymentMethod,
+      paymentStatus: serviceRequest.paymentStatus,
+      paymentDetails: serviceRequest.paymentDetails || {},
       createdAt: serviceRequest.createdAt.toISOString(),
       updatedAt: serviceRequest.updatedAt.toISOString()
     };
@@ -675,6 +678,7 @@ const adminSubmitServiceRequest = async (req, res, next) => {
       status: 'Pending',
       number_of_units: numberOfUnits,
       paymentMethod: paymentMethod,
+      paymentStatus: paymentMethod === 'Online Payment' ? 'Pending' : undefined,
       createdByAdmin: req.user._id
     };
 
@@ -886,6 +890,8 @@ const getServiceRequests = async (req, res, next) => {
       total_price: request.total_price,
       selectedSubServices: request.selectedSubServices || [],
       paymentMethod: request.paymentMethod,
+      paymentStatus: request.paymentStatus,
+      paymentDetails: request.paymentDetails || {},
       createdAt: request.createdAt.toISOString(),
       updatedAt: request.updatedAt.toISOString()
     }));
@@ -971,6 +977,8 @@ const updateServiceRequestStatus = async (req, res, next) => {
       vendor: updatedRequest.vendor,
       selectedSubServices: updatedRequest.selectedSubServices || [],
       paymentMethod: updatedRequest.paymentMethod,
+      paymentStatus: updatedRequest.paymentStatus,
+      paymentDetails: updatedRequest.paymentDetails || {},
       createdAt: updatedRequest.createdAt.toISOString(),
       updatedAt: updatedRequest.updatedAt.toISOString()
     };
@@ -1060,6 +1068,8 @@ const assignRequest = async (req, res, next) => {
       vendor: updatedRequest.vendor,
       selectedSubServices: updatedRequest.selectedSubServices || [],
       paymentMethod: updatedRequest.paymentMethod,
+      paymentStatus: updatedRequest.paymentStatus,
+      paymentDetails: updatedRequest.paymentDetails || {},
       createdAt: updatedRequest.createdAt.toISOString(),
       updatedAt: updatedRequest.updatedAt.toISOString()
     };
@@ -1224,6 +1234,8 @@ const getOrderDetails = async (req, res, next) => {
       createdDate: serviceRequest.createdAt ? serviceRequest.createdAt.toISOString() : null,
       requestedDateTime: serviceRequest.requested_date ? serviceRequest.requested_date.toISOString() : null,
       paymentMethod: serviceRequest.paymentMethod || 'Cash On Delivery',
+      paymentStatus: serviceRequest.paymentStatus,
+      paymentDetails: serviceRequest.paymentDetails || {},
       // Additional useful fields
       requestType: serviceRequest.request_type,
       status: serviceRequest.status,
@@ -1394,6 +1406,12 @@ const userUpdateServiceRequest = async (req, res, next) => {
         return sendError(res, 400, `Payment method must be one of: ${validPaymentMethods.join(', ')}`, 'INVALID_PAYMENT_METHOD');
       }
       updateData.paymentMethod = normalizedPaymentMethod;
+      // Update payment status if switching to online payment
+      if (normalizedPaymentMethod === 'Online Payment') {
+        updateData.paymentStatus = 'Pending';
+      } else if (normalizedPaymentMethod === 'Cash On Delivery') {
+        updateData.paymentStatus = undefined; // Reset payment status for COD
+      }
     }
 
     // Handle sub-services update if provided
@@ -1511,6 +1529,8 @@ const userUpdateServiceRequest = async (req, res, next) => {
       total_price: updatedRequest.total_price,
       selectedSubServices: updatedRequest.selectedSubServices || [],
       paymentMethod: updatedRequest.paymentMethod,
+      paymentStatus: updatedRequest.paymentStatus,
+      paymentDetails: updatedRequest.paymentDetails || {},
       createdAt: updatedRequest.createdAt.toISOString(),
       updatedAt: updatedRequest.updatedAt.toISOString()
     };
@@ -1610,6 +1630,8 @@ const userCancelServiceRequest = async (req, res, next) => {
       total_price: updatedRequest.total_price,
       selectedSubServices: updatedRequest.selectedSubServices || [],
       paymentMethod: updatedRequest.paymentMethod,
+      paymentStatus: updatedRequest.paymentStatus,
+      paymentDetails: updatedRequest.paymentDetails || {},
       createdAt: updatedRequest.createdAt.toISOString(),
       updatedAt: updatedRequest.updatedAt.toISOString()
     };
