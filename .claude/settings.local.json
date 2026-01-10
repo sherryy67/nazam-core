@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(node -e:*)",
-      "Bash(del \"d:\\\\Sher Ali\\\\nazam-core\\\\utils\\\\whatsappService.js\")"
+      "Bash(del \"d:\\\\Sher Ali\\\\nazam-core\\\\utils\\\\whatsappService.js\")",
+      "Bash(find:*)"
     ]
   }
 }
