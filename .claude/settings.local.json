@@ -4,7 +4,8 @@
       "Bash(node -e:*)",
       "Bash(del \"d:\\\\Sher Ali\\\\nazam-core\\\\utils\\\\whatsappService.js\")",
       "Bash(find:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(node -c:*)"
     ]
   }
 }

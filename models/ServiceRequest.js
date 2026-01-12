@@ -44,10 +44,10 @@ const serviceRequestSchema = new mongoose.Schema({
   }, // Calculated total price - not required for Quotation requests
   
   // Status and assignment
-  status: { 
-    type: String, 
-    enum: ["Pending", "Assigned", "Accepted", "Completed", "Cancelled"], 
-    default: "Pending" 
+  status: {
+    type: String,
+    enum: ["Pending", "Quoted", "Assigned", "Accepted", "InProgress", "Completed", "Cancelled"],
+    default: "Pending"
   },
   vendor: { type: mongoose.Schema.Types.ObjectId, ref: "Vendor" }, // assigned later
   
