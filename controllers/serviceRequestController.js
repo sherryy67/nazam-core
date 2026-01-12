@@ -1719,6 +1719,97 @@ const userDeleteServiceRequest = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Update quotation price (Admin only)
+ * @route   PUT /api/admin/service-requests/:id/quote
+ * @access  Admin only
+ */
+const updateQuotationPrice = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { total_price, unit_price, status, admin_notes } = req.body;
+
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, 'Invalid service request ID format', 'INVALID_ID_FORMAT');
+    }
+
+    // Find the service request
+    const serviceRequest = await ServiceRequest.findById(id);
+    if (!serviceRequest) {
+      return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
+    }
+
+    // Validate it's a quotation type
+    if (serviceRequest.request_type !== 'Quotation') {
+      return sendError(
+        res,
+        400,
+        'This endpoint is only for Quotation type requests',
+        'NOT_QUOTATION_TYPE'
+      );
+    }
+
+    // Validate price
+    if (total_price === undefined || total_price === null || total_price <= 0) {
+      return sendError(res, 400, 'Total price must be greater than 0', 'INVALID_PRICE');
+    }
+
+    // Update quotation
+    serviceRequest.total_price = Number(total_price);
+    serviceRequest.unit_price = unit_price ? Number(unit_price) : Number(total_price);
+
+    // Update status if provided (e.g., from "Pending" to "Quoted")
+    if (status && ['Pending', 'Quoted', 'Assigned', 'Accepted', 'InProgress', 'Completed', 'Cancelled'].includes(status)) {
+      serviceRequest.status = status;
+    } else if (!status) {
+      // Default to "Quoted" if no status provided
+      serviceRequest.status = 'Quoted';
+    }
+
+    // Add admin notes if provided
+    if (admin_notes) {
+      if (!serviceRequest.message) {
+        serviceRequest.message = `[Admin Notes] ${admin_notes}`;
+      } else {
+        serviceRequest.message = `${serviceRequest.message}\n\n[Admin Notes] ${admin_notes}`;
+      }
+    }
+
+    await serviceRequest.save();
+
+    // TODO: Send notification to user (email/SMS)
+    // Example: notificationService.sendQuotationReady(serviceRequest);
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Quotation price updated successfully',
+      content: {
+        serviceRequest: {
+          _id: serviceRequest._id,
+          user_name: serviceRequest.user_name,
+          user_email: serviceRequest.user_email,
+          user_phone: serviceRequest.user_phone,
+          service_name: serviceRequest.service_name,
+          request_type: serviceRequest.request_type,
+          total_price: serviceRequest.total_price,
+          unit_price: serviceRequest.unit_price,
+          paymentMethod: serviceRequest.paymentMethod,
+          paymentStatus: serviceRequest.paymentStatus,
+          status: serviceRequest.status,
+          message: serviceRequest.message,
+          requested_date: serviceRequest.requested_date.toISOString()
+        }
+      }
+    };
+
+    return res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   submitServiceRequest,
   adminSubmitServiceRequest,
@@ -1730,5 +1821,6 @@ module.exports = {
   getOrderDetails,
   userUpdateServiceRequest,
   userCancelServiceRequest,
-  userDeleteServiceRequest
+  userDeleteServiceRequest,
+  updateQuotationPrice
 };

@@ -50,12 +50,14 @@ const initiatePayment = async (req, res, next) => {
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     
     // Prepare payment data
+    // Both redirect_url and cancel_url go to backend first, then backend redirects to frontend
+    // This ensures payment status is updated before user sees the result page
     const paymentData = {
       orderId: orderId,
       amount: serviceRequest.total_price,
       currency: 'AED',
       redirectUrl: `${backendUrl}/api/payments/callback`,
-      cancelUrl: `${frontendUrl}/payment/cancelled?orderId=${orderId}`,
+      cancelUrl: `${backendUrl}/api/payments/cancel?orderId=${orderId}`,
       customerName: serviceRequest.user_name,
       customerEmail: serviceRequest.user_email,
       customerPhone: serviceRequest.user_phone,

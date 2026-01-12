@@ -12,7 +12,8 @@ const {
   getOrderDetails,
   userUpdateServiceRequest,
   userCancelServiceRequest,
-  userDeleteServiceRequest
+  userDeleteServiceRequest,
+  updateQuotationPrice
 } = require('../controllers/serviceRequestController');
 
 const router = express.Router();
@@ -461,6 +462,77 @@ router.get('/', protect, isAdmin, getServiceRequests);
  *         description: Service request not found
  */
 router.put('/:id/status', protect, isAdmin, updateStatusValidation, updateServiceRequestStatus);
+
+/**
+ * @swagger
+ * /api/service-requests/{id}/quote:
+ *   put:
+ *     summary: Update quotation price for Quotation type requests (Admin only)
+ *     tags: [Service Requests]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Service request ID (must be Quotation type)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - total_price
+ *             properties:
+ *               total_price:
+ *                 type: number
+ *                 example: 5000
+ *                 description: Quoted price for the service
+ *               unit_price:
+ *                 type: number
+ *                 example: 5000
+ *                 description: Unit price (optional, defaults to total_price)
+ *               status:
+ *                 type: string
+ *                 enum: [Pending, Quoted, Assigned, Accepted, InProgress, Completed, Cancelled]
+ *                 example: "Quoted"
+ *                 description: Status to update (optional, defaults to "Quoted")
+ *               admin_notes:
+ *                 type: string
+ *                 example: "Price includes materials and 2 days labor"
+ *                 description: Admin notes about the quotation (optional)
+ *     responses:
+ *       200:
+ *         description: Quotation price updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 exception:
+ *                   type: string
+ *                 description:
+ *                   type: string
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     serviceRequest:
+ *                       type: object
+ *       400:
+ *         description: Bad request - Not a Quotation type or invalid price
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: Service request not found
+ */
+router.put('/:id/quote', protect, isAdmin, updateQuotationPrice);
 
 /**
  * @swagger
