@@ -15,6 +15,7 @@ const emailRoutes = require("./email");
 const contactRoutes = require("./contact");
 const addressRoutes = require("./addresses");
 const paymentRoutes = require("./payments");
+const marketingRoutes = require("./marketing");
 const { sendSuccess } = require("../utils/response");
 const {
   getCategoryServiceSummary,
@@ -40,6 +41,7 @@ router.use("/email", emailRoutes);
 router.use("/contact", contactRoutes);
 router.use("/addresses", addressRoutes);
 router.use("/payments", paymentRoutes);
+router.use("/marketing", marketingRoutes);
 router.use("/", bannerRoutes);
 
 /**

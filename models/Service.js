@@ -55,6 +55,10 @@ const serviceSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isMarketingService: {
+    type: Boolean,
+    default: false
+  },
   serviceType: {
     type: String,
     enum: ["residential", "commercial"],
