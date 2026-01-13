@@ -3,7 +3,7 @@ name: Deploy to EC2
 on:
   push:
     branches:
-      - main # change to your branch
+      - main
 
 jobs:
   deploy:
@@ -21,9 +21,22 @@ jobs:
       - name: Deploy to EC2
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.ZUSHH_HOST }} << 'EOF'
+            set -e
+
             cd ~/nazam-core
+
+            echo "👉 Cleaning npm cache & PM2 logs"
+            npm cache clean --force
+            pm2 flush
+
+            echo "👉 Pulling latest code"
             git pull origin main
-            npm install --production
+
+            echo "👉 Installing production dependencies"
+            rm -rf node_modules
+            npm install --omit=dev
+
+            echo "👉 Restarting core service"
             pm2 restart zushh-core || pm2 start npm --name "zushh-core" -- run start
             pm2 save
           EOF
