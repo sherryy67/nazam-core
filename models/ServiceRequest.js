@@ -71,6 +71,17 @@ const serviceRequestSchema = new mongoose.Schema({
     failureReason: { type: String },
     bankReferenceNumber: { type: String }
   },
+
+  // Payment link information (Admin generated)
+  paymentLink: {
+    token: { type: String, unique: true, sparse: true }, // Secure unique token
+    url: { type: String }, // Full payment URL
+    generatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
+    generatedAt: { type: Date },
+    expiresAt: { type: Date },
+    isExpired: { type: Boolean, default: false },
+    isUsed: { type: Boolean, default: false }
+  },
   
   // Sub-services selection (optional - for services with subServices array)
   selectedSubServices: [{

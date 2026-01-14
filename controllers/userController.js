@@ -386,9 +386,10 @@ const getUserOrderHistory = async (req, res, next) => {
       return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
     }
 
-    // Build query to match user's email or phone number
+    // Build query to match user ID, email, or phone number
     const query = {
       $or: [
+        { user: userId }, // Direct user reference
         { user_email: user.email.toLowerCase() },
         { user_phone: user.phoneNumber }
       ]
@@ -448,6 +449,8 @@ const getUserOrderHistory = async (req, res, next) => {
       total_price: request.total_price,
       selectedSubServices: request.selectedSubServices || [],
       paymentMethod: request.paymentMethod,
+      paymentStatus: request.paymentStatus,
+      paymentDetails: request.paymentDetails || null,
       createdAt: request.createdAt ? request.createdAt.toISOString() : null,
       updatedAt: request.updatedAt ? request.updatedAt.toISOString() : null
     }));
