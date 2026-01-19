@@ -1605,6 +1605,179 @@ const createAccount = async (req, res, next) => {
   }
 };
 
+// @desc    Request password reset (Step 1 - Send OTP to email)
+// @route   POST /api/auth/forgot-password
+// @access  Public
+const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    // Validate email is provided
+    if (!email) {
+      return sendError(res, 400, 'Email is required', 'MISSING_EMAIL');
+    }
+
+    // Validate email format
+    if (!emailService.isValidEmail(email)) {
+      return sendError(res, 400, 'Please provide a valid email address', 'INVALID_EMAIL');
+    }
+
+    // Check if user exists with this email
+    const user = await User.findOne({ email });
+
+    // For security reasons, we don't reveal if the email exists or not
+    // We always return success, but only send email if user exists
+    if (user) {
+      // Generate OTP code
+      const otpCode = smsService.generateOTP();
+
+      // Set expiration time (5 minutes from now)
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+      // Invalidate any existing OTPs for this email
+      await OTP.updateMany({ email, isUsed: false }, { isUsed: true });
+
+      // Create new OTP record
+      await OTP.create({
+        email,
+        code: otpCode,
+        expiresAt
+      });
+
+      // Send password reset email
+      try {
+        await emailService.sendPasswordResetOTP(email, otpCode, user.name);
+      } catch (error) {
+        console.error('Failed to send password reset email:', error.message);
+        return sendError(res, 500, 'Failed to send password reset email', 'EMAIL_SEND_FAILED');
+      }
+    }
+
+    // Always return success for security (don't reveal if email exists)
+    sendSuccess(res, 200, 'If an account exists with this email, a password reset code has been sent', {
+      email,
+      expiresIn: '5 minutes'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify OTP for password reset (Step 2 - Verify OTP)
+// @route   POST /api/auth/verify-reset-otp
+// @access  Public
+const verifyResetOTP = async (req, res, next) => {
+  try {
+    const { email, otpCode } = req.body;
+
+    // Validate required fields
+    if (!email || !otpCode) {
+      return sendError(res, 400, 'Email and OTP code are required', 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Validate email format
+    if (!emailService.isValidEmail(email)) {
+      return sendError(res, 400, 'Please provide a valid email address', 'INVALID_EMAIL');
+    }
+
+    // Find valid OTP record
+    const otpRecord = await OTP.findOne({
+      email,
+      code: otpCode,
+      isUsed: false,
+      expiresAt: { $gt: new Date() }
+    });
+
+    if (!otpRecord) {
+      return sendError(res, 400, 'Invalid or expired OTP code', 'INVALID_OTP');
+    }
+
+    // Check if OTP has exceeded max attempts
+    if (otpRecord.attempts >= otpRecord.maxAttempts) {
+      return sendError(res, 400, 'OTP code has exceeded maximum attempts', 'OTP_MAX_ATTEMPTS_EXCEEDED');
+    }
+
+    // Check if user exists
+    const user = await User.findOne({ email });
+    if (!user) {
+      return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    // Mark OTP as used
+    await otpRecord.markAsUsed();
+
+    // Return success - user can now proceed to reset password
+    sendSuccess(res, 200, 'OTP verified successfully. You can now reset your password.', {
+      email,
+      verified: true,
+      message: 'Proceed to reset your password'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Reset password (Step 3 - Set new password)
+// @route   POST /api/auth/reset-password
+// @access  Public
+const resetPassword = async (req, res, next) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    // Validate required fields
+    if (!email || !newPassword) {
+      return sendError(res, 400, 'Email and new password are required', 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Validate email format
+    if (!emailService.isValidEmail(email)) {
+      return sendError(res, 400, 'Please provide a valid email address', 'INVALID_EMAIL');
+    }
+
+    // Validate password length
+    if (newPassword.length < 6) {
+      return sendError(res, 400, 'Password must be at least 6 characters long', 'INVALID_PASSWORD_LENGTH');
+    }
+
+    // Check if OTP was verified (there should be a used OTP for this email)
+    const verifiedOTP = await OTP.findOne({
+      email,
+      isUsed: true
+    }).sort({ createdAt: -1 });
+
+    if (!verifiedOTP) {
+      return sendError(res, 400, 'Email must be verified with OTP before resetting password', 'EMAIL_NOT_VERIFIED');
+    }
+
+    // Check if the OTP was verified recently (within last 10 minutes for security)
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    if (verifiedOTP.updatedAt < tenMinutesAgo) {
+      return sendError(res, 400, 'OTP verification expired. Please request a new password reset.', 'OTP_VERIFICATION_EXPIRED');
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    // Update user password
+    user.password = newPassword;
+    await user.save();
+
+    // Delete all OTPs for this email after successful password reset
+    await OTP.deleteMany({ email });
+
+    sendSuccess(res, 200, 'Password reset successfully. You can now login with your new password.', {
+      email,
+      message: 'Password has been reset successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 module.exports = {
   register,
@@ -1625,5 +1798,8 @@ module.exports = {
   getAllUsers,
   verifyOTPOnly,
   createAccount,
+  forgotPassword,
+  verifyResetOTP,
+  resetPassword,
   upload
 };
