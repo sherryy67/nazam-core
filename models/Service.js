@@ -37,14 +37,8 @@ const serviceSchema = new mongoose.Schema({
     ref: "Category", 
     required: true 
   },
-  service_icon: { type: String },    
+  service_icon: { type: String },
   thumbnailUri: { type: String },               // S3 image URL for service icon
-  min_time_required: {
-    type: Number,
-    required: true,
-    min: 1,
-    max: 1440 // Maximum 24 hours in minutes
-  },
   minAdvanceHours: {
     type: Number,
     default: 0,

@@ -347,7 +347,6 @@ const getHomeCategories = async (req, res, next) => {
             imageUri: service.imageUri,
             service_icon: service.service_icon,
             category_id: service.category_id,
-            min_time_required: service.min_time_required,
             availability: service.availability,
             job_service_type: service.job_service_type,
             price_type: service.price_type,

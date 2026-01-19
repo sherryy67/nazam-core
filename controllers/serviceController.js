@@ -129,7 +129,6 @@ const createService = async (req, res, next) => {
       basePrice,
       unitType,
       category_id,
-      min_time_required,
       availability,
       job_service_type,
       price_type,
@@ -168,14 +167,13 @@ const createService = async (req, res, next) => {
     if (
       !name ||
       !category_id ||
-      !min_time_required ||
       !availability ||
       !job_service_type
     ) {
       return sendError(
         res,
         400,
-        "Name, category_id, min_time_required, availability, and job_service_type are required",
+        "Name, category_id, availability, and job_service_type are required",
         "MISSING_REQUIRED_FIELDS"
       );
     }
@@ -441,7 +439,6 @@ const createService = async (req, res, next) => {
     const serviceData = {
       name,
       category_id,
-      min_time_required: parseInt(min_time_required),
       availability: availabilityArray,
       job_service_type,
       serviceType: finalServiceType,
@@ -971,7 +968,6 @@ const getServices = async (req, res, next) => {
       service_icon: service.service_icon,
       thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
-      min_time_required: service.min_time_required,
       availability: service.availability,
       job_service_type: service.job_service_type,
       price_type: service.price_type,
@@ -1104,7 +1100,6 @@ const getServicesPaginated = async (req, res, next) => {
       service_icon: service.service_icon,
       thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
-      min_time_required: service.min_time_required,
       availability: service.availability,
       job_service_type: service.job_service_type,
       price_type: service.price_type,
@@ -1180,7 +1175,6 @@ const getServiceById = async (req, res, next) => {
       service_icon: service.service_icon,
       thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
-      min_time_required: service.min_time_required,
       minAdvanceHours: service.minAdvanceHours || 0,
       availability: service.availability,
       job_service_type: service.job_service_type,
@@ -1386,7 +1380,6 @@ const getAllActiveServices = async (req, res, next) => {
       service_icon: service.service_icon,
       thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
-      min_time_required: service.min_time_required,
       availability: service.availability,
       job_service_type: service.job_service_type,
       price_type: service.price_type,
@@ -1696,7 +1689,6 @@ const getResidentialServices = async (req, res, next) => {
       service_icon: service.service_icon,
       thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
-      min_time_required: service.min_time_required,
       availability: service.availability,
       job_service_type: service.job_service_type,
       price_type: service.price_type,
@@ -1794,7 +1786,6 @@ const getCommercialServices = async (req, res, next) => {
       service_icon: service.service_icon,
       thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
-      min_time_required: service.min_time_required,
       availability: service.availability,
       job_service_type: service.job_service_type,
       price_type: service.price_type,

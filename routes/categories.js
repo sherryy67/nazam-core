@@ -209,8 +209,6 @@ router.post('/', protect, isAdmin, createCategoryValidation, createCategory);
  *                                 type: string
  *                               category_id:
  *                                 type: string
- *                               min_time_required:
- *                                 type: number
  *                               availability:
  *                                 type: array
  *                                 items:
