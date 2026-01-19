@@ -6,7 +6,9 @@ const {
   generatePaymentLink,
   getPaymentLinkDetails,
   initiatePaymentViaLink,
-  invalidatePaymentLink
+  invalidatePaymentLink,
+  regeneratePaymentLink,
+  getPaymentLinkStatus
 } = require('../controllers/paymentLinkController');
 
 const router = express.Router();
@@ -98,6 +100,84 @@ router.post(
       .withMessage('Invalid service request ID')
   ],
   invalidatePaymentLink
+);
+
+/**
+ * @swagger
+ * /api/admin/payments/regenerate-link:
+ *   post:
+ *     summary: Regenerate payment link for a service request (Admin only)
+ *     tags: [Admin, Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - serviceRequestId
+ *             properties:
+ *               serviceRequestId:
+ *                 type: string
+ *                 description: Service request ID
+ *               expiryHours:
+ *                 type: number
+ *                 description: Link expiry in hours (default 48)
+ *     responses:
+ *       200:
+ *         description: Payment link regenerated successfully
+ */
+router.post(
+  '/admin/payments/regenerate-link',
+  protect,
+  isAdmin,
+  [
+    body('serviceRequestId')
+      .notEmpty()
+      .withMessage('Service request ID is required')
+      .isMongoId()
+      .withMessage('Invalid service request ID'),
+    body('expiryHours')
+      .optional()
+      .isInt({ min: 1, max: 168 })
+      .withMessage('Expiry hours must be between 1 and 168 (7 days)')
+  ],
+  regeneratePaymentLink
+);
+
+/**
+ * @swagger
+ * /api/admin/payments/link-status/{serviceRequestId}:
+ *   get:
+ *     summary: Get payment link status (Admin only)
+ *     tags: [Admin, Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: serviceRequestId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Service request ID
+ *     responses:
+ *       200:
+ *         description: Payment link status retrieved successfully
+ */
+router.get(
+  '/admin/payments/link-status/:serviceRequestId',
+  protect,
+  isAdmin,
+  [
+    param('serviceRequestId')
+      .notEmpty()
+      .withMessage('Service request ID is required')
+      .isMongoId()
+      .withMessage('Invalid service request ID')
+  ],
+  getPaymentLinkStatus
 );
 
 /**

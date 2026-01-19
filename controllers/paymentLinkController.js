@@ -347,9 +347,152 @@ const invalidatePaymentLink = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Regenerate payment link for a service request (Admin only)
+ * @route   POST /api/admin/payments/regenerate-link
+ * @access  Admin
+ */
+const regeneratePaymentLink = async (req, res, next) => {
+  try {
+    const { serviceRequestId, expiryHours = 48 } = req.body;
+
+    // Validate service request ID
+    if (!serviceRequestId || !mongoose.Types.ObjectId.isValid(serviceRequestId)) {
+      return sendError(res, 400, 'Invalid service request ID', 'INVALID_SERVICE_REQUEST_ID');
+    }
+
+    // Find the service request
+    const serviceRequest = await ServiceRequest.findById(serviceRequestId);
+    if (!serviceRequest) {
+      return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
+    }
+
+    // Validate payment method
+    if (serviceRequest.paymentMethod !== 'Online Payment') {
+      return sendError(res, 400, 'Service request does not have online payment method', 'INVALID_PAYMENT_METHOD');
+    }
+
+    // Check if payment is already successful
+    if (serviceRequest.paymentStatus === 'Success') {
+      return sendError(res, 400, 'Payment already completed for this order', 'PAYMENT_ALREADY_COMPLETED');
+    }
+
+    // Generate new unique secure token
+    const token = generatePaymentToken();
+
+    // Calculate expiry time
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + expiryHours);
+
+    // Get base URL for payment links
+    const baseUrl = process.env.FRONTEND_URL || process.env.BACKEND_URL ||
+      (req.protocol + '://' + req.get('host'));
+
+    const paymentUrl = `${baseUrl}/pay/${token}`;
+
+    // Invalidate old link if exists
+    if (serviceRequest.paymentLink && serviceRequest.paymentLink.token) {
+      serviceRequest.paymentLink.isExpired = true;
+    }
+
+    // Update service request with new payment link details
+    serviceRequest.paymentLink = {
+      token: token,
+      url: paymentUrl,
+      generatedBy: req.user?._id || req.admin?._id,
+      generatedAt: new Date(),
+      expiresAt: expiresAt,
+      isExpired: false,
+      isUsed: false
+    };
+
+    await serviceRequest.save();
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Payment link regenerated successfully',
+      content: {
+        paymentLink: paymentUrl,
+        token: token,
+        serviceRequestId: serviceRequest._id.toString(),
+        amount: serviceRequest.total_price,
+        currency: 'AED',
+        customerName: serviceRequest.user_name,
+        customerEmail: serviceRequest.user_email,
+        expiresAt: expiresAt,
+        expiryHours: expiryHours
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    if (error.code === 11000) {
+      return sendError(res, 500, 'Failed to generate unique token, please retry', 'TOKEN_GENERATION_FAILED');
+    }
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get payment link status for admin (Admin only)
+ * @route   GET /api/admin/payments/link-status/:serviceRequestId
+ * @access  Admin
+ */
+const getPaymentLinkStatus = async (req, res, next) => {
+  try {
+    const { serviceRequestId } = req.params;
+
+    // Validate service request ID
+    if (!serviceRequestId || !mongoose.Types.ObjectId.isValid(serviceRequestId)) {
+      return sendError(res, 400, 'Invalid service request ID', 'INVALID_SERVICE_REQUEST_ID');
+    }
+
+    // Find the service request
+    const serviceRequest = await ServiceRequest.findById(serviceRequestId);
+    if (!serviceRequest) {
+      return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
+    }
+
+    // Check if payment link exists
+    if (!serviceRequest.paymentLink || !serviceRequest.paymentLink.token) {
+      return sendError(res, 404, 'No payment link found for this service request', 'NO_PAYMENT_LINK');
+    }
+
+    const now = new Date();
+    const isExpired = now > serviceRequest.paymentLink.expiresAt || serviceRequest.paymentLink.isExpired;
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Payment link status retrieved successfully',
+      content: {
+        serviceRequestId: serviceRequest._id.toString(),
+        paymentLink: serviceRequest.paymentLink.url,
+        token: serviceRequest.paymentLink.token,
+        generatedAt: serviceRequest.paymentLink.generatedAt,
+        expiresAt: serviceRequest.paymentLink.expiresAt,
+        isExpired: isExpired,
+        isUsed: serviceRequest.paymentLink.isUsed,
+        paymentStatus: serviceRequest.paymentStatus,
+        amount: serviceRequest.total_price,
+        currency: 'AED',
+        customerName: serviceRequest.user_name,
+        customerEmail: serviceRequest.user_email
+      }
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   generatePaymentLink,
   getPaymentLinkDetails,
   initiatePaymentViaLink,
-  invalidatePaymentLink
+  invalidatePaymentLink,
+  regeneratePaymentLink,
+  getPaymentLinkStatus
 };
