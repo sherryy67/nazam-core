@@ -17,6 +17,7 @@ const addressRoutes = require("./addresses");
 const paymentRoutes = require("./payments");
 const marketingRoutes = require("./marketing");
 const paymentLinkRoutes = require("./paymentLinks");
+const milestoneRoutes = require("./milestones");
 const { sendSuccess } = require("../utils/response");
 const {
   getCategoryServiceSummary,
@@ -43,6 +44,7 @@ router.use("/contact", contactRoutes);
 router.use("/addresses", addressRoutes);
 router.use("/payments", paymentRoutes);
 router.use("/marketing", marketingRoutes);
+router.use("/milestones", milestoneRoutes);
 router.use("/", paymentLinkRoutes);
 router.use("/", bannerRoutes);
 

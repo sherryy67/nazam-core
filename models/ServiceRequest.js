@@ -82,6 +82,55 @@ const serviceRequestSchema = new mongoose.Schema({
     isExpired: { type: Boolean, default: false },
     isUsed: { type: Boolean, default: false }
   },
+
+  // Milestone Payments (for breaking payments into stages)
+  paymentType: {
+    type: String,
+    enum: ["full", "milestone"],
+    default: "full"
+  },
+  milestones: [{
+    name: { type: String, required: true, trim: true }, // e.g., "Initial Deposit", "Work Completion", "Final Payment"
+    description: { type: String, trim: true },
+    amount: { type: Number, required: true, min: 0 },
+    percentage: { type: Number, min: 0, max: 100 }, // Optional: percentage of total price
+    order: { type: Number, required: true, min: 1 }, // Sequence of milestone
+    paymentStatus: {
+      type: String,
+      enum: ["Pending", "Success", "Failure", "Cancelled"],
+      default: "Pending"
+    },
+    paymentDetails: {
+      transactionId: { type: String },
+      orderId: { type: String },
+      amount: { type: Number },
+      currency: { type: String, default: "AED" },
+      paymentDate: { type: Date },
+      failureReason: { type: String },
+      bankReferenceNumber: { type: String }
+    },
+    // Payment link for this specific milestone
+    paymentLink: {
+      token: { type: String, unique: true, sparse: true },
+      url: { type: String },
+      generatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
+      generatedAt: { type: Date },
+      expiresAt: { type: Date },
+      isExpired: { type: Boolean, default: false },
+      isUsed: { type: Boolean, default: false }
+    },
+    // Service completion tracking
+    completionStatus: {
+      type: String,
+      enum: ["NotStarted", "InProgress", "Completed"],
+      default: "NotStarted"
+    },
+    completedAt: { type: Date },
+    dueDate: { type: Date }, // Expected completion/payment date
+    isRequired: { type: Boolean, default: true }, // Must be paid to proceed
+    createdAt: { type: Date, default: Date.now }
+  }],
+  requireSequentialPayment: { type: Boolean, default: true }, // Must pay milestones in order
   
   // Sub-services selection (optional - for services with subServices array)
   selectedSubServices: [{

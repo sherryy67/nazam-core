@@ -10,7 +10,7 @@ const mongoose = require('mongoose');
  */
 const initiatePayment = async (req, res, next) => {
   try {
-    const { serviceRequestId } = req.body;
+    const { serviceRequestId, milestoneId } = req.body;
 
     // Validate service request ID
     if (!serviceRequestId || !mongoose.Types.ObjectId.isValid(serviceRequestId)) {
@@ -28,18 +28,57 @@ const initiatePayment = async (req, res, next) => {
       return sendError(res, 400, 'Payment method is not Online Payment', 'INVALID_PAYMENT_METHOD');
     }
 
-    // Validate that total price exists
-    if (!serviceRequest.total_price || serviceRequest.total_price <= 0) {
-      return sendError(res, 400, 'Invalid total price for payment', 'INVALID_TOTAL_PRICE');
+    // Determine payment type (full or milestone)
+    let paymentAmount;
+    let orderIdSuffix = '';
+    let milestone = null;
+
+    if (serviceRequest.paymentType === 'milestone' && milestoneId) {
+      // Milestone payment
+      milestone = serviceRequest.milestones.id(milestoneId);
+
+      if (!milestone) {
+        return sendError(res, 404, 'Milestone not found', 'MILESTONE_NOT_FOUND');
+      }
+
+      // Check if milestone is already paid
+      if (milestone.paymentStatus === 'Success') {
+        return sendError(res, 400, 'Milestone already paid', 'MILESTONE_ALREADY_PAID');
+      }
+
+      // Check if sequential payment is required
+      if (serviceRequest.requireSequentialPayment) {
+        const previousMilestones = serviceRequest.milestones.filter(m => m.order < milestone.order);
+        const unpaidPrevious = previousMilestones.find(m => m.paymentStatus !== 'Success');
+
+        if (unpaidPrevious) {
+          return sendError(
+            res,
+            400,
+            `Previous milestone "${unpaidPrevious.name}" must be paid first`,
+            'PREVIOUS_MILESTONE_UNPAID'
+          );
+        }
+      }
+
+      paymentAmount = milestone.amount;
+      orderIdSuffix = `-M${milestone.order}`;
+    } else {
+      // Full payment
+      if (!serviceRequest.total_price || serviceRequest.total_price <= 0) {
+        return sendError(res, 400, 'Invalid total price for payment', 'INVALID_TOTAL_PRICE');
+      }
+
+      // Check if payment is already successful
+      if (serviceRequest.paymentStatus === 'Success') {
+        return sendError(res, 400, 'Payment already completed for this order', 'PAYMENT_ALREADY_COMPLETED');
+      }
+
+      paymentAmount = serviceRequest.total_price;
     }
 
-    // Check if payment is already successful
-    if (serviceRequest.paymentStatus === 'Success') {
-      return sendError(res, 400, 'Payment already completed for this order', 'PAYMENT_ALREADY_COMPLETED');
-    }
-
-    // Generate unique order ID (using service request ID)
-    const orderId = serviceRequest._id.toString();
+    // Generate unique order ID
+    const orderId = serviceRequest._id.toString() + orderIdSuffix;
 
     // Get backend URL for payment callbacks (CCAvenue will call our backend)
     // Use BACKEND_URL env var if set, otherwise construct from request
@@ -54,7 +93,7 @@ const initiatePayment = async (req, res, next) => {
     // This ensures payment status is updated before user sees the result page
     const paymentData = {
       orderId: orderId,
-      amount: serviceRequest.total_price,
+      amount: paymentAmount,
       currency: 'AED',
       redirectUrl: `${backendUrl}/api/payments/callback`,
       cancelUrl: `${backendUrl}/api/payments/cancel?orderId=${orderId}`,
@@ -65,7 +104,11 @@ const initiatePayment = async (req, res, next) => {
       billingCity: '', // Extract from address if needed
       billingState: '',
       billingZip: '',
-      billingCountry: 'AE'
+      billingCountry: 'AE',
+      // Add milestone info as merchant params for tracking
+      merchant_param1: serviceRequest._id.toString(),
+      merchant_param2: milestoneId || 'full',
+      merchant_param3: milestone ? milestone.order.toString() : '0'
     };
 
     // Generate encrypted payment form data
@@ -81,12 +124,27 @@ const initiatePayment = async (req, res, next) => {
     }
 
     // Update service request with payment initiation
-    serviceRequest.paymentStatus = 'Pending';
-    serviceRequest.paymentDetails = {
-      orderId: orderId,
-      amount: serviceRequest.total_price,
-      currency: 'AED'
-    };
+    if (milestone) {
+      // Update milestone payment status
+      milestone.paymentStatus = 'Pending';
+      milestone.paymentDetails = {
+        orderId: orderId,
+        amount: paymentAmount,
+        currency: 'AED'
+      };
+      // Mark milestone payment link as used if it exists
+      if (milestone.paymentLink && milestone.paymentLink.token) {
+        milestone.paymentLink.isUsed = true;
+      }
+    } else {
+      // Update full payment status
+      serviceRequest.paymentStatus = 'Pending';
+      serviceRequest.paymentDetails = {
+        orderId: orderId,
+        amount: paymentAmount,
+        currency: 'AED'
+      };
+    }
     await serviceRequest.save();
 
     // Validate that encrypted data exists
@@ -98,13 +156,19 @@ const initiatePayment = async (req, res, next) => {
     const response = {
       success: true,
       exception: null,
-      description: 'Payment initiated successfully',
+      description: milestone
+        ? `Payment initiated for milestone: ${milestone.name}`
+        : 'Payment initiated successfully',
       content: {
         paymentUrl: ccavenueService.paymentUrl,
         paymentFormData: paymentFormData,
         orderId: orderId,
-        amount: serviceRequest.total_price,
-        currency: 'AED'
+        amount: paymentAmount,
+        currency: 'AED',
+        paymentType: serviceRequest.paymentType,
+        milestoneId: milestoneId || null,
+        milestoneName: milestone ? milestone.name : null,
+        milestoneOrder: milestone ? milestone.order : null
       }
     };
 
@@ -160,15 +224,18 @@ const handlePaymentCallback = async (req, res, next) => {
     // Parse and decrypt payment response
     const paymentResponse = ccavenueService.parsePaymentResponse(encResponse);
 
-    // Get order ID from response
-    const orderId = paymentResponse.order_id || paymentResponse.merchant_param1;
-    
-    if (!orderId) {
-      return sendError(res, 400, 'Order ID not found in payment response', 'ORDER_ID_NOT_FOUND');
+    // Get order ID and extract service request ID and milestone info
+    const orderId = paymentResponse.order_id;
+    const serviceRequestId = paymentResponse.merchant_param1;
+    const milestoneIdOrType = paymentResponse.merchant_param2;
+    const milestoneOrder = paymentResponse.merchant_param3;
+
+    if (!orderId || !serviceRequestId) {
+      return sendError(res, 400, 'Order ID or Service Request ID not found in payment response', 'ORDER_ID_NOT_FOUND');
     }
 
     // Find the service request
-    const serviceRequest = await ServiceRequest.findById(orderId);
+    const serviceRequest = await ServiceRequest.findById(serviceRequestId);
     if (!serviceRequest) {
       return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
     }
@@ -176,31 +243,70 @@ const handlePaymentCallback = async (req, res, next) => {
     // Get payment status
     const paymentStatus = ccavenueService.getPaymentStatus(paymentResponse);
 
-    // Update service request with payment details
-    serviceRequest.paymentStatus = paymentStatus;
-    serviceRequest.paymentDetails = {
-      transactionId: paymentResponse.tracking_id || '',
-      orderId: paymentResponse.order_id || orderId,
-      amount: parseFloat(paymentResponse.amount || serviceRequest.total_price),
-      currency: paymentResponse.currency || 'AED',
-      paymentDate: paymentResponse.trans_date ? new Date(paymentResponse.trans_date) : new Date(),
-      failureReason: paymentResponse.failure_message || paymentResponse.status_message || '',
-      bankReferenceNumber: paymentResponse.bank_ref_no || ''
-    };
+    // Determine if this is a milestone payment or full payment
+    const isMilestonePayment = milestoneIdOrType && milestoneIdOrType !== 'full';
+    let milestone = null;
 
-    // If payment is successful, you might want to update order status
-    if (paymentStatus === 'Success') {
-      // Optionally update service request status
-      // serviceRequest.status = 'Pending'; // Keep as Pending until service is completed
+    if (isMilestonePayment) {
+      // Find milestone by ID or by order
+      milestone = milestoneIdOrType && mongoose.Types.ObjectId.isValid(milestoneIdOrType)
+        ? serviceRequest.milestones.id(milestoneIdOrType)
+        : serviceRequest.milestones.find(m => m.order === parseInt(milestoneOrder));
+
+      if (milestone) {
+        // Update milestone payment details
+        milestone.paymentStatus = paymentStatus;
+        milestone.paymentDetails = {
+          transactionId: paymentResponse.tracking_id || '',
+          orderId: paymentResponse.order_id || orderId,
+          amount: parseFloat(paymentResponse.amount || milestone.amount),
+          currency: paymentResponse.currency || 'AED',
+          paymentDate: paymentResponse.trans_date ? new Date(paymentResponse.trans_date) : new Date(),
+          failureReason: paymentResponse.failure_message || paymentResponse.status_message || '',
+          bankReferenceNumber: paymentResponse.bank_ref_no || ''
+        };
+
+        // If milestone payment is successful, start the milestone work
+        if (paymentStatus === 'Success' && milestone.completionStatus === 'NotStarted') {
+          milestone.completionStatus = 'InProgress';
+        }
+
+        // Update overall payment status based on all milestones
+        const allMilestonesPaid = serviceRequest.milestones.every(m => m.paymentStatus === 'Success');
+        serviceRequest.paymentStatus = allMilestonesPaid ? 'Success' : 'Pending';
+      }
+    } else {
+      // Full payment - update service request payment details
+      serviceRequest.paymentStatus = paymentStatus;
+      serviceRequest.paymentDetails = {
+        transactionId: paymentResponse.tracking_id || '',
+        orderId: paymentResponse.order_id || orderId,
+        amount: parseFloat(paymentResponse.amount || serviceRequest.total_price),
+        currency: paymentResponse.currency || 'AED',
+        paymentDate: paymentResponse.trans_date ? new Date(paymentResponse.trans_date) : new Date(),
+        failureReason: paymentResponse.failure_message || paymentResponse.status_message || '',
+        bankReferenceNumber: paymentResponse.bank_ref_no || ''
+      };
     }
 
     await serviceRequest.save();
 
     // Redirect to frontend success/failure page
     const frontendUrl = process.env.FRONTEND_URL || 'https://zushh.com';
-    const redirectUrl = paymentStatus === 'Success' 
-      ? `${frontendUrl}/payment/success?orderId=${orderId}`
-      : `${frontendUrl}/payment/failure?orderId=${orderId}&reason=${encodeURIComponent(paymentResponse.failure_message || paymentResponse.status_message || 'Payment failed')}`;
+
+    // Build redirect URL with milestone info if applicable
+    let redirectUrl;
+    if (paymentStatus === 'Success') {
+      redirectUrl = `${frontendUrl}/payment/success?orderId=${orderId}&serviceRequestId=${serviceRequestId}`;
+      if (milestone) {
+        redirectUrl += `&milestoneId=${milestone._id.toString()}&milestoneName=${encodeURIComponent(milestone.name)}`;
+      }
+    } else {
+      redirectUrl = `${frontendUrl}/payment/failure?orderId=${orderId}&serviceRequestId=${serviceRequestId}&reason=${encodeURIComponent(paymentResponse.failure_message || paymentResponse.status_message || 'Payment failed')}`;
+      if (milestone) {
+        redirectUrl += `&milestoneId=${milestone._id.toString()}`;
+      }
+    }
 
     // Return HTML redirect page
     res.send(`
