@@ -92,9 +92,6 @@ const createServiceValidation = [
   body('category_id')
     .isMongoId()
     .withMessage('Category ID must be a valid MongoDB ObjectId'),
-  body('min_time_required')
-    .isInt({ min: 1, max: 1440 })
-    .withMessage('Minimum time required must be between 1 and 1440 minutes'),
   body('minAdvanceHours')
     .optional()
     .isInt({ min: 0, max: 720 })
@@ -373,7 +370,6 @@ router.get('/commercial', getCommercialServices);
  *               - name
  *               - unitType
  *               - category_id
- *               - min_time_required
  *               - availability
  *               - job_service_type
  *             properties:
@@ -410,9 +406,6 @@ router.get('/commercial', getCommercialServices);
  *               category_id:
  *                 type: string
  *                 example: "64a1b2c3d4e5f6789abcdef0"
- *               min_time_required:
- *                 type: number
- *                 example: 120
  *               minAdvanceHours:
  *                 type: integer
  *                 example: 24
@@ -503,8 +496,6 @@ router.get('/commercial', getCommercialServices);
  *                       type: string
  *                     category_id:
  *                       type: string
- *                     min_time_required:
- *                       type: number
  *                     minAdvanceHours:
  *                       type: integer
  *                       description: Minimum hours in advance required for booking
@@ -639,8 +630,6 @@ router.post('/', protect, isAdmin, upload.fields([
  *                                     type: string
  *                                   description:
  *                                     type: string
- *                               min_time_required:
- *                                 type: number
  *                               minAdvanceHours:
  *                                 type: integer
  *                                 description: Minimum hours in advance required for booking
@@ -717,8 +706,6 @@ router.get('/', protect, getServices);
  *                             type: string
  *                           category_id:
  *                             type: object
- *                           min_time_required:
- *                             type: number
  *                           minAdvanceHours:
  *                             type: integer
  *                             description: Minimum hours in advance required for booking
@@ -887,8 +874,6 @@ router.get('/popular', getPopularServices);
  *                               type: string
  *                             description:
  *                               type: string
- *                         min_time_required:
- *                           type: number
  *                         minAdvanceHours:
  *                           type: integer
  *                           description: Minimum hours in advance required for booking
@@ -1060,8 +1045,6 @@ router.get('/:id', getServiceById);
  *                                 type: string
  *                               description:
  *                                   type: string
- *                           min_time_required:
- *                             type: number
  *                           minAdvanceHours:
  *                             type: integer
  *                             description: Minimum hours in advance required for booking

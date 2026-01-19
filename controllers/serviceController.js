@@ -129,7 +129,6 @@ const createService = async (req, res, next) => {
       basePrice,
       unitType,
       category_id,
-      min_time_required,
       availability,
       job_service_type,
       price_type,
@@ -143,6 +142,7 @@ const createService = async (req, res, next) => {
       service_icon,
       thumbnailUri,
       minAdvanceHours,
+      isSubservice,
     } = req.body;
 
     // Check if this is an update operation
@@ -167,14 +167,13 @@ const createService = async (req, res, next) => {
     if (
       !name ||
       !category_id ||
-      !min_time_required ||
       !availability ||
       !job_service_type
     ) {
       return sendError(
         res,
         400,
-        "Name, category_id, min_time_required, availability, and job_service_type are required",
+        "Name, category_id, availability, and job_service_type are required",
         "MISSING_REQUIRED_FIELDS"
       );
     }
@@ -440,7 +439,6 @@ const createService = async (req, res, next) => {
     const serviceData = {
       name,
       category_id,
-      min_time_required: parseInt(min_time_required),
       availability: availabilityArray,
       job_service_type,
       serviceType: finalServiceType,
@@ -519,8 +517,25 @@ const createService = async (req, res, next) => {
     }
     // For updates, if termsCondition is not provided, it will keep the existing value
 
+    // Handle isSubservice parameter - if false, clear subServices array
+    if (isSubservice !== undefined && isSubservice !== null) {
+      const isSubserviceBool = typeof isSubservice === 'string'
+        ? isSubservice.toLowerCase() === 'true'
+        : Boolean(isSubservice);
+
+      if (!isSubserviceBool) {
+        // Clear subServices array when isSubservice is false
+        serviceData.subServices = [];
+      }
+    }
+
     // Handle subServices array (optional nested sub-services)
-    if (subServices !== undefined && subServices !== null) {
+    // Only process if isSubservice is not explicitly set to false
+    const shouldProcessSubServices = isSubservice === undefined ||
+      isSubservice === null ||
+      (typeof isSubservice === 'string' ? isSubservice.toLowerCase() === 'true' : Boolean(isSubservice));
+
+    if (shouldProcessSubServices && subServices !== undefined && subServices !== null) {
       // Parse subServices if it's a JSON string (from multipart/form-data)
       let parsedSubServices;
       try {
@@ -953,7 +968,6 @@ const getServices = async (req, res, next) => {
       service_icon: service.service_icon,
       thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
-      min_time_required: service.min_time_required,
       availability: service.availability,
       job_service_type: service.job_service_type,
       price_type: service.price_type,
@@ -1086,7 +1100,6 @@ const getServicesPaginated = async (req, res, next) => {
       service_icon: service.service_icon,
       thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
-      min_time_required: service.min_time_required,
       availability: service.availability,
       job_service_type: service.job_service_type,
       price_type: service.price_type,
@@ -1162,7 +1175,6 @@ const getServiceById = async (req, res, next) => {
       service_icon: service.service_icon,
       thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
-      min_time_required: service.min_time_required,
       minAdvanceHours: service.minAdvanceHours || 0,
       availability: service.availability,
       job_service_type: service.job_service_type,
@@ -1368,7 +1380,6 @@ const getAllActiveServices = async (req, res, next) => {
       service_icon: service.service_icon,
       thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
-      min_time_required: service.min_time_required,
       availability: service.availability,
       job_service_type: service.job_service_type,
       price_type: service.price_type,
@@ -1678,7 +1689,6 @@ const getResidentialServices = async (req, res, next) => {
       service_icon: service.service_icon,
       thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
-      min_time_required: service.min_time_required,
       availability: service.availability,
       job_service_type: service.job_service_type,
       price_type: service.price_type,
@@ -1776,7 +1786,6 @@ const getCommercialServices = async (req, res, next) => {
       service_icon: service.service_icon,
       thumbnailUri: service.thumbnailUri,
       category_id: service.category_id,
-      min_time_required: service.min_time_required,
       availability: service.availability,
       job_service_type: service.job_service_type,
       price_type: service.price_type,
