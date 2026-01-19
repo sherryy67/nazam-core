@@ -301,6 +301,15 @@ const submitServiceRequest = async (req, res, next) => {
       }
     }
 
+    // Try to find existing user by email or phone to link the order
+    const User = require('../models/User');
+    const existingUser = await User.findOne({
+      $or: [
+        { email: user_email.trim().toLowerCase() },
+        { phoneNumber: user_phone.trim() }
+      ]
+    });
+
     // Create service request data
     const serviceRequestData = {
       user_name: user_name.trim(),
@@ -317,7 +326,8 @@ const submitServiceRequest = async (req, res, next) => {
       status: 'Pending',
       number_of_units: numberOfUnits,
       paymentMethod: paymentMethod,
-      paymentStatus: paymentMethod === 'Online Payment' ? 'Pending' : undefined
+      paymentStatus: paymentMethod === 'Online Payment' ? 'Pending' : undefined,
+      user: existingUser ? existingUser._id : undefined // Link to user if found
     };
 
     // Add selected sub-services if provided
