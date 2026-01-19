@@ -143,6 +143,7 @@ const createService = async (req, res, next) => {
       service_icon,
       thumbnailUri,
       minAdvanceHours,
+      isSubservice,
     } = req.body;
 
     // Check if this is an update operation
@@ -519,8 +520,25 @@ const createService = async (req, res, next) => {
     }
     // For updates, if termsCondition is not provided, it will keep the existing value
 
+    // Handle isSubservice parameter - if false, clear subServices array
+    if (isSubservice !== undefined && isSubservice !== null) {
+      const isSubserviceBool = typeof isSubservice === 'string'
+        ? isSubservice.toLowerCase() === 'true'
+        : Boolean(isSubservice);
+
+      if (!isSubserviceBool) {
+        // Clear subServices array when isSubservice is false
+        serviceData.subServices = [];
+      }
+    }
+
     // Handle subServices array (optional nested sub-services)
-    if (subServices !== undefined && subServices !== null) {
+    // Only process if isSubservice is not explicitly set to false
+    const shouldProcessSubServices = isSubservice === undefined ||
+      isSubservice === null ||
+      (typeof isSubservice === 'string' ? isSubservice.toLowerCase() === 'true' : Boolean(isSubservice));
+
+    if (shouldProcessSubServices && subServices !== undefined && subServices !== null) {
       // Parse subServices if it's a JSON string (from multipart/form-data)
       let parsedSubServices;
       try {
