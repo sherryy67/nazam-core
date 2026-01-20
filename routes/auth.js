@@ -14,6 +14,9 @@ const {
   resendOTP,
   verifyOTPOnly,
   createAccount,
+  forgotPassword,
+  verifyResetOTP,
+  resetPassword,
   upload
 } = require('../controllers/authController');
 const { protect } = require('../middlewares/auth');
@@ -243,6 +246,35 @@ const createAccountValidation = [
       }
       return true;
     })
+];
+
+// Password reset validation rules
+const forgotPasswordValidation = [
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address')
+];
+
+const verifyResetOTPValidation = [
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
+  body('otpCode')
+    .isLength({ min: 6, max: 6 })
+    .isNumeric()
+    .withMessage('OTP code must be 6 digits')
+];
+
+const resetPasswordValidation = [
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
+  body('newPassword')
+    .isLength({ min: 6 })
+    .withMessage('New password must be at least 6 characters long')
 ];
 
 
@@ -1205,5 +1237,172 @@ router.post('/verify-otp-only', verifyOTPOnlyValidation, verifyOTPOnly);
  *                   example: "INTERNAL_SERVER_ERROR"
  */
 router.post('/create-account', createAccountValidation, createAccount);
+
+/**
+ * @swagger
+ * /api/auth/forgot-password:
+ *   post:
+ *     summary: Request password reset (Step 1 - Send OTP via email)
+ *     description: Send OTP code to user's email to initiate password reset process
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: "user@example.com"
+ *                 description: User's registered email address
+ *     responses:
+ *       200:
+ *         description: Password reset OTP sent (if email exists)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "If an account exists with this email, a password reset code has been sent"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     email:
+ *                       type: string
+ *                       example: "user@example.com"
+ *                     expiresIn:
+ *                       type: string
+ *                       example: "5 minutes"
+ *       400:
+ *         description: Bad request - validation error
+ *       500:
+ *         description: Server error
+ */
+router.post('/forgot-password', forgotPasswordValidation, forgotPassword);
+
+/**
+ * @swagger
+ * /api/auth/verify-reset-otp:
+ *   post:
+ *     summary: Verify password reset OTP (Step 2 - Verify OTP)
+ *     description: Verify the OTP code sent to user's email
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - otpCode
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: "user@example.com"
+ *                 description: User's email address
+ *               otpCode:
+ *                 type: string
+ *                 example: "123456"
+ *                 description: 6-digit OTP code received via email
+ *     responses:
+ *       200:
+ *         description: OTP verified successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "OTP verified successfully. You can now reset your password."
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     email:
+ *                       type: string
+ *                       example: "user@example.com"
+ *                     verified:
+ *                       type: boolean
+ *                       example: true
+ *                     message:
+ *                       type: string
+ *                       example: "Proceed to reset your password"
+ *       400:
+ *         description: Bad request - invalid or expired OTP
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+router.post('/verify-reset-otp', verifyResetOTPValidation, verifyResetOTP);
+
+/**
+ * @swagger
+ * /api/auth/reset-password:
+ *   post:
+ *     summary: Reset password (Step 3 - Set new password)
+ *     description: Set a new password after OTP verification
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - newPassword
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: "user@example.com"
+ *                 description: User's email address
+ *               newPassword:
+ *                 type: string
+ *                 example: "newpassword123"
+ *                 description: New password (min 6 characters)
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Password reset successfully. You can now login with your new password."
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     email:
+ *                       type: string
+ *                       example: "user@example.com"
+ *                     message:
+ *                       type: string
+ *                       example: "Password has been reset successfully"
+ *       400:
+ *         description: Bad request - validation error or email not verified
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+router.post('/reset-password', resetPasswordValidation, resetPassword);
 
 module.exports = router;
