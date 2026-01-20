@@ -1459,6 +1459,680 @@ The Zushh Team
   }
 
   /**
+   * Send payment link email to customer
+   * @param {string} email - Customer's email address
+   * @param {string} customerName - Customer's name
+   * @param {Object} serviceRequest - Service request details
+   * @param {string} paymentLink - Payment link URL
+   * @param {Date} expiresAt - Link expiry date
+   * @returns {Promise<Object>} - Email sending result
+   */
+  async sendPaymentLinkEmail(email, customerName, serviceRequest, paymentLink, expiresAt) {
+    if (!this.isValidEmail(email)) {
+      throw new Error('Invalid email format');
+    }
+
+    const serviceName = serviceRequest.service_name || 'Service';
+    const totalPrice = serviceRequest.total_price || 0;
+    const orderId = serviceRequest._id?.toString() || 'N/A';
+    const expiryDate = expiresAt ? new Date(expiresAt).toLocaleString('en-AE', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }) : 'N/A';
+
+    const subject = `Payment Link for Your ${serviceName} Order - Zushh`;
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Payment Link</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 20px 0; text-align: center; background-color: #ffffff;">
+              <h1 style="color: #333; margin: 0;">Zushh</h1>
+              <p style="color: #666; margin: 5px 0;">Your Trusted Service Partner</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; padding: 30px;">
+                <tr>
+                  <td>
+                    <h2 style="color: #333; margin-top: 0;">Hello ${customerName},</h2>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                      Your payment link for the service request is ready. Please complete your payment using the link below.
+                    </p>
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                      <h3 style="color: #333; margin-top: 0;">Order Details:</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Order ID:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">#${orderId.slice(-8).toUpperCase()}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Service:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${serviceName}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Amount:</strong></td>
+                          <td style="padding: 8px 0; color: #333; font-weight: bold; font-size: 18px;">AED ${totalPrice.toFixed(2)}</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${paymentLink}" style="background-color: #007bff; color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-size: 18px; font-weight: bold; display: inline-block;">
+                        Pay Now
+                      </a>
+                    </div>
+
+                    <div style="margin: 30px 0; padding: 15px; background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+                      <p style="color: #856404; margin: 0; font-size: 14px;">
+                        <strong>Link Expires:</strong> ${expiryDate}
+                      </p>
+                    </div>
+
+                    <p style="color: #666; font-size: 14px; line-height: 1.6;">
+                      If the button doesn't work, copy and paste this link in your browser:<br>
+                      <a href="${paymentLink}" style="color: #007bff; word-break: break-all;">${paymentLink}</a>
+                    </p>
+
+                    <p style="color: #666; font-size: 16px; line-height: 1.6; margin-top: 30px;">
+                      Best regards,<br>
+                      <strong>The Zushh Team</strong>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px; text-align: center; background-color: #ffffff;">
+              <p style="color: #999; font-size: 12px; margin: 0;">
+                &copy; ${new Date().getFullYear()} Zushh. All rights reserved.
+              </p>
+              <p style="color: #999; font-size: 12px; margin: 5px 0 0 0;">
+                Need help? Contact us at info@zushh.com
+              </p>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Hello ${customerName},
+
+Your payment link for the service request is ready. Please complete your payment using the link below.
+
+Order Details:
+- Order ID: #${orderId.slice(-8).toUpperCase()}
+- Service: ${serviceName}
+- Amount: AED ${totalPrice.toFixed(2)}
+
+Payment Link: ${paymentLink}
+
+Link Expires: ${expiryDate}
+
+Best regards,
+The Zushh Team
+
+Need help? Contact us at info@zushh.com
+    `;
+
+    return await this.sendEmail({
+      to: email,
+      subject: subject,
+      html: html,
+      text: text
+    });
+  }
+
+  /**
+   * Send milestone payment link email to customer
+   * @param {string} email - Customer's email address
+   * @param {string} customerName - Customer's name
+   * @param {Object} serviceRequest - Service request details
+   * @param {Object} milestone - Milestone details
+   * @param {string} paymentLink - Payment link URL
+   * @param {Date} expiresAt - Link expiry date
+   * @returns {Promise<Object>} - Email sending result
+   */
+  async sendMilestonePaymentLinkEmail(email, customerName, serviceRequest, milestone, paymentLink, expiresAt) {
+    if (!this.isValidEmail(email)) {
+      throw new Error('Invalid email format');
+    }
+
+    const serviceName = serviceRequest.service_name || 'Service';
+    const milestoneName = milestone.name || 'Milestone';
+    const milestoneAmount = milestone.amount || 0;
+    const milestoneOrder = milestone.order || 1;
+    const totalMilestones = serviceRequest.milestones?.length || 1;
+    const orderId = serviceRequest._id?.toString() || 'N/A';
+    const expiryDate = expiresAt ? new Date(expiresAt).toLocaleString('en-AE', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }) : 'N/A';
+
+    const subject = `Payment Link for ${milestoneName} (Milestone ${milestoneOrder}/${totalMilestones}) - Zushh`;
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Milestone Payment Link</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 20px 0; text-align: center; background-color: #ffffff;">
+              <h1 style="color: #333; margin: 0;">Zushh</h1>
+              <p style="color: #666; margin: 5px 0;">Your Trusted Service Partner</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; padding: 30px;">
+                <tr>
+                  <td>
+                    <h2 style="color: #333; margin-top: 0;">Hello ${customerName},</h2>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                      Your milestone payment link is ready. Please complete this payment to proceed with your service.
+                    </p>
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #e7f5ff; border-left: 4px solid #007bff; border-radius: 4px;">
+                      <h3 style="color: #333; margin-top: 0;">Service Details:</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Order ID:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">#${orderId.slice(-8).toUpperCase()}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Service:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${serviceName}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Total Price:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">AED ${(serviceRequest.total_price || 0).toFixed(2)}</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #d4edda; border-radius: 8px;">
+                      <h3 style="color: #155724; margin-top: 0;">Milestone Payment:</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #155724;"><strong>Milestone:</strong></td>
+                          <td style="padding: 8px 0; color: #155724;">${milestoneName}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #155724;"><strong>Progress:</strong></td>
+                          <td style="padding: 8px 0; color: #155724;">Step ${milestoneOrder} of ${totalMilestones}</td>
+                        </tr>
+                        ${milestone.description ? `
+                        <tr>
+                          <td style="padding: 8px 0; color: #155724;"><strong>Description:</strong></td>
+                          <td style="padding: 8px 0; color: #155724;">${milestone.description}</td>
+                        </tr>
+                        ` : ''}
+                        <tr>
+                          <td style="padding: 8px 0; color: #155724;"><strong>Amount Due:</strong></td>
+                          <td style="padding: 8px 0; color: #155724; font-weight: bold; font-size: 20px;">AED ${milestoneAmount.toFixed(2)}</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${paymentLink}" style="background-color: #28a745; color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-size: 18px; font-weight: bold; display: inline-block;">
+                        Pay Milestone
+                      </a>
+                    </div>
+
+                    <div style="margin: 30px 0; padding: 15px; background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+                      <p style="color: #856404; margin: 0; font-size: 14px;">
+                        <strong>Link Expires:</strong> ${expiryDate}
+                      </p>
+                    </div>
+
+                    <p style="color: #666; font-size: 14px; line-height: 1.6;">
+                      If the button doesn't work, copy and paste this link in your browser:<br>
+                      <a href="${paymentLink}" style="color: #007bff; word-break: break-all;">${paymentLink}</a>
+                    </p>
+
+                    <p style="color: #666; font-size: 16px; line-height: 1.6; margin-top: 30px;">
+                      Best regards,<br>
+                      <strong>The Zushh Team</strong>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px; text-align: center; background-color: #ffffff;">
+              <p style="color: #999; font-size: 12px; margin: 0;">
+                &copy; ${new Date().getFullYear()} Zushh. All rights reserved.
+              </p>
+              <p style="color: #999; font-size: 12px; margin: 5px 0 0 0;">
+                Need help? Contact us at info@zushh.com
+              </p>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Hello ${customerName},
+
+Your milestone payment link is ready. Please complete this payment to proceed with your service.
+
+Service Details:
+- Order ID: #${orderId.slice(-8).toUpperCase()}
+- Service: ${serviceName}
+- Total Price: AED ${(serviceRequest.total_price || 0).toFixed(2)}
+
+Milestone Payment:
+- Milestone: ${milestoneName}
+- Progress: Step ${milestoneOrder} of ${totalMilestones}
+${milestone.description ? `- Description: ${milestone.description}\n` : ''}- Amount Due: AED ${milestoneAmount.toFixed(2)}
+
+Payment Link: ${paymentLink}
+
+Link Expires: ${expiryDate}
+
+Best regards,
+The Zushh Team
+
+Need help? Contact us at info@zushh.com
+    `;
+
+    return await this.sendEmail({
+      to: email,
+      subject: subject,
+      html: html,
+      text: text
+    });
+  }
+
+  /**
+   * Send payment success confirmation email
+   * @param {string} email - Customer's email address
+   * @param {string} customerName - Customer's name
+   * @param {Object} serviceRequest - Service request details
+   * @param {Object} paymentDetails - Payment details (transactionId, amount, etc.)
+   * @param {Object} milestone - Optional milestone details for milestone payments
+   * @returns {Promise<Object>} - Email sending result
+   */
+  async sendPaymentSuccessEmail(email, customerName, serviceRequest, paymentDetails, milestone = null) {
+    if (!this.isValidEmail(email)) {
+      throw new Error('Invalid email format');
+    }
+
+    const serviceName = serviceRequest.service_name || 'Service';
+    const orderId = serviceRequest._id?.toString() || 'N/A';
+    const transactionId = paymentDetails.transactionId || paymentDetails.tracking_id || 'N/A';
+    const amount = paymentDetails.amount || 0;
+    const paymentDate = paymentDetails.paymentDate ? new Date(paymentDetails.paymentDate).toLocaleString('en-AE', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }) : new Date().toLocaleString('en-AE');
+
+    const isMilestonePayment = milestone !== null;
+    const subject = isMilestonePayment
+      ? `Payment Confirmed: ${milestone.name} - Zushh`
+      : `Payment Confirmed for Your ${serviceName} Order - Zushh`;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Payment Confirmation</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 20px 0; text-align: center; background-color: #ffffff;">
+              <h1 style="color: #333; margin: 0;">Zushh</h1>
+              <p style="color: #666; margin: 5px 0;">Your Trusted Service Partner</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; padding: 30px;">
+                <tr>
+                  <td>
+                    <div style="text-align: center; margin-bottom: 30px;">
+                      <div style="background-color: #28a745; color: white; width: 60px; height: 60px; border-radius: 50%; display: inline-block; line-height: 60px; font-size: 30px;">&#10003;</div>
+                      <h2 style="color: #28a745; margin: 15px 0 5px 0;">Payment Successful!</h2>
+                      <p style="color: #666; margin: 0;">Thank you for your payment, ${customerName}</p>
+                    </div>
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #d4edda; border-radius: 8px;">
+                      <h3 style="color: #155724; margin-top: 0;">Payment Details:</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #155724;"><strong>Transaction ID:</strong></td>
+                          <td style="padding: 8px 0; color: #155724; font-family: monospace;">${transactionId}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #155724;"><strong>Amount Paid:</strong></td>
+                          <td style="padding: 8px 0; color: #155724; font-weight: bold; font-size: 18px;">AED ${amount.toFixed(2)}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #155724;"><strong>Payment Date:</strong></td>
+                          <td style="padding: 8px 0; color: #155724;">${paymentDate}</td>
+                        </tr>
+                        ${paymentDetails.bankReferenceNumber ? `
+                        <tr>
+                          <td style="padding: 8px 0; color: #155724;"><strong>Bank Reference:</strong></td>
+                          <td style="padding: 8px 0; color: #155724;">${paymentDetails.bankReferenceNumber}</td>
+                        </tr>
+                        ` : ''}
+                      </table>
+                    </div>
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                      <h3 style="color: #333; margin-top: 0;">Order Details:</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Order ID:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">#${orderId.slice(-8).toUpperCase()}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Service:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${serviceName}</td>
+                        </tr>
+                        ${isMilestonePayment ? `
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Milestone:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${milestone.name} (Step ${milestone.order})</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Total Order Value:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">AED ${(serviceRequest.total_price || 0).toFixed(2)}</td>
+                        </tr>
+                        ` : `
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Total Price:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">AED ${(serviceRequest.total_price || 0).toFixed(2)}</td>
+                        </tr>
+                        `}
+                      </table>
+                    </div>
+
+                    ${isMilestonePayment ? `
+                    <div style="margin: 30px 0; padding: 20px; background-color: #e7f5ff; border-left: 4px solid #007bff; border-radius: 4px;">
+                      <p style="color: #004085; margin: 0; font-size: 14px;">
+                        <strong>Note:</strong> This is a milestone payment. You may have additional payments remaining for this service.
+                      </p>
+                    </div>
+                    ` : ''}
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                      <h3 style="color: #333; margin-top: 0;">What Happens Next?</h3>
+                      <ol style="color: #666; font-size: 14px; line-height: 1.8; padding-left: 20px;">
+                        ${isMilestonePayment ? `
+                        <li>Work on this milestone will begin shortly</li>
+                        <li>You will be notified when this milestone is completed</li>
+                        <li>Payment links for remaining milestones will be sent as work progresses</li>
+                        ` : `
+                        <li>Our team will process your order</li>
+                        <li>A vendor will be assigned to your service request</li>
+                        <li>The vendor will contact you to confirm the appointment</li>
+                        `}
+                      </ol>
+                    </div>
+
+                    <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                      If you have any questions, please don't hesitate to contact our support team.
+                    </p>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6; margin-top: 30px;">
+                      Best regards,<br>
+                      <strong>The Zushh Team</strong>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px; text-align: center; background-color: #ffffff;">
+              <p style="color: #999; font-size: 12px; margin: 0;">
+                &copy; ${new Date().getFullYear()} Zushh. All rights reserved.
+              </p>
+              <p style="color: #999; font-size: 12px; margin: 5px 0 0 0;">
+                Need help? Contact us at info@zushh.com
+              </p>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Payment Successful!
+
+Thank you for your payment, ${customerName}
+
+Payment Details:
+- Transaction ID: ${transactionId}
+- Amount Paid: AED ${amount.toFixed(2)}
+- Payment Date: ${paymentDate}
+${paymentDetails.bankReferenceNumber ? `- Bank Reference: ${paymentDetails.bankReferenceNumber}\n` : ''}
+Order Details:
+- Order ID: #${orderId.slice(-8).toUpperCase()}
+- Service: ${serviceName}
+${isMilestonePayment ? `- Milestone: ${milestone.name} (Step ${milestone.order})
+- Total Order Value: AED ${(serviceRequest.total_price || 0).toFixed(2)}` : `- Total Price: AED ${(serviceRequest.total_price || 0).toFixed(2)}`}
+
+${isMilestonePayment ? 'Note: This is a milestone payment. You may have additional payments remaining for this service.' : ''}
+
+What Happens Next?
+${isMilestonePayment ? `1. Work on this milestone will begin shortly
+2. You will be notified when this milestone is completed
+3. Payment links for remaining milestones will be sent as work progresses` : `1. Our team will process your order
+2. A vendor will be assigned to your service request
+3. The vendor will contact you to confirm the appointment`}
+
+If you have any questions, please don't hesitate to contact our support team.
+
+Best regards,
+The Zushh Team
+
+Need help? Contact us at info@zushh.com
+    `;
+
+    return await this.sendEmail({
+      to: email,
+      subject: subject,
+      html: html,
+      text: text
+    });
+  }
+
+  /**
+   * Send payment failure notification email
+   * @param {string} email - Customer's email address
+   * @param {string} customerName - Customer's name
+   * @param {Object} serviceRequest - Service request details
+   * @param {string} failureReason - Reason for payment failure
+   * @param {Object} milestone - Optional milestone details for milestone payments
+   * @returns {Promise<Object>} - Email sending result
+   */
+  async sendPaymentFailureEmail(email, customerName, serviceRequest, failureReason, milestone = null) {
+    if (!this.isValidEmail(email)) {
+      throw new Error('Invalid email format');
+    }
+
+    const serviceName = serviceRequest.service_name || 'Service';
+    const orderId = serviceRequest._id?.toString() || 'N/A';
+    const isMilestonePayment = milestone !== null;
+
+    const subject = isMilestonePayment
+      ? `Payment Failed: ${milestone.name} - Action Required`
+      : `Payment Failed for Your ${serviceName} Order - Action Required`;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Payment Failed</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 20px 0; text-align: center; background-color: #ffffff;">
+              <h1 style="color: #333; margin: 0;">Zushh</h1>
+              <p style="color: #666; margin: 5px 0;">Your Trusted Service Partner</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; padding: 30px;">
+                <tr>
+                  <td>
+                    <div style="text-align: center; margin-bottom: 30px;">
+                      <div style="background-color: #dc3545; color: white; width: 60px; height: 60px; border-radius: 50%; display: inline-block; line-height: 60px; font-size: 30px;">!</div>
+                      <h2 style="color: #dc3545; margin: 15px 0 5px 0;">Payment Failed</h2>
+                      <p style="color: #666; margin: 0;">We couldn't process your payment, ${customerName}</p>
+                    </div>
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #f8d7da; border-radius: 8px;">
+                      <h3 style="color: #721c24; margin-top: 0;">What Happened:</h3>
+                      <p style="color: #721c24; margin: 0;">${failureReason || 'Your payment could not be processed. Please try again.'}</p>
+                    </div>
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                      <h3 style="color: #333; margin-top: 0;">Order Details:</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Order ID:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">#${orderId.slice(-8).toUpperCase()}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Service:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${serviceName}</td>
+                        </tr>
+                        ${isMilestonePayment ? `
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Milestone:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${milestone.name}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Amount:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">AED ${(milestone.amount || 0).toFixed(2)}</td>
+                        </tr>
+                        ` : `
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Amount:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">AED ${(serviceRequest.total_price || 0).toFixed(2)}</td>
+                        </tr>
+                        `}
+                      </table>
+                    </div>
+
+                    <div style="margin: 30px 0; padding: 20px; background-color: #fff3cd; border-radius: 8px;">
+                      <h3 style="color: #856404; margin-top: 0;">Common Reasons for Payment Failure:</h3>
+                      <ul style="color: #856404; font-size: 14px; line-height: 1.8; padding-left: 20px;">
+                        <li>Insufficient funds in your account</li>
+                        <li>Card details entered incorrectly</li>
+                        <li>Card expired or blocked</li>
+                        <li>Transaction limit exceeded</li>
+                        <li>Bank declined the transaction</li>
+                      </ul>
+                    </div>
+
+                    <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                      Please contact our support team to get a new payment link, or if you need any assistance.
+                    </p>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6; margin-top: 30px;">
+                      Best regards,<br>
+                      <strong>The Zushh Team</strong>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px; text-align: center; background-color: #ffffff;">
+              <p style="color: #999; font-size: 12px; margin: 0;">
+                &copy; ${new Date().getFullYear()} Zushh. All rights reserved.
+              </p>
+              <p style="color: #999; font-size: 12px; margin: 5px 0 0 0;">
+                Need help? Contact us at info@zushh.com
+              </p>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Payment Failed
+
+We couldn't process your payment, ${customerName}
+
+What Happened:
+${failureReason || 'Your payment could not be processed. Please try again.'}
+
+Order Details:
+- Order ID: #${orderId.slice(-8).toUpperCase()}
+- Service: ${serviceName}
+${isMilestonePayment ? `- Milestone: ${milestone.name}
+- Amount: AED ${(milestone.amount || 0).toFixed(2)}` : `- Amount: AED ${(serviceRequest.total_price || 0).toFixed(2)}`}
+
+Common Reasons for Payment Failure:
+- Insufficient funds in your account
+- Card details entered incorrectly
+- Card expired or blocked
+- Transaction limit exceeded
+- Bank declined the transaction
+
+Please contact our support team to get a new payment link, or if you need any assistance.
+
+Best regards,
+The Zushh Team
+
+Need help? Contact us at info@zushh.com
+    `;
+
+    return await this.sendEmail({
+      to: email,
+      subject: subject,
+      html: html,
+      text: text
+    });
+  }
+
+  /**
    * Test email configuration
    * @returns {Promise<Object>} - Test result
    */
