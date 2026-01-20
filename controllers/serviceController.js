@@ -396,6 +396,46 @@ const createService = async (req, res, next) => {
       );
     }
 
+    // Detect job_service_type and unitType changes for existing services
+    // Clear related pricing data when type changes
+    let shouldClearSubServices = false;
+    let shouldClearTimeBasedPricing = false;
+    let shouldClearBasePrice = false;
+
+    if (existingService) {
+      const oldJobType = existingService.job_service_type;
+      const oldUnitType = existingService.unitType;
+      const newJobType = job_service_type;
+      const newUnitType = unitType;
+
+      // Case 1: Changing TO Quotation from OnTime/Scheduled
+      // Clear subServices, timeBasedPricing, basePrice, price_type, subservice_type
+      if (newJobType === "Quotation" && oldJobType !== "Quotation") {
+        shouldClearSubServices = true;
+        shouldClearTimeBasedPricing = true;
+        shouldClearBasePrice = true;
+      }
+
+      // Case 2: Changing FROM Quotation to OnTime/Scheduled
+      // No specific data to clear (Quotation doesn't have pricing data)
+
+      // Case 3: Changing unitType from per_hour to per_unit (within OnTime/Scheduled)
+      // Clear timeBasedPricing
+      if (oldUnitType === "per_hour" && newUnitType === "per_unit" && newJobType !== "Quotation") {
+        shouldClearTimeBasedPricing = true;
+      }
+
+      // Case 4: Changing unitType from per_unit to per_hour (within OnTime/Scheduled)
+      // Clear basePrice (new timeBasedPricing will be provided)
+      if (oldUnitType === "per_unit" && newUnitType === "per_hour" && newJobType !== "Quotation") {
+        shouldClearBasePrice = true;
+      }
+
+      // Case 5: Changing between OnTime and Scheduled with subservice changes
+      // If subservice_type changes or isSubservice is explicitly set to false, subServices may need clearing
+      // This is already handled by the isSubservice parameter below
+    }
+
     // Validate availability
     const validDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const availabilityArray = Array.isArray(availability)
@@ -478,6 +518,27 @@ const createService = async (req, res, next) => {
       serviceData.timeBasedPricing = parsedTimeBasedPricing;
     } else if (unitType === "per_hour") {
       serviceData.timeBasedPricing = [];
+    }
+
+    // Apply clearing logic for job_service_type/unitType changes
+    if (shouldClearSubServices) {
+      serviceData.subServices = [];
+    }
+
+    if (shouldClearTimeBasedPricing) {
+      serviceData.timeBasedPricing = [];
+    }
+
+    if (shouldClearBasePrice) {
+      serviceData.basePrice = undefined;
+      // Use $unset for basePrice in MongoDB update
+    }
+
+    // When changing TO Quotation, also clear price_type, subservice_type, unitType
+    if (existingService && job_service_type === "Quotation" && existingService.job_service_type !== "Quotation") {
+      serviceData.price_type = undefined;
+      serviceData.subservice_type = undefined;
+      serviceData.unitType = undefined;
     }
 
     if (typeof isFeatured !== "undefined") {
@@ -851,15 +912,52 @@ const createService = async (req, res, next) => {
 
     let service;
     if (existingService) {
+      // Build update operation
+      const updateOperation = { $set: {} };
+      const fieldsToUnset = {};
+
+      // Separate fields to set and unset
+      for (const [key, value] of Object.entries(serviceData)) {
+        if (value === undefined) {
+          // Fields set to undefined should be unset
+          fieldsToUnset[key] = "";
+        } else {
+          updateOperation.$set[key] = value;
+        }
+      }
+
+      // Add $unset if there are fields to remove
+      if (Object.keys(fieldsToUnset).length > 0) {
+        updateOperation.$unset = fieldsToUnset;
+      }
+
+      // If $set is empty, remove it
+      if (Object.keys(updateOperation.$set).length === 0) {
+        delete updateOperation.$set;
+      }
+
       // Update existing service
-      service = await Service.findByIdAndUpdate(_id, serviceData, {
+      service = await Service.findByIdAndUpdate(_id, updateOperation, {
         new: true,
         runValidators: true,
       })
         .populate("createdBy", "name email")
         .populate("category_id", "name description");
 
-      sendSuccess(res, 200, "Service updated successfully", service);
+      // Build description for what was cleared
+      const clearedFields = [];
+      if (shouldClearSubServices) clearedFields.push("subServices");
+      if (shouldClearTimeBasedPricing) clearedFields.push("timeBasedPricing");
+      if (shouldClearBasePrice) clearedFields.push("basePrice");
+      if (job_service_type === "Quotation" && existingService.job_service_type !== "Quotation") {
+        clearedFields.push("price_type", "subservice_type", "unitType");
+      }
+
+      const message = clearedFields.length > 0
+        ? `Service updated successfully. Cleared fields due to type change: ${clearedFields.join(", ")}`
+        : "Service updated successfully";
+
+      sendSuccess(res, 200, message, service);
     } else {
       // Create new service
       service = await Service.create(serviceData);
