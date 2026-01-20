@@ -6,11 +6,13 @@ const {
   updateMilestone,
   deleteMilestone,
   generateMilestonePaymentLink,
-  getMilestoneByToken
+  getMilestoneByToken,
+  initiateMilestonePaymentViaToken
 } = require('../controllers/milestoneController');
 
 // Public routes
 router.get('/payment-link/:token', getMilestoneByToken);
+router.post('/payment-link/:token/initiate', initiateMilestonePaymentViaToken);
 
 // Service request milestone routes (add authentication middleware as needed)
 router.post('/service-requests/:id/milestones', createMilestones);

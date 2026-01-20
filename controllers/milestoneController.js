@@ -1,5 +1,6 @@
 const ServiceRequest = require('../models/ServiceRequest');
 const { sendSuccess, sendError } = require('../utils/response');
+const emailService = require('../utils/emailService');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 
@@ -301,6 +302,26 @@ const generateMilestonePaymentLink = async (req, res, next) => {
 
     await serviceRequest.save();
 
+    // Send milestone payment link email to customer
+    let emailSent = false;
+    let emailError = null;
+    if (serviceRequest.user_email) {
+      try {
+        await emailService.sendMilestonePaymentLinkEmail(
+          serviceRequest.user_email,
+          serviceRequest.user_name,
+          serviceRequest,
+          milestone,
+          paymentUrl,
+          expiresAt
+        );
+        emailSent = true;
+      } catch (err) {
+        console.error('Failed to send milestone payment link email:', err.message);
+        emailError = err.message;
+      }
+    }
+
     return sendSuccess(res, 201, 'Payment link generated successfully', {
       serviceRequestId: serviceRequest._id.toString(),
       milestoneId: milestone._id.toString(),
@@ -308,7 +329,9 @@ const generateMilestonePaymentLink = async (req, res, next) => {
       amount: milestone.amount,
       paymentLink: paymentUrl,
       token: token,
-      expiresAt: expiresAt
+      expiresAt: expiresAt,
+      emailSent: emailSent,
+      emailError: emailError
     });
   } catch (error) {
     next(error);
@@ -403,6 +426,143 @@ const getMilestoneByToken = async (req, res, next) => {
 };
 
 /**
+ * @desc    Initiate payment for a milestone via token
+ * @route   POST /api/milestones/payment-link/:token/initiate
+ * @access  Public
+ */
+const initiateMilestonePaymentViaToken = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      return sendError(res, 400, 'Payment token is required', 'MISSING_TOKEN');
+    }
+
+    // Find service request with matching milestone payment link token
+    const serviceRequest = await ServiceRequest.findOne({
+      'milestones.paymentLink.token': token
+    });
+
+    if (!serviceRequest) {
+      return sendError(res, 404, 'Payment link not found', 'INVALID_TOKEN');
+    }
+
+    // Find the specific milestone
+    const milestone = serviceRequest.milestones.find(m => m.paymentLink && m.paymentLink.token === token);
+
+    if (!milestone) {
+      return sendError(res, 404, 'Milestone not found', 'MILESTONE_NOT_FOUND');
+    }
+
+    // Check if payment link is expired
+    if (milestone.paymentLink.isExpired || (milestone.paymentLink.expiresAt && new Date() > milestone.paymentLink.expiresAt)) {
+      milestone.paymentLink.isExpired = true;
+      await serviceRequest.save();
+      return sendError(res, 410, 'Payment link has expired', 'LINK_EXPIRED');
+    }
+
+    // Check if milestone is already paid
+    if (milestone.paymentStatus === 'Success') {
+      return sendError(res, 400, 'Milestone is already paid', 'ALREADY_PAID');
+    }
+
+    // Check if payment link was already used (optional: remove if you want multiple attempts)
+    if (milestone.paymentLink.isUsed) {
+      return sendError(res, 400, 'This payment link has already been used', 'LINK_ALREADY_USED');
+    }
+
+    // Check if sequential payment is required
+    if (serviceRequest.requireSequentialPayment) {
+      const previousMilestones = serviceRequest.milestones.filter(m => m.order < milestone.order);
+      const unpaidPrevious = previousMilestones.find(m => m.paymentStatus !== 'Success');
+      if (unpaidPrevious) {
+        return sendError(
+          res,
+          400,
+          `Previous milestone "${unpaidPrevious.name}" must be paid first`,
+          'PREVIOUS_MILESTONE_UNPAID'
+        );
+      }
+    }
+
+    // Validate payment method
+    if (serviceRequest.paymentMethod !== 'Online Payment') {
+      return sendError(res, 400, 'Payment method is not Online Payment', 'INVALID_PAYMENT_METHOD');
+    }
+
+    // Import ccavenueService
+    const ccavenueService = require('../utils/ccavenueService');
+
+    // Generate unique order ID
+    const orderId = `${serviceRequest._id.toString()}-M${milestone.order}`;
+
+    // Get backend URL for payment callbacks
+    const backendUrl = process.env.BACKEND_URL ||
+      (req.protocol + '://' + req.get('host'));
+
+    // Get frontend URL for user redirects
+    const frontendUrl = process.env.FRONTEND_URL || 'https://zushh.com';
+
+    // Prepare payment data
+    const paymentData = {
+      orderId: orderId,
+      amount: milestone.amount,
+      currency: 'AED',
+      redirectUrl: `${backendUrl}/api/payments/callback`,
+      cancelUrl: `${backendUrl}/api/payments/cancel?orderId=${orderId}`,
+      customerName: serviceRequest.user_name,
+      customerEmail: serviceRequest.user_email,
+      customerPhone: serviceRequest.user_phone,
+      billingAddress: serviceRequest.address || '',
+      billingCity: '',
+      billingState: '',
+      billingZip: '',
+      billingCountry: 'AE',
+      // Add milestone info as merchant params for tracking
+      merchant_param1: serviceRequest._id.toString(),
+      merchant_param2: milestone._id.toString(),
+      merchant_param3: milestone.order.toString()
+    };
+
+    // Generate encrypted payment form data
+    const paymentFormData = ccavenueService.generatePaymentData(paymentData);
+
+    // Validate that encrypted data exists
+    if (!paymentFormData.encRequest || paymentFormData.encRequest.length === 0) {
+      return sendError(res, 500, 'Failed to generate encrypted payment data', 'ENCRYPTION_FAILED');
+    }
+
+    // Update milestone payment status and details
+    milestone.paymentStatus = 'Pending';
+    milestone.paymentDetails = {
+      orderId: orderId,
+      amount: milestone.amount,
+      currency: 'AED'
+    };
+
+    // Mark milestone payment link as used
+    milestone.paymentLink.isUsed = true;
+
+    await serviceRequest.save();
+
+    // Return payment form data and URL
+    return sendSuccess(res, 200, `Payment initiated for milestone: ${milestone.name}`, {
+      paymentUrl: ccavenueService.paymentUrl,
+      paymentFormData: paymentFormData,
+      orderId: orderId,
+      amount: milestone.amount,
+      currency: 'AED',
+      paymentType: 'milestone',
+      milestoneId: milestone._id.toString(),
+      milestoneName: milestone.name,
+      milestoneOrder: milestone.order
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Helper function to calculate overall payment status
  */
 const calculateOverallPaymentStatus = (serviceRequest) => {
@@ -431,5 +591,6 @@ module.exports = {
   updateMilestone,
   deleteMilestone,
   generateMilestonePaymentLink,
-  getMilestoneByToken
+  getMilestoneByToken,
+  initiateMilestonePaymentViaToken
 };

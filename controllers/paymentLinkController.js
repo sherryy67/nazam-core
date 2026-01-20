@@ -3,6 +3,7 @@ const User = require('../models/User');
 const ccavenueService = require('../utils/ccavenueService');
 const { generatePaymentToken } = require('../utils/tokenGenerator');
 const { sendSuccess, sendError } = require('../utils/response');
+const emailService = require('../utils/emailService');
 const mongoose = require('mongoose');
 
 /**
@@ -81,6 +82,25 @@ const generatePaymentLink = async (req, res, next) => {
 
     await serviceRequest.save();
 
+    // Send payment link email to customer
+    let emailSent = false;
+    let emailError = null;
+    if (serviceRequest.user_email) {
+      try {
+        await emailService.sendPaymentLinkEmail(
+          serviceRequest.user_email,
+          serviceRequest.user_name,
+          serviceRequest,
+          paymentUrl,
+          expiresAt
+        );
+        emailSent = true;
+      } catch (err) {
+        console.error('Failed to send payment link email:', err.message);
+        emailError = err.message;
+      }
+    }
+
     const response = {
       success: true,
       exception: null,
@@ -94,7 +114,9 @@ const generatePaymentLink = async (req, res, next) => {
         customerName: serviceRequest.user_name,
         customerEmail: serviceRequest.user_email,
         expiresAt: expiresAt,
-        expiryHours: expiryHours
+        expiryHours: expiryHours,
+        emailSent: emailSent,
+        emailError: emailError
       }
     };
 
@@ -408,6 +430,25 @@ const regeneratePaymentLink = async (req, res, next) => {
 
     await serviceRequest.save();
 
+    // Send payment link email to customer
+    let emailSent = false;
+    let emailError = null;
+    if (serviceRequest.user_email) {
+      try {
+        await emailService.sendPaymentLinkEmail(
+          serviceRequest.user_email,
+          serviceRequest.user_name,
+          serviceRequest,
+          paymentUrl,
+          expiresAt
+        );
+        emailSent = true;
+      } catch (err) {
+        console.error('Failed to send payment link email:', err.message);
+        emailError = err.message;
+      }
+    }
+
     const response = {
       success: true,
       exception: null,
@@ -421,7 +462,9 @@ const regeneratePaymentLink = async (req, res, next) => {
         customerName: serviceRequest.user_name,
         customerEmail: serviceRequest.user_email,
         expiresAt: expiresAt,
-        expiryHours: expiryHours
+        expiryHours: expiryHours,
+        emailSent: emailSent,
+        emailError: emailError
       }
     };
 

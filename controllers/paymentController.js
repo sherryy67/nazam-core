@@ -1,6 +1,7 @@
 const ServiceRequest = require('../models/ServiceRequest');
 const ccavenueService = require('../utils/ccavenueService');
 const { sendSuccess, sendError } = require('../utils/response');
+const emailService = require('../utils/emailService');
 const mongoose = require('mongoose');
 
 /**
@@ -290,6 +291,37 @@ const handlePaymentCallback = async (req, res, next) => {
     }
 
     await serviceRequest.save();
+
+    // Send payment confirmation/failure email to customer
+    if (serviceRequest.user_email) {
+      try {
+        if (paymentStatus === 'Success') {
+          const paymentDetailsForEmail = isMilestonePayment && milestone
+            ? milestone.paymentDetails
+            : serviceRequest.paymentDetails;
+
+          await emailService.sendPaymentSuccessEmail(
+            serviceRequest.user_email,
+            serviceRequest.user_name,
+            serviceRequest,
+            paymentDetailsForEmail,
+            isMilestonePayment ? milestone : null
+          );
+        } else {
+          const failureReason = paymentResponse.failure_message || paymentResponse.status_message || 'Payment could not be processed';
+          await emailService.sendPaymentFailureEmail(
+            serviceRequest.user_email,
+            serviceRequest.user_name,
+            serviceRequest,
+            failureReason,
+            isMilestonePayment ? milestone : null
+          );
+        }
+      } catch (emailError) {
+        console.error('Failed to send payment confirmation email:', emailError.message);
+        // Don't fail the callback if email fails
+      }
+    }
 
     // Redirect to frontend success/failure page
     const frontendUrl = process.env.FRONTEND_URL || 'https://zushh.com';
