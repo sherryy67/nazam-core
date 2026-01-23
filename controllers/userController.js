@@ -449,6 +449,7 @@ const getUserOrderHistory = async (req, res, next) => {
       total_price: request.total_price,
       selectedSubServices: request.selectedSubServices || [],
       paymentMethod: request.paymentMethod,
+      paymentType: request.paymentType || 'full',
       paymentStatus: request.paymentStatus,
       paymentDetails: request.paymentDetails || null,
       createdAt: request.createdAt ? request.createdAt.toISOString() : null,

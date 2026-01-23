@@ -99,7 +99,12 @@ class CCAvenueService {
       billingCity,
       billingState,
       billingZip,
-      billingCountry = 'AE'
+      billingCountry = 'AE',
+      merchant_param1,
+      merchant_param2,
+      merchant_param3,
+      merchant_param4,
+      merchant_param5
     } = paymentData;
 
     // Validate required fields
@@ -138,9 +143,16 @@ class CCAvenueService {
     if (billingCountry) merchantParams.delivery_country = billingCountry;
     if (customerPhone) merchantParams.delivery_tel = customerPhone;
 
-    // Add merchant parameters
-    merchantParams.merchant_param1 = orderId; // Store order ID for reference
-    
+    // Add merchant parameters (used for tracking and callback processing)
+    // merchant_param1: service request ID
+    // merchant_param2: milestone ID or 'full'
+    // merchant_param3: milestone order number or '0'
+    if (merchant_param1) merchantParams.merchant_param1 = merchant_param1;
+    if (merchant_param2) merchantParams.merchant_param2 = merchant_param2;
+    if (merchant_param3) merchantParams.merchant_param3 = merchant_param3;
+    if (merchant_param4) merchantParams.merchant_param4 = merchant_param4;
+    if (merchant_param5) merchantParams.merchant_param5 = merchant_param5;
+
     // Add customer identifier if email is available
     if (customerEmail) merchantParams.customer_identifier = customerEmail;
 
