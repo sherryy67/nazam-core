@@ -829,8 +829,21 @@ const sendOTP = async (req, res, next) => {
       return sendError(res, 400, 'Please provide a valid email address', 'INVALID_EMAIL');
     }
 
-    // Note: We don't check for existing users here since we want to allow
-    // contact verification before account creation
+    // Check if user is registered with the provided phone number or email
+    const userQuery = {};
+    if (phoneNumber && email) {
+      userQuery.$or = [{ phoneNumber }, { email }];
+    } else if (phoneNumber) {
+      userQuery.phoneNumber = phoneNumber;
+    } else {
+      userQuery.email = email;
+    }
+
+    const existingUser = await User.findOne(userQuery);
+
+    if (!existingUser) {
+      return sendError(res, 404, 'No account found with this contact information. Please register first.', 'USER_NOT_REGISTERED');
+    }
 
     // Generate OTP code
     const otpCode = smsService.generateOTP();
@@ -1101,8 +1114,21 @@ const resendOTP = async (req, res, next) => {
       return sendError(res, 400, 'Please provide a valid email address', 'INVALID_EMAIL');
     }
 
-    // Note: We don't check for existing users here since we want to allow
-    // contact verification before account creation
+    // Check if user is registered with the provided phone number or email
+    const userQuery = {};
+    if (phoneNumber && email) {
+      userQuery.$or = [{ phoneNumber }, { email }];
+    } else if (phoneNumber) {
+      userQuery.phoneNumber = phoneNumber;
+    } else {
+      userQuery.email = email;
+    }
+
+    const existingUser = await User.findOne(userQuery);
+
+    if (!existingUser) {
+      return sendError(res, 404, 'No account found with this contact information. Please register first.', 'USER_NOT_REGISTERED');
+    }
 
     // Generate new OTP code
     const otpCode = smsService.generateOTP();
