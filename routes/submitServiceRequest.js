@@ -74,7 +74,50 @@ const submitServiceRequestValidation = [
         }
       }
       return true;
-    })
+    }),
+  // Milestone payment fields
+  body('payment_type')
+    .optional()
+    .isIn(['full', 'milestone'])
+    .withMessage('Payment type must be full or milestone'),
+  body('milestones')
+    .optional()
+    .custom((value, { req }) => {
+      if (value !== undefined && value !== null) {
+        try {
+          const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+          if (!Array.isArray(parsed)) {
+            throw new Error('milestones must be an array');
+          }
+          if (parsed.length < 2) {
+            throw new Error('At least 2 milestones are required');
+          }
+          let totalPercentage = 0;
+          for (const milestone of parsed) {
+            if (!milestone.name || typeof milestone.name !== 'string') {
+              throw new Error('Each milestone must have a name');
+            }
+            if (milestone.percentage !== undefined) {
+              const percentage = Number(milestone.percentage);
+              if (isNaN(percentage) || percentage <= 0 || percentage > 100) {
+                throw new Error('Each milestone percentage must be between 1 and 100');
+              }
+              totalPercentage += percentage;
+            }
+          }
+          if (Math.abs(totalPercentage - 100) > 0.01) {
+            throw new Error('Total milestone percentage must equal 100%');
+          }
+        } catch (error) {
+          throw new Error(error.message || 'Invalid milestones format');
+        }
+      }
+      return true;
+    }),
+  body('require_sequential_payment')
+    .optional()
+    .isBoolean()
+    .withMessage('require_sequential_payment must be a boolean')
 ];
 
 /**

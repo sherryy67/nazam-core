@@ -41,7 +41,11 @@ const submitServiceRequest = async (req, res, next) => {
       message,
       number_of_units,
       payment_method,
-      selectedSubServices
+      selectedSubServices,
+      // Milestone payment fields
+      payment_type,
+      milestones,
+      require_sequential_payment
     } = req.body;
 
     // Validate required fields
@@ -368,6 +372,62 @@ const submitServiceRequest = async (req, res, next) => {
       }
     }
 
+    // Handle milestone payment type
+    if (payment_type === 'milestone' && milestones && Array.isArray(milestones) && milestones.length >= 2) {
+      // Validate milestones
+      let totalPercentage = 0;
+      const processedMilestones = [];
+
+      for (let i = 0; i < milestones.length; i++) {
+        const milestone = milestones[i];
+
+        if (!milestone.name || typeof milestone.name !== 'string') {
+          return sendError(res, 400, `Milestone ${i + 1} must have a valid name`, 'INVALID_MILESTONE_NAME');
+        }
+
+        const percentage = milestone.percentage ? Number(milestone.percentage) : 0;
+        if (percentage <= 0 || percentage > 100) {
+          return sendError(res, 400, `Milestone ${i + 1} must have a valid percentage between 1 and 100`, 'INVALID_MILESTONE_PERCENTAGE');
+        }
+
+        totalPercentage += percentage;
+
+        // Calculate amount from percentage if totalPrice is available
+        let milestoneAmount = milestone.amount ? Number(milestone.amount) : 0;
+        if (totalPrice && percentage > 0) {
+          milestoneAmount = (percentage / 100) * totalPrice;
+          milestoneAmount = Math.round(milestoneAmount * 100) / 100; // Round to 2 decimal places
+        }
+
+        processedMilestones.push({
+          name: milestone.name.trim(),
+          description: milestone.description ? milestone.description.trim() : undefined,
+          amount: milestoneAmount,
+          percentage: percentage,
+          order: milestone.order ? Number(milestone.order) : i + 1,
+          dueDate: milestone.dueDate ? new Date(milestone.dueDate) : undefined,
+          isRequired: true,
+          paymentStatus: 'Pending',
+          completionStatus: 'NotStarted'
+        });
+      }
+
+      // Validate total percentage equals 100
+      if (Math.abs(totalPercentage - 100) > 0.01) {
+        return sendError(res, 400, `Total milestone percentage must equal 100%, got ${totalPercentage}%`, 'INVALID_MILESTONE_TOTAL_PERCENTAGE');
+      }
+
+      // Sort milestones by order
+      processedMilestones.sort((a, b) => a.order - b.order);
+
+      // Add milestone data to service request
+      serviceRequestData.paymentType = 'milestone';
+      serviceRequestData.milestones = processedMilestones;
+      serviceRequestData.requireSequentialPayment = require_sequential_payment !== false; // Default to true
+    } else if (payment_type === 'full' || paymentMethod === 'Online Payment') {
+      serviceRequestData.paymentType = 'full';
+    }
+
     // Create the service request
     const serviceRequest = await ServiceRequest.create(serviceRequestData);
 
@@ -414,6 +474,17 @@ const submitServiceRequest = async (req, res, next) => {
     if (serviceRequest.discountPercentage && serviceRequest.discountPercentage > 0) {
       transformedRequest.discountPercentage = serviceRequest.discountPercentage;
       transformedRequest.discountAmount = serviceRequest.discountAmount;
+    }
+
+    // Add milestone information if present
+    if (serviceRequest.paymentType) {
+      transformedRequest.paymentType = serviceRequest.paymentType;
+    }
+    if (serviceRequest.milestones && serviceRequest.milestones.length > 0) {
+      transformedRequest.milestones = serviceRequest.milestones;
+    }
+    if (serviceRequest.requireSequentialPayment !== undefined) {
+      transformedRequest.requireSequentialPayment = serviceRequest.requireSequentialPayment;
     }
 
     const response = {
