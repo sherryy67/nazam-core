@@ -807,7 +807,7 @@ const sendTokenResponse = async (user, statusCode, res) => {
   });
 };
 
-// @desc    Send OTP to phone number or email
+// @desc    Send OTP to phone number or email (for registration - only unregistered users)
 // @route   POST /api/auth/send-otp
 // @access  Public
 const sendOTP = async (req, res, next) => {
@@ -829,7 +829,7 @@ const sendOTP = async (req, res, next) => {
       return sendError(res, 400, 'Please provide a valid email address', 'INVALID_EMAIL');
     }
 
-    // Check if user is registered with the provided phone number or email
+    // Check if user is already registered with the provided phone number or email
     const userQuery = {};
     if (phoneNumber && email) {
       userQuery.$or = [{ phoneNumber }, { email }];
@@ -841,8 +841,10 @@ const sendOTP = async (req, res, next) => {
 
     const existingUser = await User.findOne(userQuery);
 
-    if (!existingUser) {
-      return sendError(res, 404, 'No account found with this contact information. Please register first.', 'USER_NOT_REGISTERED');
+    // If user already exists, return error
+    if (existingUser) {
+      const field = existingUser.phoneNumber === phoneNumber ? 'phone number' : 'email';
+      return sendError(res, 409, `This ${field} is already registered`, 'USER_ALREADY_REGISTERED');
     }
 
     // Generate OTP code
