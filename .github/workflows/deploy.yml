@@ -16,7 +16,7 @@ jobs:
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.7.0
         with:
-          ssh-private-key: ${{ secrets.ZUSHH_SSH_KEY }}
+          ssh-private-key: ${{ secrets.ZUSHH_SHH_KEY }}
 
       - name: Deploy DEV Backend to EC2
         run: |
