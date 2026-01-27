@@ -30,7 +30,7 @@ app.use(cors({
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
   explorer: true,
   customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'Nazam Core API Documentation'
+  customSiteTitle: 'Dev Nazam Core API Documentation'
 }));
 
 // Routes
