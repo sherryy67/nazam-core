@@ -45,7 +45,9 @@ const submitServiceRequest = async (req, res, next) => {
       // Milestone payment fields
       payment_type,
       milestones,
-      require_sequential_payment
+      require_sequential_payment,
+      // Quotation question answers
+      questionAnswers
     } = req.body;
 
     // Validate required fields
@@ -349,6 +351,31 @@ const submitServiceRequest = async (req, res, next) => {
       });
     }
 
+    // Add question answers if provided (for Quotation requests)
+    if (questionAnswers && request_type === 'Quotation') {
+      let parsedQuestionAnswers = questionAnswers;
+      // Parse if it's a JSON string
+      if (typeof questionAnswers === 'string') {
+        try {
+          parsedQuestionAnswers = JSON.parse(questionAnswers);
+        } catch (parseError) {
+          // Ignore parse error, don't add questionAnswers
+          parsedQuestionAnswers = null;
+        }
+      }
+
+      if (Array.isArray(parsedQuestionAnswers) && parsedQuestionAnswers.length > 0) {
+        // Filter and validate question answers
+        serviceRequestData.questionAnswers = parsedQuestionAnswers
+          .filter(qa => qa.question && qa.answer && qa.answer.trim() !== '')
+          .map(qa => ({
+            question: qa.question.trim(),
+            answer: qa.answer.trim(),
+            questionType: qa.questionType || 'text'
+          }));
+      }
+    }
+
     // Add pricing fields only for non-Quotation requests or if available
     if (request_type !== 'Quotation') {
       serviceRequestData.unit_type = unitType;
@@ -463,6 +490,7 @@ const submitServiceRequest = async (req, res, next) => {
       number_of_units: serviceRequest.number_of_units,
       total_price: serviceRequest.total_price,
       selectedSubServices: serviceRequest.selectedSubServices || [],
+      questionAnswers: serviceRequest.questionAnswers || [],
       paymentMethod: serviceRequest.paymentMethod,
       paymentStatus: serviceRequest.paymentStatus,
       paymentDetails: serviceRequest.paymentDetails || {},
