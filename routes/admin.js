@@ -2,7 +2,7 @@ const express = require('express');
 const { body } = require('express-validator');
 const { sendSuccess } = require('../utils/response');
 const { adminLogin, createAdmin } = require('../controllers/authController');
-const { getEligibleVendors, assignServiceToVendor, unassignServiceFromVendor, getAssignedServices, getAdminDashboard, toggleUserStatus, getAllUsers, adminCreateUser, getUserAddresses } = require('../controllers/adminController');
+const { getEligibleVendors, assignServiceToVendor, unassignServiceFromVendor, getAssignedServices, getAdminDashboard, toggleUserStatus, getAllUsers, adminCreateUser, getUserAddresses, deleteUser } = require('../controllers/adminController');
 const { updateVendorAvailability } = require('../controllers/vendorController');
 const { protect } = require('../middlewares/auth');
 const { isAdmin } = require('../middlewares/roleAuth');
@@ -645,6 +645,92 @@ router.patch('/users/:userId/status', protect, isAdmin, toggleUserStatusValidati
  *                   example: "NOT_FOUND"
  */
 router.get('/users/:userId/addresses', protect, isAdmin, getUserAddresses);
+
+/**
+ * @swagger
+ * /api/admin/users/{userId}:
+ *   delete:
+ *     summary: Permanently delete a user (Admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID (MongoDB ObjectId)
+ *     responses:
+ *       200:
+ *         description: User deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 description:
+ *                   type: string
+ *                   example: "User deleted successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     deletedUser:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                           example: "60f7b3b3b3b3b3b3b3b3b3b3"
+ *                         name:
+ *                           type: string
+ *                           example: "John Doe"
+ *                         email:
+ *                           type: string
+ *                           example: "john@example.com"
+ *                         phoneNumber:
+ *                           type: string
+ *                           example: "+971501234567"
+ *       400:
+ *         description: Bad request - Invalid user ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 description:
+ *                   type: string
+ *                   example: "Invalid user ID"
+ *                 exception:
+ *                   type: string
+ *                   example: "INVALID_USER_ID"
+ *       401:
+ *         description: Unauthorized - admin access required
+ *       403:
+ *         description: Forbidden - admin access required
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 description:
+ *                   type: string
+ *                   example: "User not found"
+ *                 exception:
+ *                   type: string
+ *                   example: "NOT_FOUND"
+ */
+router.delete('/users/:userId', protect, isAdmin, deleteUser);
 
 // Validation for admin create user
 const adminCreateUserValidation = [

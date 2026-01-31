@@ -161,7 +161,24 @@ const serviceSchema = new mongoose.Schema({
     items: { type: Number, default: 1 },
     rate: { type: Number, required: true },
     max: { type: Number, default: 1 }
-  }]
+  }],
+
+  // Quotation questions (optional - for Quotation service type)
+  // Admin can add questions that users can optionally answer when submitting a quotation request
+  quotationQuestions: [{
+    question: { type: String, required: true, trim: true },
+    questionType: {
+      type: String,
+      enum: ["text", "textarea", "number", "select"],
+      default: "text"
+    },
+    options: [{ type: String, trim: true }], // For select type questions
+    placeholder: { type: String, trim: true },
+    order: { type: Number, default: 0 }
+  }],
+
+  // Discount percentage for service
+  discount: { type: Number, min: 0, max: 100, default: null }
 }, { timestamps: true });
 
 module.exports = mongoose.model("Service", serviceSchema);

@@ -139,6 +139,14 @@ const serviceRequestSchema = new mongoose.Schema({
     rate: { type: Number, required: true },
     quantity: { type: Number, default: 1 } // Quantity selected by user
   }],
+
+  // Question answers (optional - for Quotation requests with service questions)
+  // Stores user's answers to quotation questions defined in the service
+  questionAnswers: [{
+    question: { type: String, required: true, trim: true },
+    answer: { type: String, trim: true },
+    questionType: { type: String, trim: true }
+  }],
   
   // Admin created order tracking
   createdByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },

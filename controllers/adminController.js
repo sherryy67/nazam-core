@@ -766,6 +766,46 @@ const getAllUsers = async (req, res, next) => {
 };
 
 /**
+ * @desc    Permanently delete a user
+ * @route   DELETE /api/admin/users/:userId
+ * @access  Private (Admin only)
+ */
+const deleteUser = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    // Validate user ID
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return sendError(res, 400, 'Invalid user ID', 'INVALID_USER_ID');
+    }
+
+    // Find user
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return sendNotFoundError(res, 'User not found');
+    }
+
+    // Delete user's addresses
+    await Address.deleteMany({ user: userId });
+
+    // Delete the user
+    await User.findByIdAndDelete(userId);
+
+    return sendSuccess(res, 200, 'User deleted successfully', {
+      deletedUser: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phoneNumber: user.phoneNumber
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * @desc    Get all addresses for a specific user
  * @route   GET /api/admin/users/:userId/addresses
  * @access  Private (Admin only)
@@ -831,5 +871,6 @@ module.exports = {
   toggleUserStatus,
   getAllUsers,
   adminCreateUser,
-  getUserAddresses
+  getUserAddresses,
+  deleteUser
 };

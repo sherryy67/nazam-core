@@ -143,6 +143,7 @@ const createService = async (req, res, next) => {
       thumbnailUri,
       minAdvanceHours,
       isSubservice,
+      quotationQuestions,
     } = req.body;
 
     // Check if this is an update operation
@@ -577,6 +578,37 @@ const createService = async (req, res, next) => {
       serviceData.termsCondition = "";
     }
     // For updates, if termsCondition is not provided, it will keep the existing value
+
+    // Handle quotationQuestions field - optional, for Quotation service type
+    // Admin can add questions that users can optionally answer when submitting a quotation request
+    if (quotationQuestions !== undefined && quotationQuestions !== null) {
+      let parsedQuestions;
+      try {
+        parsedQuestions =
+          typeof quotationQuestions === "string"
+            ? JSON.parse(quotationQuestions)
+            : quotationQuestions;
+      } catch (parseError) {
+        return sendError(
+          res,
+          400,
+          "quotationQuestions must be a valid JSON array",
+          "INVALID_QUOTATION_QUESTIONS"
+        );
+      }
+
+      if (Array.isArray(parsedQuestions)) {
+        serviceData.quotationQuestions = parsedQuestions
+          .filter(q => q && q.question && q.question.trim().length > 0)
+          .map((q, index) => ({
+            question: q.question.trim(),
+            questionType: q.questionType || "text",
+            options: Array.isArray(q.options) ? q.options.filter(opt => opt && opt.trim().length > 0) : [],
+            placeholder: q.placeholder || "",
+            order: q.order !== undefined ? q.order : index
+          }));
+      }
+    }
 
     // Handle isSubservice parameter - if false, clear subServices array
     if (isSubservice !== undefined && isSubservice !== null) {
@@ -1077,6 +1109,7 @@ const getServices = async (req, res, next) => {
       badge: service.badge || "",
       termsCondition: service.termsCondition || "",
       subServices: service.subServices || [],
+      quotationQuestions: service.quotationQuestions || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -1209,6 +1242,7 @@ const getServicesPaginated = async (req, res, next) => {
       badge: service.badge || "",
       termsCondition: service.termsCondition || "",
       subServices: service.subServices || [],
+      quotationQuestions: service.quotationQuestions || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -1285,6 +1319,7 @@ const getServiceById = async (req, res, next) => {
       badge: service.badge || "",
       termsCondition: service.termsCondition || "",
       subServices: service.subServices || [],
+      quotationQuestions: service.quotationQuestions || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -1489,6 +1524,7 @@ const getAllActiveServices = async (req, res, next) => {
       badge: service.badge || "",
       termsCondition: service.termsCondition || "",
       subServices: service.subServices || [],
+      quotationQuestions: service.quotationQuestions || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -1798,6 +1834,7 @@ const getResidentialServices = async (req, res, next) => {
       badge: service.badge || "",
       termsCondition: service.termsCondition || "",
       subServices: service.subServices || [],
+      quotationQuestions: service.quotationQuestions || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -1895,6 +1932,7 @@ const getCommercialServices = async (req, res, next) => {
       badge: service.badge || "",
       termsCondition: service.termsCondition || "",
       subServices: service.subServices || [],
+      quotationQuestions: service.quotationQuestions || [],
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
