@@ -1,12 +1,12 @@
-name: Deploy to EC2
+name: Deploy DEV Backend
 
 on:
   push:
     branches:
-      - main
+      - development
 
 jobs:
-  deploy:
+  deploy-dev:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,25 +18,36 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.ZUSHH_SHH_KEY }}
 
-      - name: Deploy to EC2
+      - name: Deploy DEV Backend to EC2
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.ZUSHH_HOST }} << 'EOF'
             set -e
 
-            cd ~/nazam-core
+            echo "🚀 Deploying DEV backend"
 
-            echo "👉 Cleaning npm cache & PM2 logs"
-            npm cache clean --force
-            pm2 flush
+            cd ~/nazam-core-dev/nazam-core
 
-            echo "👉 Pulling latest code"
-            git pull origin main
+            echo "🛑 Removing old DEV PM2 process"
+            pm2 stop dev-api-backend || true
+            pm2 delete dev-api-backend || true
 
-            echo "👉 Installing production dependencies"
+            echo "📥 Updating DEV code"
+            git fetch origin
+            git checkout development
+            git reset --hard origin/development
+
+            echo "📦 Installing DEV dependencies"
             rm -rf node_modules
-            npm install --omit=dev
+            npm install
 
-            echo "👉 Restarting core service"
-            pm2 restart zushh-core || pm2 start npm --name "zushh-core" -- run start
+            echo "🌱 Loading DEV environment"
+            export NODE_ENV=development
+
+            echo "▶️ Starting DEV backend on port 4001"
+            pm2 start server.js \
+              --name dev-api-backend \
+              --env development
+
             pm2 save
+            pm2 status
           EOF
