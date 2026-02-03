@@ -717,6 +717,127 @@ const options = {
             },
           },
         },
+        Milestone: {
+          type: "object",
+          properties: {
+            _id: {
+              type: "string",
+              description: "Milestone unique identifier",
+            },
+            name: {
+              type: "string",
+              description: "Milestone name",
+              example: "Initial Deposit",
+            },
+            description: {
+              type: "string",
+              description: "Milestone description",
+              example: "30% upfront payment",
+            },
+            amount: {
+              type: "number",
+              description: "Milestone amount in AED",
+              example: 500.00,
+            },
+            percentage: {
+              type: "number",
+              description: "Percentage of total price",
+              example: 30,
+            },
+            order: {
+              type: "number",
+              description: "Order/sequence of the milestone",
+              example: 1,
+            },
+            paymentStatus: {
+              type: "string",
+              enum: ["Pending", "Success", "Failure"],
+              description: "Payment status of the milestone",
+              example: "Pending",
+            },
+            completionStatus: {
+              type: "string",
+              enum: ["NotStarted", "InProgress", "Completed"],
+              description: "Work completion status",
+              example: "NotStarted",
+            },
+            dueDate: {
+              type: "string",
+              format: "date-time",
+              description: "Due date for the milestone",
+              nullable: true,
+            },
+            isRequired: {
+              type: "boolean",
+              description: "Whether the milestone is required",
+              example: true,
+            },
+            completedAt: {
+              type: "string",
+              format: "date-time",
+              description: "Timestamp when milestone was completed",
+              nullable: true,
+            },
+            createdAt: {
+              type: "string",
+              format: "date-time",
+              description: "Milestone creation timestamp",
+            },
+            paymentLink: {
+              type: "object",
+              nullable: true,
+              description: "Payment link details",
+              properties: {
+                token: {
+                  type: "string",
+                  description: "Secure payment token",
+                },
+                url: {
+                  type: "string",
+                  description: "Payment URL",
+                },
+                generatedAt: {
+                  type: "string",
+                  format: "date-time",
+                },
+                expiresAt: {
+                  type: "string",
+                  format: "date-time",
+                },
+                isExpired: {
+                  type: "boolean",
+                },
+                isUsed: {
+                  type: "boolean",
+                },
+              },
+            },
+            paymentDetails: {
+              type: "object",
+              nullable: true,
+              description: "Payment transaction details",
+              properties: {
+                orderId: {
+                  type: "string",
+                },
+                transactionId: {
+                  type: "string",
+                },
+                amount: {
+                  type: "number",
+                },
+                currency: {
+                  type: "string",
+                  example: "AED",
+                },
+                paidAt: {
+                  type: "string",
+                  format: "date-time",
+                },
+              },
+            },
+          },
+        },
       },
     },
     security: [

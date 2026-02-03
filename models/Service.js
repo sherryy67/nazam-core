@@ -88,6 +88,13 @@ const serviceSchema = new mongoose.Schema({
       message: 'timeBasedPricing tiers must include valid hours and price values'
     }
   },
+
+  // Per Hour rate-based pricing (alternative to timeBasedPricing)
+  // When set, user can book by hours, days, or months with person-based pricing
+  // Formula: totalPrice = selectedRate × duration × numberOfPersons
+  perHourRate: { type: Number, min: 0, default: null },   // Rate for 1 hour per person
+  perDayRate: { type: Number, min: 0, default: null },    // Rate for 1 day per person
+  perMonthRate: { type: Number, min: 0, default: null },  // Rate for 1 month per person
   availability: [{ 
     type: String, 
     enum: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
@@ -161,7 +168,24 @@ const serviceSchema = new mongoose.Schema({
     items: { type: Number, default: 1 },
     rate: { type: Number, required: true },
     max: { type: Number, default: 1 }
-  }]
+  }],
+
+  // Quotation questions (optional - for Quotation service type)
+  // Admin can add questions that users can optionally answer when submitting a quotation request
+  quotationQuestions: [{
+    question: { type: String, required: true, trim: true },
+    questionType: {
+      type: String,
+      enum: ["text", "textarea", "number", "select"],
+      default: "text"
+    },
+    options: [{ type: String, trim: true }], // For select type questions
+    placeholder: { type: String, trim: true },
+    order: { type: Number, default: 0 }
+  }],
+
+  // Discount percentage for service
+  discount: { type: Number, min: 0, max: 100, default: null }
 }, { timestamps: true });
 
 module.exports = mongoose.model("Service", serviceSchema);

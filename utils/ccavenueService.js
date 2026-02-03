@@ -7,9 +7,9 @@ const crypto = require('crypto');
 class CCAvenueService {
   constructor() {
     // CCAvenue credentials from environment variables
-    this.merchantId = process.env.CCAVENUE_MERCHANT_ID || '45990';
-    this.accessCode = process.env.CCAVENUE_ACCESS_CODE || 'AVYR05ML69BN93RYNB';
-    this.workingKey = process.env.CCAVENUE_WORKING_KEY || '3975E51578741CE0758A7C8B148F642A';
+    this.merchantId = process.env.CCAVENUE_MERCHANT_ID || '55431';
+    this.accessCode = process.env.CCAVENUE_ACCESS_CODE || 'AVXS05ML7OCI86SXIC';
+    this.workingKey = process.env.CCAVENUE_WORKING_KEY || '7D8863150C1D2ED49653C0CC6FC1EABA';
     this.paymentUrl = process.env.CCAVENUE_PAYMENT_URL || 'https://secure.ccavenue.ae/transaction/transaction.do?command=initiateTransaction';
   }
 

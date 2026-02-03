@@ -1,8 +1,11 @@
-const express = require('express');
-const { body } = require('express-validator');
-const { sendMarketingEmail, testEmail } = require('../controllers/emailController');
-const { protect } = require('../middlewares/auth');
-const { isAdmin } = require('../middlewares/roleAuth');
+const express = require("express");
+const { body } = require("express-validator");
+const {
+  sendMarketingEmail,
+  testEmail,
+} = require("../controllers/emailController");
+const { protect } = require("../middlewares/auth");
+const { isAdmin } = require("../middlewares/roleAuth");
 
 const router = express.Router();
 
@@ -78,14 +81,14 @@ const router = express.Router();
  *         description: Server error - email configuration error
  */
 const testEmailValidation = [
-  body('testEmail')
+  body("testEmail")
     .optional()
     .isEmail()
     .normalizeEmail()
-    .withMessage('Please provide a valid email address')
+    .withMessage("Please provide a valid email address"),
 ];
 
-router.post('/test', protect, isAdmin, testEmailValidation, testEmail);
+router.post("/test", protect, isAdmin, testEmailValidation, testEmail);
 
 /**
  * @swagger
@@ -131,7 +134,7 @@ router.post('/test', protect, isAdmin, testEmailValidation, testEmail);
  *               title:
  *                 type: string
  *                 example: "Special Announcement"
- *                 description: Optional title for the email (defaults to 'Important Update from Zushh')
+ *                 description: Optional title for the email (defaults to 'Important Update from ZUSH')
  *     responses:
  *       200:
  *         description: Marketing email sent successfully
@@ -177,29 +180,32 @@ router.post('/test', protect, isAdmin, testEmailValidation, testEmail);
  *         description: Server error
  */
 const sendMarketingEmailValidation = [
-  body('recipients')
-    .notEmpty()
-    .withMessage('Recipients are required'),
-  body('subject')
+  body("recipients").notEmpty().withMessage("Recipients are required"),
+  body("subject")
     .trim()
     .notEmpty()
-    .withMessage('Subject is required')
+    .withMessage("Subject is required")
     .isLength({ max: 200 })
-    .withMessage('Subject must not exceed 200 characters'),
-  body('message')
+    .withMessage("Subject must not exceed 200 characters"),
+  body("message")
     .trim()
     .notEmpty()
-    .withMessage('Message is required')
+    .withMessage("Message is required")
     .isLength({ min: 10 })
-    .withMessage('Message must be at least 10 characters'),
-  body('title')
+    .withMessage("Message must be at least 10 characters"),
+  body("title")
     .optional()
     .trim()
     .isLength({ max: 100 })
-    .withMessage('Title must not exceed 100 characters')
+    .withMessage("Title must not exceed 100 characters"),
 ];
 
-router.post('/marketing', protect, isAdmin, sendMarketingEmailValidation, sendMarketingEmail);
+router.post(
+  "/marketing",
+  protect,
+  isAdmin,
+  sendMarketingEmailValidation,
+  sendMarketingEmail,
+);
 
 module.exports = router;
-

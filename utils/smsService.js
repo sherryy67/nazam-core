@@ -1,24 +1,26 @@
-const axios = require('axios');
-const path = require('path');
+const axios = require("axios");
+const path = require("path");
 
 // Load environment variables with multiple fallback strategies
 try {
   // Try loading from current directory
-  require('dotenv').config();
+  require("dotenv").config();
 } catch (error) {
-  console.log('Failed to load .env from current directory');
+  console.log("Failed to load .env from current directory");
 }
 
 try {
   // Try loading from project root
-  require('dotenv').config({ path: path.resolve(process.cwd(), '.env') });
+  require("dotenv").config({ path: path.resolve(process.cwd(), ".env") });
 } catch (error) {
-  console.log('Failed to load .env from project root');
+  console.log("Failed to load .env from project root");
 }
 
 // Additional fallback for production
-if (process.env.NODE_ENV === 'production') {
-  console.log('Production environment detected, using hardcoded values as fallback');
+if (process.env.NODE_ENV === "production") {
+  console.log(
+    "Production environment detected, using hardcoded values as fallback",
+  );
 }
 
 /**
@@ -27,11 +29,11 @@ if (process.env.NODE_ENV === 'production') {
  */
 class SMSService {
   constructor() {
-    this.baseUrl = 'https://smartsmsgateway.com/api/api_http.php';
-    
-    this.username = process.env.SMS_USERNAME || 'facaltaasmkt';
-    this.password = process.env.SMS_PASSWORD || 'pZcJjDXi7Y';
-    this.senderId = process.env.SMS_SENDER_ID || 'AD-NAZAM';
+    this.baseUrl = "https://smartsmsgateway.com/api/api_http.php";
+
+    this.username = process.env.SMS_USERNAME || "facaltaasmkt";
+    this.password = process.env.SMS_PASSWORD || "pZcJjDXi7Y";
+    this.senderId = process.env.SMS_SENDER_ID || "AD-NAZAM";
   }
 
   /**
@@ -44,38 +46,38 @@ class SMSService {
     try {
       // Validate UAE phone number format
       if (!this.isValidUAEPhoneNumber(phoneNumber)) {
-        throw new Error('Invalid UAE phone number format');
+        throw new Error("Invalid UAE phone number format");
       }
 
       // Format phone number for UAE (remove +971 if present, add if missing)
       const formattedNumber = this.formatUAEPhoneNumber(phoneNumber);
-      
+
       const message = `Your Nazam verification code is: ${otpCode}. This code will expire in 5 minutes. Do not share this code with anyone. OptOut 4741`;
-      
+
       const params = {
         username: this.username,
         password: this.password,
         senderid: this.senderId,
         to: formattedNumber,
-        text: message
+        text: message,
       };
 
       const response = await axios.get(this.baseUrl, { params });
-      
+
       // Parse response based on Smart SMS Gateway format
       const result = this.parseSMSResponse(response.data);
-      
+
       if (result.success) {
         return {
           success: true,
           messageId: result.messageId,
-          message: 'OTP sent successfully'
+          message: "OTP sent successfully",
         };
       } else {
-        throw new Error(result.error || 'Failed to send SMS');
+        throw new Error(result.error || "Failed to send SMS");
       }
     } catch (error) {
-      console.error('SMS Service Error:', error.message);
+      console.error("SMS Service Error:", error.message);
       throw new Error(`Failed to send OTP: ${error.message}`);
     }
   }
@@ -89,33 +91,33 @@ class SMSService {
   async sendNotification(phoneNumber, message) {
     try {
       if (!this.isValidUAEPhoneNumber(phoneNumber)) {
-        throw new Error('Invalid UAE phone number format');
+        throw new Error("Invalid UAE phone number format");
       }
 
       const formattedNumber = this.formatUAEPhoneNumber(phoneNumber);
-      
+
       const params = {
         username: this.username,
         password: this.password,
         senderid: this.senderId,
         to: formattedNumber,
-        text: message
+        text: message,
       };
 
       const response = await axios.get(this.baseUrl, { params });
       const result = this.parseSMSResponse(response.data);
-      
+
       if (result.success) {
         return {
           success: true,
           messageId: result.messageId,
-          message: 'Notification sent successfully'
+          message: "Notification sent successfully",
         };
       } else {
-        throw new Error(result.error || 'Failed to send SMS');
+        throw new Error(result.error || "Failed to send SMS");
       }
     } catch (error) {
-      console.error('SMS Service Error:', error.message);
+      console.error("SMS Service Error:", error.message);
       throw new Error(`Failed to send notification: ${error.message}`);
     }
   }
@@ -127,8 +129,8 @@ class SMSService {
    */
   isValidUAEPhoneNumber(phoneNumber) {
     // Remove all non-digit characters
-    const cleanNumber = phoneNumber.replace(/\D/g, '');
-    
+    const cleanNumber = phoneNumber.replace(/\D/g, "");
+
     // UAE phone number patterns:
     // +971XXXXXXXXX (13 digits with country code)
     // 971XXXXXXXXX (12 digits with country code)
@@ -136,11 +138,11 @@ class SMSService {
     // 5XXXXXXXX (9 digits starting with 5)
     const uaePatterns = [
       /^971[0-9]{9}$/, // 971 + 9 digits
-      /^0[0-9]{9}$/,   // 0 + 9 digits
-      /^5[0-9]{8}$/    // 5 + 8 digits
+      /^0[0-9]{9}$/, // 0 + 9 digits
+      /^5[0-9]{8}$/, // 5 + 8 digits
     ];
 
-    return uaePatterns.some(pattern => pattern.test(cleanNumber));
+    return uaePatterns.some((pattern) => pattern.test(cleanNumber));
   }
 
   /**
@@ -150,19 +152,19 @@ class SMSService {
    */
   formatUAEPhoneNumber(phoneNumber) {
     // Remove all non-digit characters
-    let cleanNumber = phoneNumber.replace(/\D/g, '');
-    
+    let cleanNumber = phoneNumber.replace(/\D/g, "");
+
     // Convert to 971XXXXXXXXX format
-    if (cleanNumber.startsWith('971')) {
+    if (cleanNumber.startsWith("971")) {
       return cleanNumber;
-    } else if (cleanNumber.startsWith('0')) {
-      return '971' + cleanNumber.substring(1);
-    } else if (cleanNumber.startsWith('5')) {
-      return '971' + cleanNumber;
-    } else if (cleanNumber.length === 9 && cleanNumber.startsWith('5')) {
-      return '971' + cleanNumber;
+    } else if (cleanNumber.startsWith("0")) {
+      return "971" + cleanNumber.substring(1);
+    } else if (cleanNumber.startsWith("5")) {
+      return "971" + cleanNumber;
+    } else if (cleanNumber.length === 9 && cleanNumber.startsWith("5")) {
+      return "971" + cleanNumber;
     }
-    
+
     return cleanNumber;
   }
 
@@ -176,33 +178,35 @@ class SMSService {
       // Smart SMS Gateway typically returns simple text responses
       // Success responses might be like: "Message sent successfully"
       // Error responses might be like: "ERROR: Invalid credentials"
-      
-      if (typeof response === 'string') {
-        if (response.toLowerCase().includes('error')) {
+
+      if (typeof response === "string") {
+        if (response.toLowerCase().includes("error")) {
           return {
             success: false,
-            error: response
+            error: response,
           };
-        } else if (response.toLowerCase().includes('success') || 
-                   response.toLowerCase().includes('sent')) {
+        } else if (
+          response.toLowerCase().includes("success") ||
+          response.toLowerCase().includes("sent")
+        ) {
           return {
             success: true,
             messageId: this.generateMessageId(),
-            message: response
+            message: response,
           };
         }
       }
-      
+
       // If response is not a string or doesn't match patterns, assume success
       return {
         success: true,
         messageId: this.generateMessageId(),
-        message: 'SMS sent successfully'
+        message: "SMS sent successfully",
       };
     } catch (error) {
       return {
         success: false,
-        error: 'Failed to parse SMS response'
+        error: "Failed to parse SMS response",
       };
     }
   }
@@ -212,7 +216,7 @@ class SMSService {
    * @returns {string} - Unique message ID
    */
   generateMessageId() {
-    return 'MSG_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    return "MSG_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
   }
 
   /**
@@ -230,31 +234,35 @@ class SMSService {
    * @returns {Promise<Object>} - SMS sending result
    */
   async sendOrderConfirmation(phoneNumber, serviceRequest) {
-    const customerName = serviceRequest.user_name || 'Customer';
-    const serviceName = serviceRequest.service_name || 'Service';
-    const orderId = serviceRequest._id?.toString().slice(-6).toUpperCase() || 'N/A';
+    const customerName = serviceRequest.user_name || "Customer";
+    const serviceName = serviceRequest.service_name || "Service";
+    const orderId =
+      serviceRequest._id?.toString().slice(-6).toUpperCase() || "N/A";
 
     // Format date
-    let requestDate = 'TBD';
+    let requestDate = "TBD";
     if (serviceRequest.requested_date) {
       const date = new Date(serviceRequest.requested_date);
-      requestDate = date.toLocaleDateString('en-AE', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+      requestDate = date.toLocaleDateString("en-AE", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
       });
     }
 
     // Build pricing text
-    let priceText = '';
-    if (serviceRequest.request_type !== 'Quotation' && serviceRequest.total_price) {
+    let priceText = "";
+    if (
+      serviceRequest.request_type !== "Quotation" &&
+      serviceRequest.total_price
+    ) {
       priceText = ` Total: AED ${serviceRequest.total_price.toFixed(2)}.`;
     }
 
     // SMS has character limits, so keep it concise
-    const message = `Zushh Order Confirmed! Hi ${customerName}, your order #${orderId} for ${serviceName} is confirmed. Date: ${requestDate}.${priceText} We'll assign a vendor soon. Questions? Contact info@zushh.com. OptOut 4741`;
+    const message = `ZUSH Order Confirmed! Hi ${customerName}, your order #${orderId} for ${serviceName} is confirmed. Date: ${requestDate}.${priceText} We'll assign a vendor soon. Questions? Contact info@zushh.com. OptOut 4741`;
 
     return await this.sendNotification(phoneNumber, message);
   }
