@@ -8,7 +8,7 @@ const options = {
   definition: {
     openapi: "3.0.0",
     info: {
-      title: "Nazam Core API",
+      title: "Dev Nazam Core API",
       version: "1.0.0",
       description:
         "A Node.js + Express.js project with MongoDB for building robust web applications",
@@ -23,8 +23,8 @@ const options = {
     },
     servers: [
       {
-        url: process.env.NODE_ENV === "production"
-          ? 'https://api.zushh.com/'
+        url: process.env.NODE_ENV === "development"
+          ? 'https://dev-api.zushh.com/'
           : `http://localhost:${process.env.PORT || 3001}`,
         description:
           process.env.NODE_ENV === "production"

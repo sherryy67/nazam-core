@@ -47,7 +47,11 @@ const submitServiceRequest = async (req, res, next) => {
       milestones,
       require_sequential_payment,
       // Quotation question answers
-      questionAnswers
+      questionAnswers,
+      // Per Hour rate-based pricing fields
+      durationType,
+      duration,
+      numberOfPersons
     } = req.body;
 
     // Validate required fields
@@ -233,16 +237,52 @@ const submitServiceRequest = async (req, res, next) => {
         }
 
         if (unitType === 'per_hour') {
-          const tier = resolveTimeBasedTier(service, numberOfUnits);
+          // Check if service uses new rate-based pricing (perHourRate, perDayRate, perMonthRate)
+          const hasNewRatePricing = service.perHourRate > 0 && service.perDayRate > 0 && service.perMonthRate > 0;
 
-          if (tier) {
-            unitPrice = tier.price;
-            totalPrice = tier.price;
-          } else if (service.basePrice && service.basePrice > 0) {
-            unitPrice = service.basePrice;
-            totalPrice = service.basePrice * numberOfUnits;
+          if (hasNewRatePricing) {
+            // New rate-based pricing: totalPrice = selectedRate × duration × numberOfPersons
+            // Validate durationType is provided for new rate-based pricing
+            if (!durationType || !['hours', 'days', 'months'].includes(durationType)) {
+              return sendError(res, 400, 'durationType is required for this service. Must be hours, days, or months', 'INVALID_DURATION_TYPE');
+            }
+
+            // Validate duration (defaults to 1 if not provided)
+            const durationValue = duration ? Number(duration) : 1;
+            if (!Number.isFinite(durationValue) || durationValue < 1 || !Number.isInteger(durationValue)) {
+              return sendError(res, 400, 'duration must be a positive integer', 'INVALID_DURATION');
+            }
+
+            // Validate numberOfPersons (defaults to 1 if not provided)
+            const personsValue = numberOfPersons ? Number(numberOfPersons) : 1;
+            if (!Number.isFinite(personsValue) || personsValue < 1 || !Number.isInteger(personsValue)) {
+              return sendError(res, 400, 'numberOfPersons must be a positive integer', 'INVALID_NUMBER_OF_PERSONS');
+            }
+
+            // Get the appropriate rate based on durationType
+            const rateMap = {
+              hours: service.perHourRate,
+              days: service.perDayRate,
+              months: service.perMonthRate
+            };
+            const selectedRate = rateMap[durationType];
+
+            // Calculate total price: selectedRate × duration × numberOfPersons
+            unitPrice = selectedRate;
+            totalPrice = selectedRate * durationValue * personsValue;
           } else {
-            return sendError(res, 400, `No time-based pricing found for ${numberOfUnits} hour(s)`, 'MISSING_TIME_BASED_TIER');
+            // Legacy time-based pricing using timeBasedPricing tiers
+            const tier = resolveTimeBasedTier(service, numberOfUnits);
+
+            if (tier) {
+              unitPrice = tier.price;
+              totalPrice = tier.price;
+            } else if (service.basePrice && service.basePrice > 0) {
+              unitPrice = service.basePrice;
+              totalPrice = service.basePrice * numberOfUnits;
+            } else {
+              return sendError(res, 400, `No time-based pricing found for ${numberOfUnits} hour(s)`, 'MISSING_TIME_BASED_TIER');
+            }
           }
         } else {
           const basePrice = service.basePrice;
@@ -385,6 +425,14 @@ const submitServiceRequest = async (req, res, next) => {
       if (discountPercentage && discountPercentage > 0) {
         serviceRequestData.discountPercentage = discountPercentage;
         serviceRequestData.discountAmount = discount;
+      }
+
+      // Add per hour rate-based pricing fields if applicable
+      const hasNewRatePricing = service.perHourRate > 0 && service.perDayRate > 0 && service.perMonthRate > 0;
+      if (unitType === 'per_hour' && hasNewRatePricing && durationType) {
+        serviceRequestData.durationType = durationType;
+        serviceRequestData.duration = duration ? Number(duration) : 1;
+        serviceRequestData.numberOfPersons = numberOfPersons ? Number(numberOfPersons) : 1;
       }
     } else {
       // For Quotation requests, add pricing fields only if available
@@ -549,7 +597,11 @@ const adminSubmitServiceRequest = async (req, res, next) => {
       message,
       number_of_units,
       payment_method,
-      selectedSubServices
+      selectedSubServices,
+      // Per Hour rate-based pricing fields
+      durationType,
+      duration,
+      numberOfPersons
     } = req.body;
 
     // Validate required fields
@@ -719,16 +771,52 @@ const adminSubmitServiceRequest = async (req, res, next) => {
         }
 
         if (unitType === 'per_hour') {
-          const tier = resolveTimeBasedTier(service, numberOfUnits);
+          // Check if service uses new rate-based pricing (perHourRate, perDayRate, perMonthRate)
+          const hasNewRatePricing = service.perHourRate > 0 && service.perDayRate > 0 && service.perMonthRate > 0;
 
-          if (tier) {
-            unitPrice = tier.price;
-            totalPrice = tier.price;
-          } else if (service.basePrice && service.basePrice > 0) {
-            unitPrice = service.basePrice;
-            totalPrice = service.basePrice * numberOfUnits;
+          if (hasNewRatePricing) {
+            // New rate-based pricing: totalPrice = selectedRate × duration × numberOfPersons
+            // Validate durationType is provided for new rate-based pricing
+            if (!durationType || !['hours', 'days', 'months'].includes(durationType)) {
+              return sendError(res, 400, 'durationType is required for this service. Must be hours, days, or months', 'INVALID_DURATION_TYPE');
+            }
+
+            // Validate duration (defaults to 1 if not provided)
+            const durationValue = duration ? Number(duration) : 1;
+            if (!Number.isFinite(durationValue) || durationValue < 1 || !Number.isInteger(durationValue)) {
+              return sendError(res, 400, 'duration must be a positive integer', 'INVALID_DURATION');
+            }
+
+            // Validate numberOfPersons (defaults to 1 if not provided)
+            const personsValue = numberOfPersons ? Number(numberOfPersons) : 1;
+            if (!Number.isFinite(personsValue) || personsValue < 1 || !Number.isInteger(personsValue)) {
+              return sendError(res, 400, 'numberOfPersons must be a positive integer', 'INVALID_NUMBER_OF_PERSONS');
+            }
+
+            // Get the appropriate rate based on durationType
+            const rateMap = {
+              hours: service.perHourRate,
+              days: service.perDayRate,
+              months: service.perMonthRate
+            };
+            const selectedRate = rateMap[durationType];
+
+            // Calculate total price: selectedRate × duration × numberOfPersons
+            unitPrice = selectedRate;
+            totalPrice = selectedRate * durationValue * personsValue;
           } else {
-            return sendError(res, 400, `No time-based pricing found for ${numberOfUnits} hour(s)`, 'MISSING_TIME_BASED_TIER');
+            // Legacy time-based pricing using timeBasedPricing tiers
+            const tier = resolveTimeBasedTier(service, numberOfUnits);
+
+            if (tier) {
+              unitPrice = tier.price;
+              totalPrice = tier.price;
+            } else if (service.basePrice && service.basePrice > 0) {
+              unitPrice = service.basePrice;
+              totalPrice = service.basePrice * numberOfUnits;
+            } else {
+              return sendError(res, 400, `No time-based pricing found for ${numberOfUnits} hour(s)`, 'MISSING_TIME_BASED_TIER');
+            }
           }
         } else {
           const basePrice = service.basePrice;
@@ -814,6 +902,14 @@ const adminSubmitServiceRequest = async (req, res, next) => {
       if (discountPercentage && discountPercentage > 0) {
         serviceRequestData.discountPercentage = discountPercentage;
         serviceRequestData.discountAmount = discount;
+      }
+
+      // Add per hour rate-based pricing fields if applicable
+      const hasNewRatePricing = service.perHourRate > 0 && service.perDayRate > 0 && service.perMonthRate > 0;
+      if (unitType === 'per_hour' && hasNewRatePricing && durationType) {
+        serviceRequestData.durationType = durationType;
+        serviceRequestData.duration = duration ? Number(duration) : 1;
+        serviceRequestData.numberOfPersons = numberOfPersons ? Number(numberOfPersons) : 1;
       }
     } else {
       if (unitType) {
@@ -1391,7 +1487,11 @@ const userUpdateServiceRequest = async (req, res, next) => {
       message,
       number_of_units,
       payment_method,
-      selectedSubServices
+      selectedSubServices,
+      // Per Hour rate-based pricing fields
+      durationType,
+      duration,
+      numberOfPersons
     } = req.body;
 
     // Validate request ID
@@ -1488,17 +1588,74 @@ const userUpdateServiceRequest = async (req, res, next) => {
           const numberOfUnits = Number(number_of_units);
 
           if (service.unitType === 'per_hour') {
-            const tier = resolveTimeBasedTier(service, numberOfUnits);
-            if (tier) {
-              updateData.unit_price = tier.price;
-              updateData.total_price = tier.price;
-            } else if (service.basePrice && service.basePrice > 0) {
-              updateData.unit_price = service.basePrice;
-              updateData.total_price = service.basePrice * numberOfUnits;
+            // Check if service uses new rate-based pricing
+            const hasNewRatePricing = service.perHourRate > 0 && service.perDayRate > 0 && service.perMonthRate > 0;
+
+            if (hasNewRatePricing) {
+              // For new rate-based pricing, recalculation happens in the durationType/duration/numberOfPersons section
+              // This section only handles legacy timeBasedPricing
+            } else {
+              // Legacy time-based pricing
+              const tier = resolveTimeBasedTier(service, numberOfUnits);
+              if (tier) {
+                updateData.unit_price = tier.price;
+                updateData.total_price = tier.price;
+              } else if (service.basePrice && service.basePrice > 0) {
+                updateData.unit_price = service.basePrice;
+                updateData.total_price = service.basePrice * numberOfUnits;
+              }
             }
           } else {
             updateData.total_price = serviceRequest.unit_price * numberOfUnits;
           }
+        }
+      }
+    }
+
+    // Handle per hour rate-based pricing field updates (durationType, duration, numberOfPersons)
+    if (durationType !== undefined || duration !== undefined || numberOfPersons !== undefined) {
+      if (!service) {
+        service = await Service.findById(serviceRequest.service_id);
+      }
+
+      if (service && service.unitType === 'per_hour') {
+        const hasNewRatePricing = service.perHourRate > 0 && service.perDayRate > 0 && service.perMonthRate > 0;
+
+        if (hasNewRatePricing && serviceRequest.request_type !== 'Quotation') {
+          // Get current or new values for each field
+          const newDurationType = durationType || serviceRequest.durationType;
+          const newDuration = duration !== undefined ? Number(duration) : (serviceRequest.duration || 1);
+          const newNumberOfPersons = numberOfPersons !== undefined ? Number(numberOfPersons) : (serviceRequest.numberOfPersons || 1);
+
+          // Validate durationType
+          if (!newDurationType || !['hours', 'days', 'months'].includes(newDurationType)) {
+            return sendError(res, 400, 'durationType must be hours, days, or months', 'INVALID_DURATION_TYPE');
+          }
+
+          // Validate duration
+          if (!Number.isFinite(newDuration) || newDuration < 1 || !Number.isInteger(newDuration)) {
+            return sendError(res, 400, 'duration must be a positive integer', 'INVALID_DURATION');
+          }
+
+          // Validate numberOfPersons
+          if (!Number.isFinite(newNumberOfPersons) || newNumberOfPersons < 1 || !Number.isInteger(newNumberOfPersons)) {
+            return sendError(res, 400, 'numberOfPersons must be a positive integer', 'INVALID_NUMBER_OF_PERSONS');
+          }
+
+          // Get the appropriate rate based on durationType
+          const rateMap = {
+            hours: service.perHourRate,
+            days: service.perDayRate,
+            months: service.perMonthRate
+          };
+          const selectedRate = rateMap[newDurationType];
+
+          // Calculate new total price: selectedRate × duration × numberOfPersons
+          updateData.durationType = newDurationType;
+          updateData.duration = newDuration;
+          updateData.numberOfPersons = newNumberOfPersons;
+          updateData.unit_price = selectedRate;
+          updateData.total_price = selectedRate * newDuration * newNumberOfPersons;
         }
       }
     }
