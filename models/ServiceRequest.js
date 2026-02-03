@@ -36,13 +36,23 @@ const serviceRequestSchema = new mongoose.Schema({
     }
   }, // Price per unit or per hour - not required for Quotation requests
   number_of_units: { type: Number, required: true }, // Number of units or hours
-  total_price: { 
-    type: Number, 
+  total_price: {
+    type: Number,
     required: function() {
       return this.request_type !== "Quotation";
     }
   }, // Calculated total price - not required for Quotation requests
-  
+
+  // Per Hour rate-based pricing fields (for services with perHourRate/perDayRate/perMonthRate)
+  // Formula: totalPrice = selectedRate × duration × numberOfPersons
+  durationType: {
+    type: String,
+    enum: ["hours", "days", "months"],
+    default: null
+  },
+  duration: { type: Number, min: 1, default: 1 },       // Duration quantity (hours/days/months)
+  numberOfPersons: { type: Number, min: 1, default: 1 }, // Number of persons
+
   // Status and assignment
   status: {
     type: String,
