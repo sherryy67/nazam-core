@@ -266,6 +266,139 @@ class SMSService {
 
     return await this.sendNotification(phoneNumber, message);
   }
+
+  /**
+   * Send welcome SMS to newly created user
+   * @param {string} phoneNumber - User's phone number
+   * @param {string} userName - User's name
+   * @param {string} password - User's password (for admin-created accounts)
+   * @returns {Promise<Object>} - SMS sending result
+   */
+  async sendWelcomeNotification(phoneNumber, userName, password = null) {
+    let message;
+    if (password) {
+      // Admin-created account with credentials
+      message = `Welcome to ZUSH, ${userName}! Your account has been created. Password: ${password}. Login at zushh.com. Questions? Contact info@zushh.com. OptOut 4741`;
+    } else {
+      // Regular welcome message
+      message = `Welcome to ZUSH, ${userName}! Your account is ready. Explore our services at zushh.com. Questions? Contact info@zushh.com. OptOut 4741`;
+    }
+
+    return await this.sendNotification(phoneNumber, message);
+  }
+
+  /**
+   * Send order status update SMS to customer
+   * @param {string} phoneNumber - Customer's phone number
+   * @param {Object} serviceRequest - Service request details
+   * @param {string} newStatus - New status of the order
+   * @param {Object} vendor - Vendor details (optional)
+   * @returns {Promise<Object>} - SMS sending result
+   */
+  async sendStatusUpdateNotification(phoneNumber, serviceRequest, newStatus, vendor = null) {
+    const customerName = serviceRequest.user_name || "Customer";
+    const serviceName = serviceRequest.service_name || "Service";
+    const orderId =
+      serviceRequest._id?.toString().slice(-6).toUpperCase() || "N/A";
+
+    let statusMessage;
+    switch (newStatus) {
+      case "Assigned":
+        const vendorName = vendor ? `${vendor.firstName || ""} ${vendor.lastName || ""}`.trim() : "a vendor";
+        statusMessage = `Hi ${customerName}, your order #${orderId} for ${serviceName} has been assigned to ${vendorName}. They will contact you soon.`;
+        break;
+      case "Accepted":
+        statusMessage = `Hi ${customerName}, your order #${orderId} for ${serviceName} has been accepted by the vendor. Work will begin as scheduled.`;
+        break;
+      case "InProgress":
+        statusMessage = `Hi ${customerName}, your order #${orderId} for ${serviceName} is now in progress.`;
+        break;
+      case "Completed":
+        statusMessage = `Hi ${customerName}, your order #${orderId} for ${serviceName} has been completed. Thank you for choosing ZUSH!`;
+        break;
+      case "Cancelled":
+        statusMessage = `Hi ${customerName}, your order #${orderId} for ${serviceName} has been cancelled. Contact info@zushh.com for assistance.`;
+        break;
+      default:
+        statusMessage = `Hi ${customerName}, your order #${orderId} status has been updated to: ${newStatus}.`;
+    }
+
+    const message = `ZUSH Update: ${statusMessage} OptOut 4741`;
+
+    return await this.sendNotification(phoneNumber, message);
+  }
+
+  /**
+   * Send quotation price notification SMS to customer
+   * @param {string} phoneNumber - Customer's phone number
+   * @param {Object} serviceRequest - Service request details
+   * @param {number} totalPrice - Quoted price
+   * @returns {Promise<Object>} - SMS sending result
+   */
+  async sendQuotationPriceNotification(phoneNumber, serviceRequest, totalPrice) {
+    const customerName = serviceRequest.user_name || "Customer";
+    const serviceName = serviceRequest.service_name || "Service";
+    const orderId =
+      serviceRequest._id?.toString().slice(-6).toUpperCase() || "N/A";
+
+    const message = `ZUSH Quotation: Hi ${customerName}, your quotation #${orderId} for ${serviceName} is ready. Price: AED ${totalPrice.toFixed(2)}. Login to accept or contact info@zushh.com. OptOut 4741`;
+
+    return await this.sendNotification(phoneNumber, message);
+  }
+
+  /**
+   * Send vendor assignment notification SMS to customer
+   * @param {string} phoneNumber - Customer's phone number
+   * @param {Object} serviceRequest - Service request details
+   * @param {Object} vendor - Vendor details
+   * @returns {Promise<Object>} - SMS sending result
+   */
+  async sendVendorAssignedNotification(phoneNumber, serviceRequest, vendor) {
+    const customerName = serviceRequest.user_name || "Customer";
+    const serviceName = serviceRequest.service_name || "Service";
+    const orderId =
+      serviceRequest._id?.toString().slice(-6).toUpperCase() || "N/A";
+    const vendorName = vendor ? `${vendor.firstName || ""} ${vendor.lastName || ""}`.trim() : "a professional";
+
+    const message = `ZUSH Update: Hi ${customerName}, great news! Your order #${orderId} for ${serviceName} has been assigned to ${vendorName}. They will contact you shortly. OptOut 4741`;
+
+    return await this.sendNotification(phoneNumber, message);
+  }
+
+  /**
+   * Send payment status notification SMS to customer
+   * @param {string} phoneNumber - Customer's phone number
+   * @param {Object} serviceRequest - Service request details
+   * @param {string} paymentStatus - Payment status (Success, Failure, Completed)
+   * @returns {Promise<Object>} - SMS sending result
+   */
+  async sendPaymentStatusNotification(phoneNumber, serviceRequest, paymentStatus) {
+    const customerName = serviceRequest.user_name || "Customer";
+    const serviceName = serviceRequest.service_name || "Service";
+    const orderId =
+      serviceRequest._id?.toString().slice(-6).toUpperCase() || "N/A";
+
+    let statusMessage;
+    switch (paymentStatus) {
+      case "Success":
+      case "Completed":
+        const amount = serviceRequest.total_price ? `AED ${serviceRequest.total_price.toFixed(2)}` : "";
+        statusMessage = `Hi ${customerName}, payment ${amount} for order #${orderId} (${serviceName}) has been received. Thank you!`;
+        break;
+      case "Failure":
+        statusMessage = `Hi ${customerName}, payment for order #${orderId} (${serviceName}) failed. Please try again or contact info@zushh.com.`;
+        break;
+      case "Pending":
+        statusMessage = `Hi ${customerName}, payment for order #${orderId} (${serviceName}) is pending. Please complete payment to proceed.`;
+        break;
+      default:
+        statusMessage = `Hi ${customerName}, payment status for order #${orderId} updated to: ${paymentStatus}.`;
+    }
+
+    const message = `ZUSH Payment: ${statusMessage} OptOut 4741`;
+
+    return await this.sendNotification(phoneNumber, message);
+  }
 }
 
 module.exports = new SMSService();

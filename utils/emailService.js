@@ -2271,6 +2271,329 @@ Need help? Contact us at info@zushh.com
   }
 
   /**
+   * Send order status update email to customer
+   * @param {string} email - Customer's email address
+   * @param {Object} serviceRequest - Service request details
+   * @param {string} newStatus - New status of the order
+   * @param {Object} vendor - Vendor details (optional)
+   * @returns {Promise<Object>} - Email sending result
+   */
+  async sendOrderStatusUpdateEmail(email, serviceRequest, newStatus, vendor = null) {
+    if (!this.isValidEmail(email)) {
+      throw new Error("Invalid email format");
+    }
+
+    const customerName = serviceRequest.user_name || "Customer";
+    const serviceName = serviceRequest.service_name || "Service";
+    const orderId = serviceRequest._id?.toString().slice(-8).toUpperCase() || "N/A";
+    const vendorName = vendor ? `${vendor.firstName || ""} ${vendor.lastName || ""}`.trim() : null;
+
+    // Determine status color and message
+    let statusColor, statusMessage, additionalInfo;
+    switch (newStatus) {
+      case "Assigned":
+        statusColor = "#17a2b8"; // Blue
+        statusMessage = "Your service request has been assigned to a professional vendor.";
+        additionalInfo = vendorName ? `Your assigned vendor: <strong>${vendorName}</strong>` : "A vendor has been assigned to your request.";
+        break;
+      case "Accepted":
+        statusColor = "#28a745"; // Green
+        statusMessage = "Your service request has been accepted by the vendor.";
+        additionalInfo = "The vendor will begin work as per the scheduled date.";
+        break;
+      case "InProgress":
+        statusColor = "#ffc107"; // Yellow
+        statusMessage = "Work on your service request has begun.";
+        additionalInfo = "Your service is currently in progress.";
+        break;
+      case "Completed":
+        statusColor = "#28a745"; // Green
+        statusMessage = "Your service request has been completed!";
+        additionalInfo = "Thank you for choosing ZUSH. We hope you're satisfied with our service.";
+        break;
+      case "Cancelled":
+        statusColor = "#dc3545"; // Red
+        statusMessage = "Your service request has been cancelled.";
+        additionalInfo = "If you have any questions, please contact our support team.";
+        break;
+      default:
+        statusColor = "#6c757d"; // Gray
+        statusMessage = `Your service request status has been updated to: ${newStatus}`;
+        additionalInfo = "";
+    }
+
+    const requestDate = serviceRequest.requested_date
+      ? new Date(serviceRequest.requested_date).toLocaleDateString("en-AE", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "TBD";
+
+    const subject = `Order Update: Your ${serviceName} Request is now ${newStatus}`;
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Order Status Update</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 20px 0; text-align: center; background-color: #ffffff;">
+              <img src="https://mynazam-s3.s3.us-east-1.amazonaws.com/uploads/1769798856545-zush-logo-latest.png" alt="Zush" style="max-width: 150px; height: auto;">
+              <p style="color: #666; margin: 5px 0;">Your Trusted Service Partner</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; padding: 30px;">
+                <tr>
+                  <td>
+                    <h2 style="color: #333; margin-top: 0;">Hello ${customerName}!</h2>
+                    <div style="margin: 20px 0; padding: 15px; background-color: ${statusColor}; border-radius: 8px; text-align: center;">
+                      <span style="color: #ffffff; font-size: 18px; font-weight: bold;">Status: ${newStatus}</span>
+                    </div>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                      ${statusMessage}
+                    </p>
+                    <div style="margin: 30px 0; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                      <h3 style="color: #333; margin-top: 0;">Order Details:</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Order ID:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">#${orderId}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Service:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${serviceName}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Scheduled Date:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${requestDate}</td>
+                        </tr>
+                        ${serviceRequest.total_price ? `
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Total Price:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">AED ${serviceRequest.total_price.toFixed(2)}</td>
+                        </tr>
+                        ` : ""}
+                        ${vendorName ? `
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Assigned Vendor:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${vendorName}</td>
+                        </tr>
+                        ` : ""}
+                      </table>
+                    </div>
+                    ${additionalInfo ? `<p style="color: #666; font-size: 16px; line-height: 1.6;">${additionalInfo}</p>` : ""}
+                    <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                      You can track your order status anytime by logging into your account.
+                    </p>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6; margin-top: 30px;">
+                      Best regards,<br>
+                      <strong>The ZUSH Team</strong>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px; text-align: center; background-color: #ffffff;">
+              <p style="color: #999; font-size: 12px; margin: 0;">
+                &copy; ${new Date().getFullYear()} Nazam Software Design LLC. All rights reserved.
+              </p>
+              <p style="color: #999; font-size: 12px; margin: 5px 0 0 0;">
+                Need help? Contact us at info@zushh.com
+              </p>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Order Status Update
+
+Hello ${customerName}!
+
+Status: ${newStatus}
+
+${statusMessage}
+
+Order Details:
+- Order ID: #${orderId}
+- Service: ${serviceName}
+- Scheduled Date: ${requestDate}
+${serviceRequest.total_price ? `- Total Price: AED ${serviceRequest.total_price.toFixed(2)}` : ""}
+${vendorName ? `- Assigned Vendor: ${vendorName}` : ""}
+
+${additionalInfo}
+
+You can track your order status anytime by logging into your account.
+
+Best regards,
+The ZUSH Team
+
+Need help? Contact us at info@zushh.com
+    `;
+
+    return await this.sendEmail({
+      to: email,
+      subject: subject,
+      html: html,
+      text: text,
+    });
+  }
+
+  /**
+   * Send quotation price notification email to customer
+   * @param {string} email - Customer's email address
+   * @param {Object} serviceRequest - Service request details
+   * @param {number} totalPrice - Quoted price
+   * @param {string} adminNotes - Admin notes (optional)
+   * @returns {Promise<Object>} - Email sending result
+   */
+  async sendQuotationPriceEmail(email, serviceRequest, totalPrice, adminNotes = null) {
+    if (!this.isValidEmail(email)) {
+      throw new Error("Invalid email format");
+    }
+
+    const customerName = serviceRequest.user_name || "Customer";
+    const serviceName = serviceRequest.service_name || "Service";
+    const orderId = serviceRequest._id?.toString().slice(-8).toUpperCase() || "N/A";
+    const requestDate = serviceRequest.requested_date
+      ? new Date(serviceRequest.requested_date).toLocaleDateString("en-AE", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })
+      : "TBD";
+
+    const subject = `Your Quotation for ${serviceName} is Ready - #${orderId}`;
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Quotation Ready</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 20px 0; text-align: center; background-color: #ffffff;">
+              <img src="https://mynazam-s3.s3.us-east-1.amazonaws.com/uploads/1769798856545-zush-logo-latest.png" alt="Zush" style="max-width: 150px; height: auto;">
+              <p style="color: #666; margin: 5px 0;">Your Trusted Service Partner</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 20px;">
+              <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; padding: 30px;">
+                <tr>
+                  <td>
+                    <h2 style="color: #333; margin-top: 0;">Hello ${customerName}!</h2>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                      Great news! Your quotation request has been reviewed and we have a price for you.
+                    </p>
+                    <div style="margin: 30px 0; padding: 25px; background-color: #d4edda; border-radius: 8px; text-align: center;">
+                      <p style="color: #155724; font-size: 14px; margin: 0 0 10px 0;">Quoted Price</p>
+                      <p style="color: #155724; font-size: 32px; font-weight: bold; margin: 0;">AED ${totalPrice.toFixed(2)}</p>
+                    </div>
+                    <div style="margin: 30px 0; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+                      <h3 style="color: #333; margin-top: 0;">Quotation Details:</h3>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Quotation ID:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">#${orderId}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Service:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${serviceName}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Category:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${serviceRequest.category_name || "N/A"}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #666;"><strong>Requested Date:</strong></td>
+                          <td style="padding: 8px 0; color: #333;">${requestDate}</td>
+                        </tr>
+                      </table>
+                    </div>
+                    ${adminNotes ? `
+                    <div style="margin: 30px 0; padding: 20px; background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+                      <h4 style="color: #856404; margin-top: 0;">Additional Notes:</h4>
+                      <p style="color: #856404; margin: 0;">${adminNotes}</p>
+                    </div>
+                    ` : ""}
+                    <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                      To proceed with this quotation, please log in to your account to accept it, or contact our support team if you have any questions.
+                    </p>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6; margin-top: 30px;">
+                      Best regards,<br>
+                      <strong>The ZUSH Team</strong>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px; text-align: center; background-color: #ffffff;">
+              <p style="color: #999; font-size: 12px; margin: 0;">
+                &copy; ${new Date().getFullYear()} Nazam Software Design LLC. All rights reserved.
+              </p>
+              <p style="color: #999; font-size: 12px; margin: 5px 0 0 0;">
+                Need help? Contact us at info@zushh.com
+              </p>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const text = `
+Your Quotation is Ready!
+
+Hello ${customerName}!
+
+Great news! Your quotation request has been reviewed and we have a price for you.
+
+Quoted Price: AED ${totalPrice.toFixed(2)}
+
+Quotation Details:
+- Quotation ID: #${orderId}
+- Service: ${serviceName}
+- Category: ${serviceRequest.category_name || "N/A"}
+- Requested Date: ${requestDate}
+
+${adminNotes ? `Additional Notes: ${adminNotes}` : ""}
+
+To proceed with this quotation, please log in to your account to accept it, or contact our support team if you have any questions.
+
+Best regards,
+The ZUSH Team
+
+Need help? Contact us at info@zushh.com
+    `;
+
+    return await this.sendEmail({
+      to: email,
+      subject: subject,
+      html: html,
+      text: text,
+    });
+  }
+
+  /**
    * Test email configuration
    * @returns {Promise<Object>} - Test result
    */

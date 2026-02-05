@@ -1041,8 +1041,8 @@ const updateServiceRequestStatus = async (req, res, next) => {
     const { status, vendor } = req.body;
 
     // Validate status
-    if (!['Pending', 'Assigned', 'Accepted', 'Completed', 'Cancelled'].includes(status)) {
-      return sendError(res, 400, 'Invalid status. Must be Pending, Assigned, Accepted, Completed, or Cancelled', 'INVALID_STATUS');
+    if (!['Pending', 'Assigned', 'Accepted', 'InProgress', 'Completed', 'Cancelled'].includes(status)) {
+      return sendError(res, 400, 'Invalid status. Must be Pending, Assigned, Accepted, InProgress, Completed, or Cancelled', 'INVALID_STATUS');
     }
 
     const serviceRequest = await ServiceRequest.findById(id);
@@ -1050,8 +1050,13 @@ const updateServiceRequestStatus = async (req, res, next) => {
       return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
     }
 
+    // Store old status for comparison
+    const oldStatus = serviceRequest.status;
+
     // Update service request
     const updateData = { status };
+    let vendorDetails = null;
+
     if (vendor) {
       updateData.vendor = vendor;
       // When assigning a vendor to a Pending request, automatically change status to 'Assigned'
@@ -1059,6 +1064,10 @@ const updateServiceRequestStatus = async (req, res, next) => {
       if (serviceRequest.status === 'Pending' && status === 'Pending') {
         updateData.status = 'Assigned';
       }
+
+      // Fetch vendor details for notification
+      const Vendor = require('../models/Vendor');
+      vendorDetails = await Vendor.findById(vendor).select('firstName lastName email mobileNumber');
     }
 
     const updatedRequest = await ServiceRequest.findByIdAndUpdate(
@@ -1066,7 +1075,44 @@ const updateServiceRequestStatus = async (req, res, next) => {
       updateData,
       { new: true, runValidators: true }
     ).populate('service_id', 'name description')
-     .populate('category_id', 'name description');
+     .populate('category_id', 'name description')
+     .populate('vendor', 'firstName lastName email mobileNumber');
+
+    // Send notifications if status has changed
+    const newStatus = updateData.status || status;
+    if (oldStatus !== newStatus) {
+      const notificationResults = { email: null, sms: null };
+
+      // Send email notification
+      try {
+        if (updatedRequest.user_email && emailService.isValidEmail(updatedRequest.user_email)) {
+          notificationResults.email = await emailService.sendOrderStatusUpdateEmail(
+            updatedRequest.user_email,
+            updatedRequest,
+            newStatus,
+            vendorDetails || updatedRequest.vendor
+          );
+        }
+      } catch (emailError) {
+        console.error('Failed to send status update email:', emailError.message);
+        notificationResults.email = { success: false, error: emailError.message };
+      }
+
+      // Send SMS notification
+      try {
+        if (updatedRequest.user_phone && smsService.isValidUAEPhoneNumber(updatedRequest.user_phone)) {
+          notificationResults.sms = await smsService.sendStatusUpdateNotification(
+            updatedRequest.user_phone,
+            updatedRequest,
+            newStatus,
+            vendorDetails || updatedRequest.vendor
+          );
+        }
+      } catch (smsError) {
+        console.error('Failed to send status update SMS:', smsError.message);
+        notificationResults.sms = { success: false, error: smsError.message };
+      }
+    }
 
     // Transform response
     const transformedRequest = {
@@ -1144,10 +1190,13 @@ const assignRequest = async (req, res, next) => {
      .populate('category_id', 'name description')
      .populate('vendor', 'firstName lastName email mobileNumber');
 
-    // Send email to customer about assignment
+    // Send email and SMS notifications to customer about assignment
+    const notificationResults = { email: null, sms: null };
+
+    // Send email notification
     try {
       if (updatedRequest.user_email && emailService.isValidEmail(updatedRequest.user_email)) {
-        await emailService.sendServiceAssignedEmail(
+        notificationResults.email = await emailService.sendServiceAssignedEmail(
           updatedRequest.user_email,
           updatedRequest.user_name,
           updatedRequest,
@@ -1157,6 +1206,22 @@ const assignRequest = async (req, res, next) => {
     } catch (emailError) {
       // Log error but don't fail the assignment
       console.error('Failed to send assignment email to customer:', emailError.message);
+      notificationResults.email = { success: false, error: emailError.message };
+    }
+
+    // Send SMS notification
+    try {
+      if (updatedRequest.user_phone && smsService.isValidUAEPhoneNumber(updatedRequest.user_phone)) {
+        notificationResults.sms = await smsService.sendVendorAssignedNotification(
+          updatedRequest.user_phone,
+          updatedRequest,
+          vendor
+        );
+      }
+    } catch (smsError) {
+      // Log error but don't fail the assignment
+      console.error('Failed to send assignment SMS to customer:', smsError.message);
+      notificationResults.sms = { success: false, error: smsError.message };
     }
 
     // Transform response
@@ -1188,7 +1253,11 @@ const assignRequest = async (req, res, next) => {
       exception: null,
       description: 'Service request assigned successfully',
       content: {
-        serviceRequest: transformedRequest
+        serviceRequest: transformedRequest,
+        notifications: {
+          emailSent: notificationResults.email?.success || false,
+          smsSent: notificationResults.sms?.success || false
+        }
       }
     };
 
@@ -1887,8 +1956,37 @@ const updateQuotationPrice = async (req, res, next) => {
 
     await serviceRequest.save();
 
-    // TODO: Send notification to user (email/SMS)
-    // Example: notificationService.sendQuotationReady(serviceRequest);
+    // Send notifications to customer about quotation price
+    const notificationResults = { email: null, sms: null };
+
+    // Send email notification
+    try {
+      if (serviceRequest.user_email && emailService.isValidEmail(serviceRequest.user_email)) {
+        notificationResults.email = await emailService.sendQuotationPriceEmail(
+          serviceRequest.user_email,
+          serviceRequest,
+          serviceRequest.total_price,
+          admin_notes || null
+        );
+      }
+    } catch (emailError) {
+      console.error('Failed to send quotation email:', emailError.message);
+      notificationResults.email = { success: false, error: emailError.message };
+    }
+
+    // Send SMS notification
+    try {
+      if (serviceRequest.user_phone && smsService.isValidUAEPhoneNumber(serviceRequest.user_phone)) {
+        notificationResults.sms = await smsService.sendQuotationPriceNotification(
+          serviceRequest.user_phone,
+          serviceRequest,
+          serviceRequest.total_price
+        );
+      }
+    } catch (smsError) {
+      console.error('Failed to send quotation SMS:', smsError.message);
+      notificationResults.sms = { success: false, error: smsError.message };
+    }
 
     const response = {
       success: true,
@@ -1909,6 +2007,138 @@ const updateQuotationPrice = async (req, res, next) => {
           status: serviceRequest.status,
           message: serviceRequest.message,
           requested_date: serviceRequest.requested_date.toISOString()
+        },
+        notifications: {
+          emailSent: notificationResults.email?.success || false,
+          smsSent: notificationResults.sms?.success || false
+        }
+      }
+    };
+
+    return res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Update payment status (Admin only)
+ * @route   PUT /api/admin/service-requests/:id/payment-status
+ * @access  Admin only
+ */
+const updatePaymentStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { paymentStatus, transactionId, bankReferenceNumber, notes } = req.body;
+
+    // Validate MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, 'Invalid service request ID format', 'INVALID_ID_FORMAT');
+    }
+
+    // Validate payment status
+    const validPaymentStatuses = ['Pending', 'Success', 'Failure', 'Cancelled'];
+    if (!paymentStatus || !validPaymentStatuses.includes(paymentStatus)) {
+      return sendError(res, 400, `Invalid payment status. Must be one of: ${validPaymentStatuses.join(', ')}`, 'INVALID_PAYMENT_STATUS');
+    }
+
+    // Find the service request
+    const serviceRequest = await ServiceRequest.findById(id);
+    if (!serviceRequest) {
+      return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
+    }
+
+    // Store old payment status for comparison
+    const oldPaymentStatus = serviceRequest.paymentStatus;
+
+    // Update payment status
+    serviceRequest.paymentStatus = paymentStatus;
+
+    // Update payment details if provided
+    if (!serviceRequest.paymentDetails) {
+      serviceRequest.paymentDetails = {};
+    }
+
+    if (paymentStatus === 'Success') {
+      serviceRequest.paymentDetails.paymentDate = new Date();
+      serviceRequest.paymentDetails.amount = serviceRequest.total_price;
+      serviceRequest.paymentDetails.currency = 'AED';
+    }
+
+    if (transactionId) {
+      serviceRequest.paymentDetails.transactionId = transactionId;
+    }
+
+    if (bankReferenceNumber) {
+      serviceRequest.paymentDetails.bankReferenceNumber = bankReferenceNumber;
+    }
+
+    if (paymentStatus === 'Failure' && notes) {
+      serviceRequest.paymentDetails.failureReason = notes;
+    }
+
+    await serviceRequest.save();
+
+    // Send notifications if payment status has changed
+    const notificationResults = { email: null, sms: null };
+
+    if (oldPaymentStatus !== paymentStatus) {
+      // Send email notification
+      try {
+        if (serviceRequest.user_email && emailService.isValidEmail(serviceRequest.user_email)) {
+          if (paymentStatus === 'Success') {
+            notificationResults.email = await emailService.sendPaymentSuccessEmail(
+              serviceRequest.user_email,
+              serviceRequest
+            );
+          } else if (paymentStatus === 'Failure') {
+            notificationResults.email = await emailService.sendPaymentFailureEmail(
+              serviceRequest.user_email,
+              serviceRequest,
+              notes || 'Payment could not be processed'
+            );
+          }
+        }
+      } catch (emailError) {
+        console.error('Failed to send payment status email:', emailError.message);
+        notificationResults.email = { success: false, error: emailError.message };
+      }
+
+      // Send SMS notification
+      try {
+        if (serviceRequest.user_phone && smsService.isValidUAEPhoneNumber(serviceRequest.user_phone)) {
+          notificationResults.sms = await smsService.sendPaymentStatusNotification(
+            serviceRequest.user_phone,
+            serviceRequest,
+            paymentStatus
+          );
+        }
+      } catch (smsError) {
+        console.error('Failed to send payment status SMS:', smsError.message);
+        notificationResults.sms = { success: false, error: smsError.message };
+      }
+    }
+
+    const response = {
+      success: true,
+      exception: null,
+      description: 'Payment status updated successfully',
+      content: {
+        serviceRequest: {
+          _id: serviceRequest._id,
+          user_name: serviceRequest.user_name,
+          user_email: serviceRequest.user_email,
+          user_phone: serviceRequest.user_phone,
+          service_name: serviceRequest.service_name,
+          total_price: serviceRequest.total_price,
+          paymentMethod: serviceRequest.paymentMethod,
+          paymentStatus: serviceRequest.paymentStatus,
+          paymentDetails: serviceRequest.paymentDetails,
+          status: serviceRequest.status
+        },
+        notifications: {
+          emailSent: notificationResults.email?.success || false,
+          smsSent: notificationResults.sms?.success || false
         }
       }
     };
@@ -1931,5 +2161,6 @@ module.exports = {
   userUpdateServiceRequest,
   userCancelServiceRequest,
   userDeleteServiceRequest,
-  updateQuotationPrice
+  updateQuotationPrice,
+  updatePaymentStatus
 };

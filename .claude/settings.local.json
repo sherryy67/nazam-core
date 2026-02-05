@@ -6,7 +6,8 @@
       "Bash(find:*)",
       "Bash(npx tsc:*)",
       "Bash(node -c:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(cd:*)"
     ]
   }
 }
