@@ -42,7 +42,13 @@ const storage = multer.memoryStorage();
 // Helper function to generate unique filename
 const generateUniqueFilename = (file) => {
   const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-  return "service-" + file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname);
+  return (
+    "service-" +
+    file.fieldname +
+    "-" +
+    uniqueSuffix +
+    path.extname(file.originalname)
+  );
 };
 
 // Update multer fileFilter to allow images and videos for thumbnail
@@ -80,8 +86,8 @@ const upload = multer({
         new Error(
           `Unexpected file field: ${
             file.fieldname
-          }. Allowed fields: ${allowedFieldNames.join(", ")}`
-        )
+          }. Allowed fields: ${allowedFieldNames.join(", ")}`,
+        ),
       );
     }
 
@@ -94,8 +100,8 @@ const upload = multer({
     } else {
       cb(
         new Error(
-          "Only image (JPEG, JPG, PNG, GIF, WebP) and video (MP4, MOV, AVI, WMV, WebM, MKV) files are allowed"
-        )
+          "Only image (JPEG, JPG, PNG, GIF, WebP) and video (MP4, MOV, AVI, WMV, WebM, MKV) files are allowed",
+        ),
       );
     }
   },
@@ -142,7 +148,7 @@ const createService = async (req, res, next) => {
           res,
           400,
           "Invalid service ID format",
-          "INVALID_SERVICE_ID"
+          "INVALID_SERVICE_ID",
         );
       }
       existingService = await Service.findById(_id);
@@ -153,17 +159,12 @@ const createService = async (req, res, next) => {
 
     // Validate required fields - basePrice is not required for Quotation services
     // For new services, serviceType is required. For updates, use existing value if not provided
-    if (
-      !name ||
-      !category_id ||
-      !availability ||
-      !job_service_type
-    ) {
+    if (!name || !category_id || !availability || !job_service_type) {
       return sendError(
         res,
         400,
         "Name, category_id, availability, and job_service_type are required",
-        "MISSING_REQUIRED_FIELDS"
+        "MISSING_REQUIRED_FIELDS",
       );
     }
 
@@ -187,7 +188,7 @@ const createService = async (req, res, next) => {
         res,
         400,
         'serviceType must be either "residential" or "commercial"',
-        "INVALID_SERVICE_TYPE"
+        "INVALID_SERVICE_TYPE",
       );
     }
 
@@ -200,7 +201,7 @@ const createService = async (req, res, next) => {
         res,
         400,
         "unitType is required for OnTime and Scheduled services",
-        "MISSING_UNIT_TYPE"
+        "MISSING_UNIT_TYPE",
       );
     }
 
@@ -209,7 +210,7 @@ const createService = async (req, res, next) => {
         res,
         400,
         'unitType must be either "per_unit" or "per_hour"',
-        "INVALID_UNIT_TYPE"
+        "INVALID_UNIT_TYPE",
       );
     }
 
@@ -225,32 +226,57 @@ const createService = async (req, res, next) => {
       perDayRateType: typeof perDayRate,
       perMonthRateType: typeof perMonthRate,
       unitType,
-      timeBasedPricing
+      timeBasedPricing,
     });
 
     // Check if new rate-based pricing is being used for per_hour services
     // Rate-based pricing requires all three rates to be provided and > 0
-    const hasNewRatePricing = perHourRate !== undefined && perHourRate !== null && perHourRate !== "" && Number(perHourRate) > 0 &&
-                              perDayRate !== undefined && perDayRate !== null && perDayRate !== "" && Number(perDayRate) > 0 &&
-                              perMonthRate !== undefined && perMonthRate !== null && perMonthRate !== "" && Number(perMonthRate) > 0;
+    const hasNewRatePricing =
+      perHourRate !== undefined &&
+      perHourRate !== null &&
+      perHourRate !== "" &&
+      Number(perHourRate) > 0 &&
+      perDayRate !== undefined &&
+      perDayRate !== null &&
+      perDayRate !== "" &&
+      Number(perDayRate) > 0 &&
+      perMonthRate !== undefined &&
+      perMonthRate !== null &&
+      perMonthRate !== "" &&
+      Number(perMonthRate) > 0;
 
     console.log("[DEBUG createService] hasNewRatePricing:", hasNewRatePricing);
 
     // Check if timeBasedPricing is provided with actual data (non-empty array)
     let parsedTimeBasedPricingArray = [];
-    if (timeBasedPricing !== undefined && timeBasedPricing !== null && timeBasedPricing !== "") {
+    if (
+      timeBasedPricing !== undefined &&
+      timeBasedPricing !== null &&
+      timeBasedPricing !== ""
+    ) {
       try {
-        parsedTimeBasedPricingArray = typeof timeBasedPricing === "string"
-          ? JSON.parse(timeBasedPricing)
-          : timeBasedPricing;
+        parsedTimeBasedPricingArray =
+          typeof timeBasedPricing === "string"
+            ? JSON.parse(timeBasedPricing)
+            : timeBasedPricing;
       } catch (e) {
         parsedTimeBasedPricingArray = [];
       }
     }
-    const hasTimeBasedPricing = Array.isArray(parsedTimeBasedPricingArray) && parsedTimeBasedPricingArray.length > 0;
+    const hasTimeBasedPricing =
+      Array.isArray(parsedTimeBasedPricingArray) &&
+      parsedTimeBasedPricingArray.length > 0;
 
-    console.log("[DEBUG createService] hasTimeBasedPricing:", hasTimeBasedPricing, "parsedTimeBasedPricingArray:", parsedTimeBasedPricingArray);
-    console.log("[DEBUG createService] Validation will pass:", hasNewRatePricing || hasTimeBasedPricing);
+    console.log(
+      "[DEBUG createService] hasTimeBasedPricing:",
+      hasTimeBasedPricing,
+      "parsedTimeBasedPricingArray:",
+      parsedTimeBasedPricingArray,
+    );
+    console.log(
+      "[DEBUG createService] Validation will pass:",
+      hasNewRatePricing || hasTimeBasedPricing,
+    );
 
     if (unitType === "per_hour") {
       // For per_hour services, require EITHER timeBasedPricing OR all three rate fields
@@ -259,7 +285,7 @@ const createService = async (req, res, next) => {
           res,
           400,
           "For per_hour services, provide either timeBasedPricing OR all three rate fields (perHourRate, perDayRate, perMonthRate)",
-          "MISSING_PER_HOUR_PRICING"
+          "MISSING_PER_HOUR_PRICING",
         );
       }
 
@@ -270,13 +296,28 @@ const createService = async (req, res, next) => {
         const parsedPerMonthRate = Number(perMonthRate);
 
         if (!Number.isFinite(parsedPerHourRate) || parsedPerHourRate < 0) {
-          return sendError(res, 400, "perHourRate must be a non-negative number", "INVALID_PER_HOUR_RATE");
+          return sendError(
+            res,
+            400,
+            "perHourRate must be a non-negative number",
+            "INVALID_PER_HOUR_RATE",
+          );
         }
         if (!Number.isFinite(parsedPerDayRate) || parsedPerDayRate < 0) {
-          return sendError(res, 400, "perDayRate must be a non-negative number", "INVALID_PER_DAY_RATE");
+          return sendError(
+            res,
+            400,
+            "perDayRate must be a non-negative number",
+            "INVALID_PER_DAY_RATE",
+          );
         }
         if (!Number.isFinite(parsedPerMonthRate) || parsedPerMonthRate < 0) {
-          return sendError(res, 400, "perMonthRate must be a non-negative number", "INVALID_PER_MONTH_RATE");
+          return sendError(
+            res,
+            400,
+            "perMonthRate must be a non-negative number",
+            "INVALID_PER_MONTH_RATE",
+          );
         }
       }
 
@@ -291,7 +332,7 @@ const createService = async (req, res, next) => {
               res,
               400,
               "timeBasedPricing must be a non-empty array for per_hour services",
-              "INVALID_TIME_BASED_PRICING"
+              "INVALID_TIME_BASED_PRICING",
             );
           }
 
@@ -299,7 +340,7 @@ const createService = async (req, res, next) => {
             .map((tier) => {
               if (!tier || typeof tier !== "object") {
                 throw new Error(
-                  "Each pricing tier must be an object with hours and price"
+                  "Each pricing tier must be an object with hours and price",
                 );
               }
 
@@ -308,13 +349,13 @@ const createService = async (req, res, next) => {
 
               if (!Number.isFinite(hours) || hours < 1) {
                 throw new Error(
-                  "Each pricing tier must include hours greater than or equal to 1"
+                  "Each pricing tier must include hours greater than or equal to 1",
                 );
               }
 
               if (!Number.isFinite(price) || price < 0) {
                 throw new Error(
-                  "Each pricing tier must include a non-negative price"
+                  "Each pricing tier must include a non-negative price",
                 );
               }
 
@@ -326,7 +367,7 @@ const createService = async (req, res, next) => {
             res,
             400,
             error.message || "Invalid timeBasedPricing format",
-            "INVALID_TIME_BASED_PRICING"
+            "INVALID_TIME_BASED_PRICING",
           );
         }
       }
@@ -340,7 +381,7 @@ const createService = async (req, res, next) => {
           res,
           400,
           "basePrice is required and must be greater than 0 for OnTime and Scheduled services",
-          "INVALID_BASE_PRICE"
+          "INVALID_BASE_PRICE",
         );
       }
 
@@ -353,7 +394,7 @@ const createService = async (req, res, next) => {
           res,
           400,
           "basePrice must be greater than 0 if provided",
-          "INVALID_BASE_PRICE"
+          "INVALID_BASE_PRICE",
         );
       }
 
@@ -376,7 +417,7 @@ const createService = async (req, res, next) => {
             .map((tier) => {
               if (!tier || typeof tier !== "object") {
                 throw new Error(
-                  "Each pricing tier must be an object with hours and price"
+                  "Each pricing tier must be an object with hours and price",
                 );
               }
 
@@ -385,13 +426,13 @@ const createService = async (req, res, next) => {
 
               if (!Number.isFinite(hours) || hours < 1) {
                 throw new Error(
-                  "Each pricing tier must include hours greater than or equal to 1"
+                  "Each pricing tier must include hours greater than or equal to 1",
                 );
               }
 
               if (!Number.isFinite(price) || price < 0) {
                 throw new Error(
-                  "Each pricing tier must include a non-negative price"
+                  "Each pricing tier must include a non-negative price",
                 );
               }
 
@@ -403,7 +444,7 @@ const createService = async (req, res, next) => {
             res,
             400,
             error.message || "Invalid timeBasedPricing format",
-            "INVALID_TIME_BASED_PRICING"
+            "INVALID_TIME_BASED_PRICING",
           );
         }
       }
@@ -416,7 +457,7 @@ const createService = async (req, res, next) => {
         res,
         400,
         "Invalid or inactive category",
-        "INVALID_CATEGORY"
+        "INVALID_CATEGORY",
       );
     }
 
@@ -426,7 +467,7 @@ const createService = async (req, res, next) => {
         res,
         400,
         "job_service_type must be OnTime, Scheduled, or Quotation",
-        "INVALID_JOB_SERVICE_TYPE"
+        "INVALID_JOB_SERVICE_TYPE",
       );
     }
 
@@ -455,13 +496,21 @@ const createService = async (req, res, next) => {
 
       // Case 3: Changing unitType from per_hour to per_unit (within OnTime/Scheduled)
       // Clear timeBasedPricing
-      if (oldUnitType === "per_hour" && newUnitType === "per_unit" && newJobType !== "Quotation") {
+      if (
+        oldUnitType === "per_hour" &&
+        newUnitType === "per_unit" &&
+        newJobType !== "Quotation"
+      ) {
         shouldClearTimeBasedPricing = true;
       }
 
       // Case 4: Changing unitType from per_unit to per_hour (within OnTime/Scheduled)
       // Clear basePrice (new timeBasedPricing will be provided)
-      if (oldUnitType === "per_unit" && newUnitType === "per_hour" && newJobType !== "Quotation") {
+      if (
+        oldUnitType === "per_unit" &&
+        newUnitType === "per_hour" &&
+        newJobType !== "Quotation"
+      ) {
         shouldClearBasePrice = true;
       }
 
@@ -480,7 +529,7 @@ const createService = async (req, res, next) => {
         res,
         400,
         "Invalid availability days. Must be Sun, Mon, Tue, Wed, Thu, Fri, or Sat",
-        "INVALID_AVAILABILITY"
+        "INVALID_AVAILABILITY",
       );
     }
 
@@ -494,7 +543,7 @@ const createService = async (req, res, next) => {
           res,
           400,
           "price_type is required and must be 30min, 1hr, 1day, or fixed",
-          "INVALID_PRICE_TYPE"
+          "INVALID_PRICE_TYPE",
         );
       }
       if (
@@ -505,7 +554,7 @@ const createService = async (req, res, next) => {
           res,
           400,
           "subservice_type is required and must be single or multiple",
-          "INVALID_SUBSERVICE_TYPE"
+          "INVALID_SUBSERVICE_TYPE",
         );
       }
     }
@@ -588,7 +637,11 @@ const createService = async (req, res, next) => {
     }
 
     // When changing TO Quotation, also clear price_type, subservice_type, unitType, and rate fields
-    if (existingService && job_service_type === "Quotation" && existingService.job_service_type !== "Quotation") {
+    if (
+      existingService &&
+      job_service_type === "Quotation" &&
+      existingService.job_service_type !== "Quotation"
+    ) {
       serviceData.price_type = undefined;
       serviceData.subservice_type = undefined;
       serviceData.unitType = undefined;
@@ -648,28 +701,31 @@ const createService = async (req, res, next) => {
           res,
           400,
           "quotationQuestions must be a valid JSON array",
-          "INVALID_QUOTATION_QUESTIONS"
+          "INVALID_QUOTATION_QUESTIONS",
         );
       }
 
       if (Array.isArray(parsedQuestions)) {
         serviceData.quotationQuestions = parsedQuestions
-          .filter(q => q && q.question && q.question.trim().length > 0)
+          .filter((q) => q && q.question && q.question.trim().length > 0)
           .map((q, index) => ({
             question: q.question.trim(),
             questionType: q.questionType || "text",
-            options: Array.isArray(q.options) ? q.options.filter(opt => opt && opt.trim().length > 0) : [],
+            options: Array.isArray(q.options)
+              ? q.options.filter((opt) => opt && opt.trim().length > 0)
+              : [],
             placeholder: q.placeholder || "",
-            order: q.order !== undefined ? q.order : index
+            order: q.order !== undefined ? q.order : index,
           }));
       }
     }
 
     // Handle isSubservice parameter - if false, clear subServices array
     if (isSubservice !== undefined && isSubservice !== null) {
-      const isSubserviceBool = typeof isSubservice === 'string'
-        ? isSubservice.toLowerCase() === 'true'
-        : Boolean(isSubservice);
+      const isSubserviceBool =
+        typeof isSubservice === "string"
+          ? isSubservice.toLowerCase() === "true"
+          : Boolean(isSubservice);
 
       if (!isSubserviceBool) {
         // Clear subServices array when isSubservice is false
@@ -679,11 +735,18 @@ const createService = async (req, res, next) => {
 
     // Handle subServices array (optional nested sub-services)
     // Only process if isSubservice is not explicitly set to false
-    const shouldProcessSubServices = isSubservice === undefined ||
+    const shouldProcessSubServices =
+      isSubservice === undefined ||
       isSubservice === null ||
-      (typeof isSubservice === 'string' ? isSubservice.toLowerCase() === 'true' : Boolean(isSubservice));
+      (typeof isSubservice === "string"
+        ? isSubservice.toLowerCase() === "true"
+        : Boolean(isSubservice));
 
-    if (shouldProcessSubServices && subServices !== undefined && subServices !== null) {
+    if (
+      shouldProcessSubServices &&
+      subServices !== undefined &&
+      subServices !== null
+    ) {
       // Parse subServices if it's a JSON string (from multipart/form-data)
       let parsedSubServices;
       try {
@@ -696,7 +759,7 @@ const createService = async (req, res, next) => {
           res,
           400,
           "subServices must be a valid JSON array",
-          "INVALID_SUBSERVICES"
+          "INVALID_SUBSERVICES",
         );
       }
 
@@ -705,7 +768,7 @@ const createService = async (req, res, next) => {
           res,
           400,
           "subServices must be an array",
-          "INVALID_SUBSERVICES"
+          "INVALID_SUBSERVICES",
         );
       }
 
@@ -716,7 +779,7 @@ const createService = async (req, res, next) => {
             res,
             400,
             "Each sub-service must have a name",
-            "INVALID_SUBSERVICE_NAME"
+            "INVALID_SUBSERVICE_NAME",
           );
         }
         if (
@@ -728,7 +791,7 @@ const createService = async (req, res, next) => {
             res,
             400,
             "Each sub-service must have a non-negative rate",
-            "INVALID_SUBSERVICE_RATE"
+            "INVALID_SUBSERVICE_RATE",
           );
         }
         if (subService.items !== undefined && subService.items < 1) {
@@ -736,7 +799,7 @@ const createService = async (req, res, next) => {
             res,
             400,
             "Sub-service items must be at least 1",
-            "INVALID_SUBSERVICE_ITEMS"
+            "INVALID_SUBSERVICE_ITEMS",
           );
         }
         if (subService.max !== undefined && subService.max < 1) {
@@ -744,7 +807,7 @@ const createService = async (req, res, next) => {
             res,
             400,
             "Sub-service max must be at least 1",
-            "INVALID_SUBSERVICE_MAX"
+            "INVALID_SUBSERVICE_MAX",
           );
         }
       }
@@ -815,7 +878,7 @@ const createService = async (req, res, next) => {
           res,
           500,
           `Failed to upload service image: ${s3Error.message}`,
-          "S3_UPLOAD_FAILED"
+          "S3_UPLOAD_FAILED",
         );
       }
     }
@@ -861,7 +924,7 @@ const createService = async (req, res, next) => {
           res,
           500,
           `Failed to upload service icon: ${s3Error.message}`,
-          "S3_UPLOAD_FAILED"
+          "S3_UPLOAD_FAILED",
         );
       }
     }
@@ -901,7 +964,7 @@ const createService = async (req, res, next) => {
           res,
           500,
           `Failed to upload thumbnail: ${s3Error.message}`,
-          "S3_UPLOAD_FAILED"
+          "S3_UPLOAD_FAILED",
         );
       }
     }
@@ -947,7 +1010,7 @@ const createService = async (req, res, next) => {
           res,
           500,
           `Failed to upload thumbnail URI: ${s3Error.message}`,
-          "S3_UPLOAD_FAILED"
+          "S3_UPLOAD_FAILED",
         );
       }
     }
@@ -1008,13 +1071,17 @@ const createService = async (req, res, next) => {
       if (shouldClearSubServices) clearedFields.push("subServices");
       if (shouldClearTimeBasedPricing) clearedFields.push("timeBasedPricing");
       if (shouldClearBasePrice) clearedFields.push("basePrice");
-      if (job_service_type === "Quotation" && existingService.job_service_type !== "Quotation") {
+      if (
+        job_service_type === "Quotation" &&
+        existingService.job_service_type !== "Quotation"
+      ) {
         clearedFields.push("price_type", "subservice_type", "unitType");
       }
 
-      const message = clearedFields.length > 0
-        ? `Service updated successfully. Cleared fields due to type change: ${clearedFields.join(", ")}`
-        : "Service updated successfully";
+      const message =
+        clearedFields.length > 0
+          ? `Service updated successfully. Cleared fields due to type change: ${clearedFields.join(", ")}`
+          : "Service updated successfully";
 
       sendSuccess(res, 200, message, service);
     } else {
@@ -1058,7 +1125,7 @@ const getServices = async (req, res, next) => {
           res,
           400,
           "Invalid or inactive category",
-          "INVALID_CATEGORY"
+          "INVALID_CATEGORY",
         );
       }
       query.category_id = category;
@@ -1079,7 +1146,7 @@ const getServices = async (req, res, next) => {
         res,
         400,
         "Page number must be greater than 0",
-        "INVALID_PAGE"
+        "INVALID_PAGE",
       );
     }
 
@@ -1088,7 +1155,7 @@ const getServices = async (req, res, next) => {
         res,
         400,
         "Limit must be between 0 and 100",
-        "INVALID_LIMIT"
+        "INVALID_LIMIT",
       );
     }
 
@@ -1194,7 +1261,7 @@ const getServicesPaginated = async (req, res, next) => {
         res,
         400,
         "Page number must be greater than 0",
-        "INVALID_PAGE"
+        "INVALID_PAGE",
       );
     }
 
@@ -1203,7 +1270,7 @@ const getServicesPaginated = async (req, res, next) => {
         res,
         400,
         "Limit must be between 1 and 100",
-        "INVALID_LIMIT"
+        "INVALID_LIMIT",
       );
     }
 
@@ -1217,7 +1284,7 @@ const getServicesPaginated = async (req, res, next) => {
           res,
           400,
           "Invalid or inactive category",
-          "INVALID_CATEGORY"
+          "INVALID_CATEGORY",
         );
       }
       query.category_id = category_id;
@@ -1322,7 +1389,8 @@ const getServiceById = async (req, res, next) => {
     }).lean();
 
     // Use service discount if available, otherwise use banner discount
-    const discount = service.discount ?? activeBanner?.discountPercentage ?? null;
+    const discount =
+      service.discount ?? activeBanner?.discountPercentage ?? null;
 
     // Transform service to match frontend interface
     const transformedService = {
@@ -1395,7 +1463,7 @@ const toggleServiceStatus = async (req, res, next) => {
         res,
         400,
         "isActive must be a boolean value",
-        "INVALID_STATUS"
+        "INVALID_STATUS",
       );
     }
 
@@ -1454,7 +1522,7 @@ const deleteService = async (req, res, next) => {
         res,
         400,
         `Cannot delete service. It is being used by ${requestsUsingService} service request(s)`,
-        "SERVICE_IN_USE"
+        "SERVICE_IN_USE",
       );
     }
 
@@ -1497,7 +1565,7 @@ const getAllActiveServices = async (req, res, next) => {
           res,
           400,
           "Invalid serviceType. Must be 'residential' or 'commercial'",
-          "INVALID_SERVICE_TYPE"
+          "INVALID_SERVICE_TYPE",
         );
       }
       query.serviceType = serviceType.toLowerCase();
@@ -1512,7 +1580,7 @@ const getAllActiveServices = async (req, res, next) => {
           res,
           400,
           "Invalid category ID format",
-          "INVALID_CATEGORY_ID"
+          "INVALID_CATEGORY_ID",
         );
       }
 
@@ -1522,7 +1590,7 @@ const getAllActiveServices = async (req, res, next) => {
           res,
           400,
           "Invalid or inactive category",
-          "INVALID_CATEGORY"
+          "INVALID_CATEGORY",
         );
       }
       query.category_id = categoryFilter;
@@ -1580,6 +1648,83 @@ const getAllActiveServices = async (req, res, next) => {
   }
 };
 
+// @desc    Get all services in the same category as the given service
+// @route   GET /api/services/:id/related
+// @access  Public
+const getRelatedServices = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Validate service ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(
+        res,
+        400,
+        "Invalid service ID format",
+        "INVALID_SERVICE_ID",
+      );
+    }
+
+    // Find the service to get its category
+    const service = await Service.findById(id);
+
+    if (!service) {
+      return sendError(res, 404, "Service not found", "SERVICE_NOT_FOUND");
+    }
+
+    if (!service.category_id) {
+      return sendError(
+        res,
+        400,
+        "Service does not have a category",
+        "SERVICE_NO_CATEGORY",
+      );
+    }
+
+    // Find all active services in the same category
+    const relatedServices = await Service.find({
+      category_id: service.category_id,
+      isActive: true,
+    })
+      .populate("category_id", "name description")
+      .sort({ createdAt: -1 });
+
+    // Transform services
+    const transformedServices = relatedServices.map((svc) => ({
+      _id: svc._id,
+      name: svc.name,
+      description: svc.description,
+      basePrice: svc.basePrice,
+      unitType: svc.unitType,
+      imageUri: svc.imageUri,
+      service_icon: svc.service_icon,
+      thumbnailUri: svc.thumbnailUri,
+      category_id: svc.category_id,
+      createdAt: svc.createdAt?.toISOString(),
+      updatedAt: svc.updatedAt?.toISOString(),
+    }));
+
+    const response = {
+      success: true,
+      exception: null,
+      description: "Related services retrieved successfully",
+      content: {
+        sourceService: {
+          _id: service._id,
+          name: service.name,
+        },
+        category: service.category_id,
+        services: transformedServices,
+        total: transformedServices.length,
+      },
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Get sub-services for a specific service
 // @route   GET /api/services/:id/sub-services
 // @access  All users
@@ -1589,7 +1734,7 @@ const getServiceSubServices = async (req, res, next) => {
 
     const service = await Service.findById(id).populate(
       "category_id",
-      "name description"
+      "name description",
     );
 
     if (!service || !service.isActive) {
@@ -1643,7 +1788,7 @@ const setFeaturedServices = async (req, res, next) => {
         res,
         400,
         "At least one service ID must be provided",
-        "MISSING_SERVICE_IDS"
+        "MISSING_SERVICE_IDS",
       );
     }
 
@@ -1683,14 +1828,14 @@ const setFeaturedServices = async (req, res, next) => {
 
     const allIds = [...new Set(operations.flatMap((op) => op.ids))];
     const invalidIds = allIds.filter(
-      (id) => !mongoose.Types.ObjectId.isValid(id)
+      (id) => !mongoose.Types.ObjectId.isValid(id),
     );
     if (invalidIds.length > 0) {
       return sendError(
         res,
         400,
         `Invalid service ID(s): ${invalidIds.join(", ")}`,
-        "INVALID_SERVICE_ID"
+        "INVALID_SERVICE_ID",
       );
     }
 
@@ -1700,18 +1845,24 @@ const setFeaturedServices = async (req, res, next) => {
     for (const op of operations) {
       const result = await Service.updateMany(
         { _id: { $in: op.ids } },
-        { $set: { isFeatured: op.isFeatured } }
+        { $set: { isFeatured: op.isFeatured } },
       );
       matchedCount += result?.matchedCount ?? result?.n ?? 0;
       modifiedCount += result?.modifiedCount ?? result?.nModified ?? 0;
     }
 
-    const updatedServices = await Service.find({ _id: { $in: allIds }, isActive: true })
+    const updatedServices = await Service.find({
+      _id: { $in: allIds },
+      isActive: true,
+    })
       .populate("category_id", "name description")
       .select("_id name category_id isFeatured isActive");
 
     // Get all active featured services to return
-    const allFeaturedServices = await Service.find({ isActive: true, isFeatured: true })
+    const allFeaturedServices = await Service.find({
+      isActive: true,
+      isFeatured: true,
+    })
       .populate("category_id", "name description")
       .select("_id name category_id isFeatured isActive");
 
@@ -1725,7 +1876,7 @@ const setFeaturedServices = async (req, res, next) => {
         services: updatedServices,
         featuredServices: allFeaturedServices,
         totalFeatured: allFeaturedServices.length,
-      }
+      },
     );
   } catch (error) {
     next(error);
@@ -1747,7 +1898,7 @@ const getFeaturedServices = async (req, res, next) => {
           res,
           400,
           "limit must be a number between 1 and 100",
-          "INVALID_LIMIT"
+          "INVALID_LIMIT",
         );
       }
     }
@@ -1807,7 +1958,7 @@ const getResidentialServices = async (req, res, next) => {
           res,
           400,
           "limit must be a number between 1 and 100",
-          "INVALID_LIMIT"
+          "INVALID_LIMIT",
         );
       }
     }
@@ -1822,7 +1973,7 @@ const getResidentialServices = async (req, res, next) => {
           res,
           400,
           "Invalid category ID format",
-          "INVALID_CATEGORY_ID"
+          "INVALID_CATEGORY_ID",
         );
       }
       const categoryDoc = await Category.findById(category);
@@ -1831,7 +1982,7 @@ const getResidentialServices = async (req, res, next) => {
           res,
           400,
           "Invalid or inactive category",
-          "INVALID_CATEGORY"
+          "INVALID_CATEGORY",
         );
       }
       query.category_id = category;
@@ -1885,7 +2036,7 @@ const getResidentialServices = async (req, res, next) => {
       {
         services: transformedServices,
         total: transformedServices.length,
-      }
+      },
     );
   } catch (error) {
     next(error);
@@ -1907,7 +2058,7 @@ const getCommercialServices = async (req, res, next) => {
           res,
           400,
           "limit must be a number between 1 and 100",
-          "INVALID_LIMIT"
+          "INVALID_LIMIT",
         );
       }
     }
@@ -1922,7 +2073,7 @@ const getCommercialServices = async (req, res, next) => {
           res,
           400,
           "Invalid category ID format",
-          "INVALID_CATEGORY_ID"
+          "INVALID_CATEGORY_ID",
         );
       }
       const categoryDoc = await Category.findById(category);
@@ -1931,7 +2082,7 @@ const getCommercialServices = async (req, res, next) => {
           res,
           400,
           "Invalid or inactive category",
-          "INVALID_CATEGORY"
+          "INVALID_CATEGORY",
         );
       }
       query.category_id = category;
@@ -1996,6 +2147,7 @@ module.exports = {
   toggleServiceStatus,
   getAllActiveServices,
   getServiceSubServices,
+  getRelatedServices,
   setFeaturedServices,
   getFeaturedServices,
   getResidentialServices,
@@ -2014,7 +2166,7 @@ module.exports = {
           res,
           200,
           "INTERIOR RENOVATION category not found",
-          []
+          [],
         );
       }
 
@@ -2062,7 +2214,7 @@ module.exports = {
         res,
         200,
         "INTERIOR RENOVATION category services retrieved successfully",
-        result
+        result,
       );
     } catch (error) {
       next(error);

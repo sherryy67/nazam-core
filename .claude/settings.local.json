@@ -7,6 +7,9 @@
       "Bash(npx tsc:*)",
       "Bash(node -c:*)",
       "Bash(ls:*)"
+    ],
+    "additionalDirectories": [
+      "D:\\Sher Ali\\nazam\\src\\app\\_common"
     ]
   }
 }
