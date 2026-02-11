@@ -138,6 +138,13 @@ const createService = async (req, res, next) => {
       perHourRate,
       perDayRate,
       perMonthRate,
+      // Content fields (all optional)
+      contentSections,
+      benefits,
+      whyChooseUs,
+      whereWeOffer,
+      youtubeLink,
+      faqs,
     } = req.body;
 
     // Check if this is an update operation
@@ -720,6 +727,104 @@ const createService = async (req, res, next) => {
       }
     }
 
+    // Handle contentSections (optional)
+    if (contentSections !== undefined && contentSections !== null) {
+      try {
+        const parsed =
+          typeof contentSections === "string"
+            ? JSON.parse(contentSections)
+            : contentSections;
+        if (Array.isArray(parsed)) {
+          serviceData.contentSections = parsed.slice(0, 2).map((section) => ({
+            heading: section.heading || "",
+            description: section.description || "",
+            includedServices: Array.isArray(section.includedServices)
+              ? section.includedServices.map((item) => ({
+                  icon: item.icon || "",
+                  heading: item.heading || "",
+                  description: item.description || "",
+                }))
+              : [],
+          }));
+        }
+      } catch (e) {
+        // ignore parse errors for optional field
+      }
+    }
+
+    // Handle benefits (optional)
+    if (benefits !== undefined && benefits !== null) {
+      try {
+        const parsed =
+          typeof benefits === "string" ? JSON.parse(benefits) : benefits;
+        if (Array.isArray(parsed)) {
+          serviceData.benefits = parsed
+            .filter((b) => b && String(b).trim().length > 0)
+            .map((b) => String(b).trim());
+        }
+      } catch (e) {
+        // ignore parse errors for optional field
+      }
+    }
+
+    // Handle whyChooseUs (optional)
+    if (whyChooseUs !== undefined && whyChooseUs !== null) {
+      try {
+        const parsed =
+          typeof whyChooseUs === "string"
+            ? JSON.parse(whyChooseUs)
+            : whyChooseUs;
+        if (parsed && typeof parsed === "object") {
+          serviceData.whyChooseUs = {
+            heading: parsed.heading || "",
+            description: parsed.description || "",
+          };
+        }
+      } catch (e) {
+        // ignore parse errors for optional field
+      }
+    }
+
+    // Handle whereWeOffer (optional)
+    if (whereWeOffer !== undefined && whereWeOffer !== null) {
+      try {
+        const parsed =
+          typeof whereWeOffer === "string"
+            ? JSON.parse(whereWeOffer)
+            : whereWeOffer;
+        if (parsed && typeof parsed === "object") {
+          serviceData.whereWeOffer = {
+            heading: parsed.heading || "",
+            description: parsed.description || "",
+          };
+        }
+      } catch (e) {
+        // ignore parse errors for optional field
+      }
+    }
+
+    // Handle youtubeLink (optional)
+    if (youtubeLink !== undefined && youtubeLink !== null) {
+      serviceData.youtubeLink = String(youtubeLink).trim();
+    }
+
+    // Handle faqs (optional)
+    if (faqs !== undefined && faqs !== null) {
+      try {
+        const parsed = typeof faqs === "string" ? JSON.parse(faqs) : faqs;
+        if (Array.isArray(parsed)) {
+          serviceData.faqs = parsed
+            .filter((f) => f && f.question && f.question.trim().length > 0)
+            .map((f) => ({
+              question: f.question.trim(),
+              answer: f.answer || "",
+            }));
+        }
+      } catch (e) {
+        // ignore parse errors for optional field
+      }
+    }
+
     // Handle isSubservice parameter - if false, clear subServices array
     if (isSubservice !== undefined && isSubservice !== null) {
       const isSubserviceBool =
@@ -1204,6 +1309,12 @@ const getServices = async (req, res, next) => {
       termsCondition: service.termsCondition || "",
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
+      contentSections: service.contentSections || [],
+      benefits: service.benefits || [],
+      whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
+      whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
+      youtubeLink: service.youtubeLink || "",
+      faqs: service.faqs || [],
       isActive: service.isActive,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
@@ -1339,6 +1450,12 @@ const getServicesPaginated = async (req, res, next) => {
       termsCondition: service.termsCondition || "",
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
+      contentSections: service.contentSections || [],
+      benefits: service.benefits || [],
+      whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
+      whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
+      youtubeLink: service.youtubeLink || "",
+      faqs: service.faqs || [],
       isActive: service.isActive,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
@@ -1420,6 +1537,12 @@ const getServiceById = async (req, res, next) => {
       termsCondition: service.termsCondition || "",
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
+      contentSections: service.contentSections || [],
+      benefits: service.benefits || [],
+      whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
+      whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
+      youtubeLink: service.youtubeLink || "",
+      faqs: service.faqs || [],
       isActive: service.isActive,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
@@ -1627,6 +1750,12 @@ const getAllActiveServices = async (req, res, next) => {
       termsCondition: service.termsCondition || "",
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
+      contentSections: service.contentSections || [],
+      benefits: service.benefits || [],
+      whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
+      whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
+      youtubeLink: service.youtubeLink || "",
+      faqs: service.faqs || [],
       isActive: service.isActive,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
@@ -2024,6 +2153,12 @@ const getResidentialServices = async (req, res, next) => {
       termsCondition: service.termsCondition || "",
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
+      contentSections: service.contentSections || [],
+      benefits: service.benefits || [],
+      whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
+      whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
+      youtubeLink: service.youtubeLink || "",
+      faqs: service.faqs || [],
       isActive: service.isActive,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
@@ -2124,6 +2259,12 @@ const getCommercialServices = async (req, res, next) => {
       termsCondition: service.termsCondition || "",
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
+      contentSections: service.contentSections || [],
+      benefits: service.benefits || [],
+      whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
+      whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
+      youtubeLink: service.youtubeLink || "",
+      faqs: service.faqs || [],
       isActive: service.isActive,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),

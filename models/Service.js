@@ -215,6 +215,42 @@ const serviceSchema = new mongoose.Schema(
 
     // Discount percentage for service
     discount: { type: Number, min: 0, max: 100, default: null },
+
+    // Content sections (all optional - for service detail page)
+    contentSections: [
+      {
+        heading: { type: String, trim: true },
+        description: { type: String },
+        includedServices: [
+          {
+            icon: { type: String, trim: true },
+            heading: { type: String, trim: true },
+            description: { type: String },
+          },
+        ],
+      },
+    ],
+
+    benefits: [{ type: String, trim: true }],
+
+    whyChooseUs: {
+      heading: { type: String, trim: true, default: "" },
+      description: { type: String, default: "" },
+    },
+
+    whereWeOffer: {
+      heading: { type: String, trim: true, default: "" },
+      description: { type: String, default: "" },
+    },
+
+    youtubeLink: { type: String, trim: true, default: "" },
+
+    faqs: [
+      {
+        question: { type: String, trim: true },
+        answer: { type: String },
+      },
+    ],
   },
   { timestamps: true },
 );
