@@ -752,15 +752,24 @@ const createService = async (req, res, next) => {
       }
     }
 
-    // Handle benefits (optional)
+    // Handle benefits (optional - array of {icon, heading, description})
     if (benefits !== undefined && benefits !== null) {
       try {
         const parsed =
           typeof benefits === "string" ? JSON.parse(benefits) : benefits;
         if (Array.isArray(parsed)) {
           serviceData.benefits = parsed
-            .filter((b) => b && String(b).trim().length > 0)
-            .map((b) => String(b).trim());
+            .filter(
+              (b) =>
+                b &&
+                typeof b === "object" &&
+                (b.heading || b.description || b.icon),
+            )
+            .map((b) => ({
+              icon: b.icon || "",
+              heading: b.heading || "",
+              description: b.description || "",
+            }));
         }
       } catch (e) {
         // ignore parse errors for optional field

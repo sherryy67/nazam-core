@@ -231,7 +231,13 @@ const serviceSchema = new mongoose.Schema(
       },
     ],
 
-    benefits: [{ type: String, trim: true }],
+    benefits: [
+      {
+        icon: { type: String, trim: true },
+        heading: { type: String, trim: true },
+        description: { type: String },
+      },
+    ],
 
     whyChooseUs: {
       heading: { type: String, trim: true, default: "" },
