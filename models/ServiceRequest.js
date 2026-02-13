@@ -148,6 +148,9 @@ const serviceRequestSchema = new mongoose.Schema({
     questionType: { type: String, trim: true }
   }],
   
+  // AMC Contract link (optional - only for AMC service requests)
+  amcContract: { type: mongoose.Schema.Types.ObjectId, ref: "AMCContract", default: null },
+
   // Admin created order tracking
   createdByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
 
