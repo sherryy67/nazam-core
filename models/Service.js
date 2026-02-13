@@ -257,6 +257,15 @@ const serviceSchema = new mongoose.Schema(
         answer: { type: String },
       },
     ],
+
+    testimonials: [
+      {
+        name: { type: String, trim: true },
+        designation: { type: String, trim: true },
+        rating: { type: Number, min: 1, max: 5 },
+        description: { type: String },
+      },
+    ],
   },
   { timestamps: true },
 );

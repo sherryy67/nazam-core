@@ -145,6 +145,7 @@ const createService = async (req, res, next) => {
       whereWeOffer,
       youtubeLink,
       faqs,
+      testimonials,
     } = req.body;
 
     // Check if this is an update operation
@@ -834,6 +835,31 @@ const createService = async (req, res, next) => {
       }
     }
 
+    // Handle testimonials (optional)
+    if (testimonials !== undefined && testimonials !== null) {
+      try {
+        const parsed =
+          typeof testimonials === "string"
+            ? JSON.parse(testimonials)
+            : testimonials;
+        if (Array.isArray(parsed)) {
+          serviceData.testimonials = parsed
+            .filter(
+              (t) =>
+                t && typeof t === "object" && (t.name || t.description),
+            )
+            .map((t) => ({
+              name: t.name || "",
+              designation: t.designation || "",
+              rating: Math.min(5, Math.max(1, Number(t.rating) || 5)),
+              description: t.description || "",
+            }));
+        }
+      } catch (e) {
+        // ignore parse errors for optional field
+      }
+    }
+
     // Handle isSubservice parameter - if false, clear subServices array
     if (isSubservice !== undefined && isSubservice !== null) {
       const isSubserviceBool =
@@ -1324,6 +1350,7 @@ const getServices = async (req, res, next) => {
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
       youtubeLink: service.youtubeLink || "",
       faqs: service.faqs || [],
+      testimonials: service.testimonials || [],
       isActive: service.isActive,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
@@ -1465,6 +1492,7 @@ const getServicesPaginated = async (req, res, next) => {
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
       youtubeLink: service.youtubeLink || "",
       faqs: service.faqs || [],
+      testimonials: service.testimonials || [],
       isActive: service.isActive,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
@@ -1552,6 +1580,7 @@ const getServiceById = async (req, res, next) => {
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
       youtubeLink: service.youtubeLink || "",
       faqs: service.faqs || [],
+      testimonials: service.testimonials || [],
       isActive: service.isActive,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
@@ -1765,6 +1794,7 @@ const getAllActiveServices = async (req, res, next) => {
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
       youtubeLink: service.youtubeLink || "",
       faqs: service.faqs || [],
+      testimonials: service.testimonials || [],
       isActive: service.isActive,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
@@ -2168,6 +2198,7 @@ const getResidentialServices = async (req, res, next) => {
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
       youtubeLink: service.youtubeLink || "",
       faqs: service.faqs || [],
+      testimonials: service.testimonials || [],
       isActive: service.isActive,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
@@ -2274,6 +2305,7 @@ const getCommercialServices = async (req, res, next) => {
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
       youtubeLink: service.youtubeLink || "",
       faqs: service.faqs || [],
+      testimonials: service.testimonials || [],
       isActive: service.isActive,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
