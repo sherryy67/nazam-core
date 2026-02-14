@@ -1860,13 +1860,20 @@ const getRelatedServices = async (req, res, next) => {
       );
     }
 
-    // Find all active services in the same category
-    const relatedServices = await Service.find({
+    // Find all active services in the same category and same serviceType
+    const filter = {
       category_id: service.category_id,
       isActive: true,
-    })
+    };
+
+    if (service.serviceType) {
+      filter.serviceType = service.serviceType;
+    }
+
+    const relatedServices = await Service.find(filter)
       .populate("category_id", "name description")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .limit(9);
 
     // Transform services
     const transformedServices = relatedServices.map((svc) => ({
