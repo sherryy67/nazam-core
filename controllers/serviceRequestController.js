@@ -916,9 +916,9 @@ const getServiceRequests = async (req, res, next) => {
   try {
     const { status, request_type, serviceId, keyword, page = 1, limit = 10 } = req.query;
 
-    // Build query
-    const query = {};
-    
+    // Build query — exclude AMC-linked service requests (shown in AMC tab)
+    const query = { amcContract: null };
+
     // Apply filters
     if (status) query.status = status;
     if (request_type) query.request_type = request_type;

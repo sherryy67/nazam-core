@@ -387,7 +387,9 @@ const getUserOrderHistory = async (req, res, next) => {
     }
 
     // Build query to match user ID, email, or phone number
+    // Exclude AMC-linked service requests (shown in AMC tab)
     const query = {
+      amcContract: null,
       $or: [
         { user: userId }, // Direct user reference
         { user_email: user.email.toLowerCase() },
