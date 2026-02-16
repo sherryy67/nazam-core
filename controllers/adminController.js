@@ -8,6 +8,7 @@ const mongoose = require('mongoose');
 const { sendSuccess, sendError, sendNotFoundError, sendValidationError } = require('../utils/response');
 const { checkVendorEligibility } = require('../utils/vendorEligibility');
 const emailService = require('../utils/emailService');
+const smsService = require('../utils/smsService');
 
 /**
  * @desc    Get eligible vendors for a specific service
@@ -201,7 +202,7 @@ const assignServiceToVendor = async (req, res, next) => {
       }
     );
 
-    // Send email notifications to customers whose requests were assigned
+    // Send email and SMS notifications to customers whose requests were assigned
     try {
       const assignedRequests = await ServiceRequest.find({
         service_id: serviceId,
@@ -210,6 +211,7 @@ const assignServiceToVendor = async (req, res, next) => {
       }).populate('service_id', 'name description');
 
       for (const request of assignedRequests) {
+        // Send email notification
         if (request.user_email && emailService.isValidEmail(request.user_email)) {
           try {
             await emailService.sendServiceAssignedEmail(
@@ -222,10 +224,23 @@ const assignServiceToVendor = async (req, res, next) => {
             console.error(`Failed to send assignment email to ${request.user_email}:`, emailError.message);
           }
         }
+
+        // Send SMS notification
+        if (request.user_phone && smsService.isValidUAEPhoneNumber(request.user_phone)) {
+          try {
+            await smsService.sendVendorAssignedNotification(
+              request.user_phone,
+              request,
+              vendor
+            );
+          } catch (smsError) {
+            console.error(`Failed to send assignment SMS to ${request.user_phone}:`, smsError.message);
+          }
+        }
       }
-    } catch (emailError) {
+    } catch (notificationError) {
       // Log error but don't fail the assignment
-      console.error('Failed to send assignment emails:', emailError.message);
+      console.error('Failed to send assignment notifications:', notificationError.message);
     }
 
     // Note: We don't update vendor's serviceId since it's their primary service
@@ -595,13 +610,13 @@ const adminCreateUser = async (req, res, next) => {
     // Remove password from response
     const userResponse = user.toJSON();
 
-    // Send email notifications (don't fail the request if emails fail)
-    const emailResults = { userEmail: null, adminEmail: null };
+    // Send email and SMS notifications (don't fail the request if notifications fail)
+    const notificationResults = { userEmail: null, adminEmail: null, userSms: null };
 
     try {
       // Send credentials email to the new user
       if (emailService.isValidEmail(userResponse.email)) {
-        emailResults.userEmail = await emailService.sendUserAccountCredentialsEmail(
+        notificationResults.userEmail = await emailService.sendUserAccountCredentialsEmail(
           userResponse.email,
           userResponse.name,
           password, // Send the plain text password before it was hashed
@@ -610,14 +625,28 @@ const adminCreateUser = async (req, res, next) => {
       }
     } catch (emailError) {
       console.error('Failed to send credentials email to user:', emailError.message);
-      emailResults.userEmail = { success: false, error: emailError.message };
+      notificationResults.userEmail = { success: false, error: emailError.message };
+    }
+
+    try {
+      // Send welcome SMS to the new user with credentials
+      if (smsService.isValidUAEPhoneNumber(userResponse.phoneNumber)) {
+        notificationResults.userSms = await smsService.sendWelcomeNotification(
+          userResponse.phoneNumber,
+          userResponse.name,
+          password // Send the plain text password
+        );
+      }
+    } catch (smsError) {
+      console.error('Failed to send welcome SMS to user:', smsError.message);
+      notificationResults.userSms = { success: false, error: smsError.message };
     }
 
     try {
       // Send notification email to admin
       const adminEmail = process.env.ADMIN_EMAIL || 'info@zushh.com';
       if (emailService.isValidEmail(adminEmail)) {
-        emailResults.adminEmail = await emailService.sendAdminUserCreatedNotification(
+        notificationResults.adminEmail = await emailService.sendAdminUserCreatedNotification(
           adminEmail,
           {
             _id: userResponse._id,
@@ -630,7 +659,7 @@ const adminCreateUser = async (req, res, next) => {
       }
     } catch (emailError) {
       console.error('Failed to send notification email to admin:', emailError.message);
-      emailResults.adminEmail = { success: false, error: emailError.message };
+      notificationResults.adminEmail = { success: false, error: emailError.message };
     }
 
     return sendSuccess(res, 201, 'User created successfully by admin', {
@@ -645,9 +674,10 @@ const adminCreateUser = async (req, res, next) => {
         createdAt: userResponse.createdAt?.toISOString(),
         updatedAt: userResponse.updatedAt?.toISOString()
       },
-      emailNotifications: {
-        userEmailSent: emailResults.userEmail?.success || false,
-        adminEmailSent: emailResults.adminEmail?.success || false
+      notifications: {
+        userEmailSent: notificationResults.userEmail?.success || false,
+        userSmsSent: notificationResults.userSms?.success || false,
+        adminEmailSent: notificationResults.adminEmail?.success || false
       }
     });
   } catch (error) {

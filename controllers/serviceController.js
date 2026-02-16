@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const { sendSuccess, sendError, sendCreated } = require("../utils/response");
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
 
 // Try to use AWS SDK v3, fallback to v2 if needed
 let s3Client, PutObjectCommand, DeleteObjectCommand;
@@ -36,8 +37,11 @@ try {
   }
 }
 
-// Configure multer for service image upload using memory storage (uploads directly to AWS S3)
-const storage = multer.memoryStorage();
+// Ensure uploads directory exists
+const uploadsDir = "uploads";
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 // Helper function to generate unique filename
 const generateUniqueFilename = (file) => {
@@ -50,6 +54,9 @@ const generateUniqueFilename = (file) => {
     path.extname(file.originalname)
   );
 };
+
+// Configure multer for service image upload using memory storage (uploads directly to AWS S3)
+const storage = multer.memoryStorage();
 
 // Update multer fileFilter to allow images and videos for thumbnail
 const allowedImageTypes = /jpeg|jpg|png|gif|webp/;
@@ -287,8 +294,11 @@ const createService = async (req, res, next) => {
     );
 
     if (unitType === "per_hour") {
-      // For per_hour services, require EITHER timeBasedPricing OR all three rate fields
-      if (!hasNewRatePricing && !hasTimeBasedPricing) {
+      if (
+        timeBasedPricing === undefined ||
+        timeBasedPricing === null ||
+        timeBasedPricing === ""
+      ) {
         return sendError(
           res,
           400,
@@ -332,8 +342,10 @@ const createService = async (req, res, next) => {
       // Validate timeBasedPricing if provided (legacy approach)
       if (hasTimeBasedPricing) {
         try {
-          // Use the already parsed array from above
-          const rawValue = parsedTimeBasedPricingArray;
+          const rawValue =
+            typeof timeBasedPricing === "string"
+              ? JSON.parse(timeBasedPricing)
+              : timeBasedPricing;
 
           if (!Array.isArray(rawValue) || rawValue.length === 0) {
             return sendError(
@@ -607,27 +619,8 @@ const createService = async (req, res, next) => {
 
     if (parsedTimeBasedPricing.length > 0) {
       serviceData.timeBasedPricing = parsedTimeBasedPricing;
-    } else if (unitType === "per_hour" && !hasNewRatePricing) {
+    } else if (unitType === "per_hour") {
       serviceData.timeBasedPricing = [];
-    }
-
-    // Handle new rate-based pricing for per_hour services
-    if (unitType === "per_hour" && hasNewRatePricing) {
-      serviceData.perHourRate = Number(perHourRate);
-      serviceData.perDayRate = Number(perDayRate);
-      serviceData.perMonthRate = Number(perMonthRate);
-      // Clear timeBasedPricing when using new rate-based pricing
-      serviceData.timeBasedPricing = [];
-    } else if (unitType === "per_hour" && hasTimeBasedPricing) {
-      // Clear rate fields when using legacy timeBasedPricing
-      serviceData.perHourRate = null;
-      serviceData.perDayRate = null;
-      serviceData.perMonthRate = null;
-    } else if (unitType === "per_unit") {
-      // Clear all per_hour pricing fields for per_unit services
-      serviceData.perHourRate = null;
-      serviceData.perDayRate = null;
-      serviceData.perMonthRate = null;
     }
 
     // Apply clearing logic for job_service_type/unitType changes
@@ -653,9 +646,6 @@ const createService = async (req, res, next) => {
       serviceData.price_type = undefined;
       serviceData.subservice_type = undefined;
       serviceData.unitType = undefined;
-      serviceData.perHourRate = null;
-      serviceData.perDayRate = null;
-      serviceData.perMonthRate = null;
     }
 
     if (typeof isFeatured !== "undefined") {
@@ -845,8 +835,7 @@ const createService = async (req, res, next) => {
         if (Array.isArray(parsed)) {
           serviceData.testimonials = parsed
             .filter(
-              (t) =>
-                t && typeof t === "object" && (t.name || t.description),
+              (t) => t && typeof t === "object" && (t.name || t.description),
             )
             .map((t) => ({
               name: t.name || "",
@@ -964,18 +953,19 @@ const createService = async (req, res, next) => {
     if (req.files && req.files.serviceImage && req.files.serviceImage[0]) {
       try {
         const serviceImageFile = req.files.serviceImage[0];
-        console.log("Starting service image upload to S3...");
+        console.log("Starting service image upload...");
+        console.log("File path:", serviceImageFile.path);
         console.log("File size:", serviceImageFile.size);
         console.log("File mimetype:", serviceImageFile.mimetype);
 
-        // Upload directly to S3 from memory buffer
-        const filename = generateUniqueFilename(serviceImageFile);
-        const key = `service-images/${req.user.id}/${filename}`;
+        // Upload to S3
+        const fileContent = fs.readFileSync(serviceImageFile.path);
+        const key = `service-images/${req.user.id}/${serviceImageFile.filename}`;
 
         const uploadParams = {
           Bucket: process.env.AWS_S3_BUCKET_NAME,
           Key: key,
-          Body: serviceImageFile.buffer,
+          Body: fileContent,
           ContentType: serviceImageFile.mimetype,
         };
 
@@ -983,7 +973,7 @@ const createService = async (req, res, next) => {
           Bucket: uploadParams.Bucket,
           Key: uploadParams.Key,
           ContentType: uploadParams.ContentType,
-          BodySize: serviceImageFile.buffer.length,
+          BodySize: fileContent.length,
         });
 
         let result;
@@ -1006,6 +996,10 @@ const createService = async (req, res, next) => {
         serviceData.service_icon = s3Url;
 
         console.log("Service S3 URL generated:", s3Url);
+
+        // Delete local file after S3 upload
+        fs.unlinkSync(serviceImageFile.path);
+        console.log("Service local file deleted successfully");
       } catch (s3Error) {
         console.error("Service S3 upload error:", s3Error);
         console.error("Error details:", {
@@ -1014,6 +1008,11 @@ const createService = async (req, res, next) => {
           statusCode: s3Error.statusCode,
           requestId: s3Error.requestId,
         });
+
+        // Clean up local file if S3 upload fails
+        if (serviceImageFile && fs.existsSync(serviceImageFile.path)) {
+          fs.unlinkSync(serviceImageFile.path);
+        }
         return sendError(
           res,
           500,
@@ -1032,15 +1031,15 @@ const createService = async (req, res, next) => {
     ) {
       try {
         const serviceIconFile = req.files.service_icon[0];
-        console.log("Starting service icon upload to S3...");
+        console.log("Starting service icon upload...");
 
-        const filename = generateUniqueFilename(serviceIconFile);
-        const key = `service-icons/${req.user.id}/${filename}`;
+        const fileContent = fs.readFileSync(serviceIconFile.path);
+        const key = `service-icons/${req.user.id}/${serviceIconFile.filename}`;
 
         const uploadParams = {
           Bucket: process.env.AWS_S3_BUCKET_NAME,
           Key: key,
-          Body: serviceIconFile.buffer,
+          Body: fileContent,
           ContentType: serviceIconFile.mimetype,
         };
 
@@ -1057,9 +1056,16 @@ const createService = async (req, res, next) => {
         }.amazonaws.com/${key}`;
         serviceData.service_icon = s3Url;
 
-        console.log("Service icon uploaded successfully to S3");
+        fs.unlinkSync(serviceIconFile.path);
+        console.log("Service icon uploaded successfully");
       } catch (s3Error) {
         console.error("Service icon S3 upload error:", s3Error);
+        if (
+          req.files.service_icon &&
+          fs.existsSync(req.files.service_icon[0].path)
+        ) {
+          fs.unlinkSync(req.files.service_icon[0].path);
+        }
         return sendError(
           res,
           500,
@@ -1073,14 +1079,14 @@ const createService = async (req, res, next) => {
     if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
       try {
         const thumbnailFile = req.files.thumbnail[0];
-        console.log("Starting thumbnail upload to S3...");
+        console.log("Starting thumbnail upload...");
 
-        const filename = generateUniqueFilename(thumbnailFile);
-        const key = `service-thumbnails/${req.user.id}/${filename}`;
+        const fileContent = fs.readFileSync(thumbnailFile.path);
+        const key = `service-thumbnails/${req.user.id}/${thumbnailFile.filename}`;
         const uploadParams = {
           Bucket: process.env.AWS_S3_BUCKET_NAME,
           Key: key,
-          Body: thumbnailFile.buffer,
+          Body: fileContent,
           ContentType: thumbnailFile.mimetype,
         };
 
@@ -1097,9 +1103,13 @@ const createService = async (req, res, next) => {
         }.amazonaws.com/${key}`;
         serviceData.thumbnailUri = s3Url;
 
-        console.log("Thumbnail uploaded successfully to S3");
+        fs.unlinkSync(thumbnailFile.path);
+        console.log("Thumbnail uploaded successfully");
       } catch (s3Error) {
         console.error("Thumbnail S3 upload error:", s3Error);
+        if (thumbnailFile && fs.existsSync(thumbnailFile.path)) {
+          fs.unlinkSync(thumbnailFile.path);
+        }
         return sendError(
           res,
           500,
@@ -1118,15 +1128,15 @@ const createService = async (req, res, next) => {
     ) {
       try {
         const thumbnailUriFile = req.files.thumbnailUri[0];
-        console.log("Starting thumbnail URI upload to S3...");
+        console.log("Starting thumbnail URI upload...");
 
-        const filename = generateUniqueFilename(thumbnailUriFile);
-        const key = `service-thumbnails/${req.user.id}/${filename}`;
+        const fileContent = fs.readFileSync(thumbnailUriFile.path);
+        const key = `service-thumbnails/${req.user.id}/${thumbnailUriFile.filename}`;
 
         const uploadParams = {
           Bucket: process.env.AWS_S3_BUCKET_NAME,
           Key: key,
-          Body: thumbnailUriFile.buffer,
+          Body: fileContent,
           ContentType: thumbnailUriFile.mimetype,
         };
 
@@ -1143,9 +1153,16 @@ const createService = async (req, res, next) => {
         }.amazonaws.com/${key}`;
         serviceData.thumbnailUri = s3Url;
 
-        console.log("Thumbnail URI uploaded successfully to S3");
+        fs.unlinkSync(thumbnailUriFile.path);
+        console.log("Thumbnail URI uploaded successfully");
       } catch (s3Error) {
         console.error("Thumbnail URI S3 upload error:", s3Error);
+        if (
+          req.files.thumbnailUri &&
+          fs.existsSync(req.files.thumbnailUri[0].path)
+        ) {
+          fs.unlinkSync(req.files.thumbnailUri[0].path);
+        }
         return sendError(
           res,
           500,
@@ -1230,7 +1247,10 @@ const createService = async (req, res, next) => {
       sendCreated(res, "Service created successfully", service);
     }
   } catch (error) {
-    // No local file cleanup needed - using memory storage for direct S3 upload
+    // Clean up local file if error occurs
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
     next(error);
   }
 };
@@ -1334,9 +1354,6 @@ const getServices = async (req, res, next) => {
       price_type: service.price_type,
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
-      perHourRate: service.perHourRate || null,
-      perDayRate: service.perDayRate || null,
-      perMonthRate: service.perMonthRate || null,
       isFeatured: service.isFeatured,
       isMarketingService: service.isMarketingService,
       serviceType: service.serviceType,
@@ -1352,6 +1369,7 @@ const getServices = async (req, res, next) => {
       faqs: service.faqs || [],
       testimonials: service.testimonials || [],
       isActive: service.isActive,
+      createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
     }));
@@ -1476,9 +1494,6 @@ const getServicesPaginated = async (req, res, next) => {
       price_type: service.price_type,
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
-      perHourRate: service.perHourRate || null,
-      perDayRate: service.perDayRate || null,
-      perMonthRate: service.perMonthRate || null,
       isFeatured: service.isFeatured,
       isMarketingService: service.isMarketingService,
       serviceType: service.serviceType,
@@ -1494,6 +1509,7 @@ const getServicesPaginated = async (req, res, next) => {
       faqs: service.faqs || [],
       testimonials: service.testimonials || [],
       isActive: service.isActive,
+      createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
     }));
@@ -1563,10 +1579,6 @@ const getServiceById = async (req, res, next) => {
       price_type: service.price_type,
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
-      // Per Hour rate-based pricing fields
-      perHourRate: service.perHourRate || null,
-      perDayRate: service.perDayRate || null,
-      perMonthRate: service.perMonthRate || null,
       isFeatured: service.isFeatured,
       isMarketingService: service.isMarketingService,
       serviceType: service.serviceType,
@@ -1582,6 +1594,7 @@ const getServiceById = async (req, res, next) => {
       faqs: service.faqs || [],
       testimonials: service.testimonials || [],
       isActive: service.isActive,
+      createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
       discount: discount,
@@ -1778,9 +1791,6 @@ const getAllActiveServices = async (req, res, next) => {
       price_type: service.price_type,
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
-      perHourRate: service.perHourRate || null,
-      perDayRate: service.perDayRate || null,
-      perMonthRate: service.perMonthRate || null,
       isFeatured: service.isFeatured,
       isMarketingService: service.isMarketingService,
       serviceType: service.serviceType,
@@ -1796,6 +1806,7 @@ const getAllActiveServices = async (req, res, next) => {
       faqs: service.faqs || [],
       testimonials: service.testimonials || [],
       isActive: service.isActive,
+      createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
     }));
@@ -1849,13 +1860,20 @@ const getRelatedServices = async (req, res, next) => {
       );
     }
 
-    // Find all active services in the same category
-    const relatedServices = await Service.find({
+    // Find all active services in the same category and same serviceType
+    const filter = {
       category_id: service.category_id,
       isActive: true,
-    })
+    };
+
+    if (service.serviceType) {
+      filter.serviceType = service.serviceType;
+    }
+
+    const relatedServices = await Service.find(filter)
       .populate("category_id", "name description")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .limit(9);
 
     // Transform services
     const transformedServices = relatedServices.map((svc) => ({
@@ -2095,9 +2113,7 @@ const getFeaturedServices = async (req, res, next) => {
       badge: service.badge || "",
       termsCondition: service.termsCondition || "",
       isFeatured: service.isFeatured,
-      perHourRate: service.perHourRate || null,
-      perDayRate: service.perDayRate || null,
-      perMonthRate: service.perMonthRate || null,
+      createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
     }));
@@ -2182,9 +2198,6 @@ const getResidentialServices = async (req, res, next) => {
       price_type: service.price_type,
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
-      perHourRate: service.perHourRate || null,
-      perDayRate: service.perDayRate || null,
-      perMonthRate: service.perMonthRate || null,
       isFeatured: service.isFeatured,
       isMarketingService: service.isMarketingService,
       serviceType: service.serviceType,
@@ -2200,6 +2213,7 @@ const getResidentialServices = async (req, res, next) => {
       faqs: service.faqs || [],
       testimonials: service.testimonials || [],
       isActive: service.isActive,
+      createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
     }));
@@ -2289,9 +2303,6 @@ const getCommercialServices = async (req, res, next) => {
       price_type: service.price_type,
       subservice_type: service.subservice_type,
       timeBasedPricing: service.timeBasedPricing || [],
-      perHourRate: service.perHourRate || null,
-      perDayRate: service.perDayRate || null,
-      perMonthRate: service.perMonthRate || null,
       isFeatured: service.isFeatured,
       isMarketingService: service.isMarketingService,
       serviceType: service.serviceType,
@@ -2307,6 +2318,7 @@ const getCommercialServices = async (req, res, next) => {
       faqs: service.faqs || [],
       testimonials: service.testimonials || [],
       isActive: service.isActive,
+      createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
       updatedAt: service.updatedAt?.toISOString(),
     }));

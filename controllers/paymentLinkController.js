@@ -281,7 +281,10 @@ const initiatePaymentViaLink = async (req, res, next) => {
       billingCity: '',
       billingState: '',
       billingZip: '',
-      billingCountry: 'AE'
+      billingCountry: 'AE',
+      merchant_param1: serviceRequest._id.toString(),
+      merchant_param2: 'full',
+      merchant_param3: '0'
     };
 
     // Generate encrypted payment form data

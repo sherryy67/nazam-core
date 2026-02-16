@@ -13,7 +13,8 @@ const {
   userUpdateServiceRequest,
   userCancelServiceRequest,
   userDeleteServiceRequest,
-  updateQuotationPrice
+  updateQuotationPrice,
+  updatePaymentStatus
 } = require('../controllers/serviceRequestController');
 
 const router = express.Router();
@@ -74,8 +75,8 @@ const submitServiceRequestValidation = [
 // Validation rules for status update
 const updateStatusValidation = [
   body('status')
-    .isIn(['Pending', 'Assigned', 'Accepted', 'Completed', 'Cancelled'])
-    .withMessage('Status must be Pending, Assigned, Accepted, Completed, or Cancelled'),
+    .isIn(['Pending', 'Assigned', 'Accepted', 'InProgress', 'Completed', 'Cancelled'])
+    .withMessage('Status must be Pending, Assigned, Accepted, InProgress, Completed, or Cancelled'),
   body('vendor')
     .optional()
     .isMongoId()
@@ -533,6 +534,84 @@ router.put('/:id/status', protect, isAdmin, updateStatusValidation, updateServic
  *         description: Service request not found
  */
 router.put('/:id/quote', protect, isAdmin, updateQuotationPrice);
+
+/**
+ * @swagger
+ * /api/service-requests/{id}/payment-status:
+ *   put:
+ *     summary: Update payment status for service request (Admin only)
+ *     tags: [Service Requests]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Service request ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - paymentStatus
+ *             properties:
+ *               paymentStatus:
+ *                 type: string
+ *                 enum: [Pending, Success, Failure, Cancelled]
+ *                 example: "Success"
+ *                 description: New payment status
+ *               transactionId:
+ *                 type: string
+ *                 example: "TXN123456789"
+ *                 description: Transaction ID from payment gateway (optional)
+ *               bankReferenceNumber:
+ *                 type: string
+ *                 example: "REF987654321"
+ *                 description: Bank reference number (optional)
+ *               notes:
+ *                 type: string
+ *                 example: "Payment received via bank transfer"
+ *                 description: Additional notes or failure reason (optional)
+ *     responses:
+ *       200:
+ *         description: Payment status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 exception:
+ *                   type: string
+ *                 description:
+ *                   type: string
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     serviceRequest:
+ *                       type: object
+ *                     notifications:
+ *                       type: object
+ *                       properties:
+ *                         emailSent:
+ *                           type: boolean
+ *                         smsSent:
+ *                           type: boolean
+ *       400:
+ *         description: Bad request - Invalid payment status
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Admin access required
+ *       404:
+ *         description: Service request not found
+ */
+router.put('/:id/payment-status', protect, isAdmin, updatePaymentStatus);
 
 /**
  * @swagger

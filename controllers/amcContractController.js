@@ -57,28 +57,47 @@ const submitAMCContract = async (req, res, next) => {
       );
     }
 
-    // Validate each service exists and is active
-    const serviceIds = services.map((s) => s.service_id);
-    const activeServices = await Service.find({
-      _id: { $in: serviceIds },
-      isActive: true,
-    }).select("+subServices");
+    // Separate custom services from platform services
+    const platformServices = services.filter((s) => !s.isCustomService);
+    const customServices = services.filter((s) => s.isCustomService);
 
-    if (activeServices.length !== serviceIds.length) {
-      const activeIds = activeServices.map((s) => s._id.toString());
-      const invalidIds = serviceIds.filter((id) => !activeIds.includes(id));
-      return sendError(
-        res,
-        400,
-        `Some services are invalid or inactive: ${invalidIds.join(", ")}`,
-        "INVALID_SERVICES"
-      );
+    // Validate custom services have a name
+    for (const cs of customServices) {
+      if (!cs.customServiceName || !cs.customServiceName.trim()) {
+        return sendError(
+          res,
+          400,
+          "Custom services must have a name",
+          "INVALID_CUSTOM_SERVICE",
+        );
+      }
     }
 
-    // Build a lookup map for service data
+    // Validate platform services exist and are active
     const serviceMap = {};
-    for (const svc of activeServices) {
-      serviceMap[svc._id.toString()] = svc;
+    if (platformServices.length > 0) {
+      const serviceIds = platformServices.map((s) => s.service_id);
+      const activeServices = await Service.find({
+        _id: { $in: serviceIds },
+        isActive: true,
+      }).select("+subServices");
+
+      if (activeServices.length !== serviceIds.length) {
+        const activeIds = activeServices.map((s) => s._id.toString());
+        const invalidIds = serviceIds.filter(
+          (id) => !activeIds.includes(id),
+        );
+        return sendError(
+          res,
+          400,
+          `Some services are invalid or inactive: ${invalidIds.join(", ")}`,
+          "INVALID_SERVICES",
+        );
+      }
+
+      for (const svc of activeServices) {
+        serviceMap[svc._id.toString()] = svc;
+      }
     }
 
     // Try to find existing user by email or phone
@@ -129,86 +148,126 @@ const submitAMCContract = async (req, res, next) => {
       const createdServiceRequests = [];
 
       for (const cartItem of services) {
-        const service = serviceMap[cartItem.service_id];
-        if (!service) continue;
+        let serviceRequestData;
 
-        const serviceRequestData = {
-          user_name: contactPerson.trim(),
-          user_phone: contactPhone.trim(),
-          user_email: contactEmail.trim().toLowerCase(),
-          address: address.trim(),
-          service_id: cartItem.service_id,
-          service_name: cartItem.service_name || service.name,
-          category_id: cartItem.category_id || service.category_id,
-          category_name: cartItem.category_name || "",
-          request_type: "Quotation",
-          requested_date: cartItem.requested_date
-            ? new Date(cartItem.requested_date)
-            : contractStartDate,
-          message: cartItem.message ? cartItem.message.trim() : undefined,
-          status: "Pending",
-          number_of_units: cartItem.number_of_units || cartItem.quantity || 1,
-          paymentMethod: "Cash On Delivery",
-          user: existingUser ? existingUser._id : undefined,
-          amcContract: amcContract._id,
-        };
+        if (cartItem.isCustomService) {
+          // Custom service — no platform service_id or category_id
+          serviceRequestData = {
+            user_name: contactPerson.trim(),
+            user_phone: contactPhone.trim(),
+            user_email: contactEmail.trim().toLowerCase(),
+            address: address.trim(),
+            service_name: cartItem.customServiceName.trim(),
+            category_name: "Custom Service",
+            request_type: "Quotation",
+            requested_date: cartItem.requested_date
+              ? new Date(cartItem.requested_date)
+              : contractStartDate,
+            message: cartItem.customServiceDescription
+              ? cartItem.customServiceDescription.trim()
+              : cartItem.message
+                ? cartItem.message.trim()
+                : undefined,
+            status: "Pending",
+            number_of_units:
+              cartItem.number_of_units || cartItem.quantity || 1,
+            paymentMethod: "Cash On Delivery",
+            user: existingUser ? existingUser._id : undefined,
+            amcContract: amcContract._id,
+            isCustomService: true,
+            customServiceName: cartItem.customServiceName.trim(),
+            customServiceDescription: cartItem.customServiceDescription
+              ? cartItem.customServiceDescription.trim()
+              : undefined,
+          };
+        } else {
+          // Platform service — existing logic
+          const service = serviceMap[cartItem.service_id];
+          if (!service) continue;
 
-        // Add duration/persons if provided
-        if (cartItem.durationType) {
-          serviceRequestData.durationType = cartItem.durationType;
-          serviceRequestData.duration = cartItem.duration
-            ? Number(cartItem.duration)
-            : 1;
-        }
-        if (cartItem.numberOfPersons) {
-          serviceRequestData.numberOfPersons = Number(
-            cartItem.numberOfPersons
-          );
-        }
+          serviceRequestData = {
+            user_name: contactPerson.trim(),
+            user_phone: contactPhone.trim(),
+            user_email: contactEmail.trim().toLowerCase(),
+            address: address.trim(),
+            service_id: cartItem.service_id,
+            service_name: cartItem.service_name || service.name,
+            category_id: cartItem.category_id || service.category_id,
+            category_name: cartItem.category_name || "",
+            request_type: "Quotation",
+            requested_date: cartItem.requested_date
+              ? new Date(cartItem.requested_date)
+              : contractStartDate,
+            message: cartItem.message ? cartItem.message.trim() : undefined,
+            status: "Pending",
+            number_of_units:
+              cartItem.number_of_units || cartItem.quantity || 1,
+            paymentMethod: "Cash On Delivery",
+            user: existingUser ? existingUser._id : undefined,
+            amcContract: amcContract._id,
+          };
 
-        // Add selected sub-services if provided
-        if (
-          Array.isArray(cartItem.selectedSubServices) &&
-          cartItem.selectedSubServices.length > 0
-        ) {
-          serviceRequestData.selectedSubServices =
-            cartItem.selectedSubServices.map((selected) => {
-              const matchingSub = service.subServices
-                ? service.subServices.find(
-                    (sub) =>
-                      sub.name.toLowerCase().trim() ===
-                      selected.name.toLowerCase().trim()
-                  )
-                : null;
-              return {
-                name: matchingSub ? matchingSub.name : selected.name,
-                items: matchingSub ? matchingSub.items || 1 : selected.items || 1,
-                rate: matchingSub ? matchingSub.rate : selected.rate || 0,
-                quantity:
-                  selected.quantity !== undefined
-                    ? parseInt(selected.quantity)
-                    : 1,
-              };
-            });
-        }
+          // Add duration/persons if provided
+          if (cartItem.durationType) {
+            serviceRequestData.durationType = cartItem.durationType;
+            serviceRequestData.duration = cartItem.duration
+              ? Number(cartItem.duration)
+              : 1;
+          }
+          if (cartItem.numberOfPersons) {
+            serviceRequestData.numberOfPersons = Number(
+              cartItem.numberOfPersons,
+            );
+          }
 
-        // Add question answers if provided
-        if (
-          Array.isArray(cartItem.questionAnswers) &&
-          cartItem.questionAnswers.length > 0
-        ) {
-          serviceRequestData.questionAnswers = cartItem.questionAnswers
-            .filter((qa) => qa.question && qa.answer && qa.answer.trim() !== "")
-            .map((qa) => ({
-              question: qa.question.trim(),
-              answer: qa.answer.trim(),
-              questionType: qa.questionType || "text",
-            }));
+          // Add selected sub-services if provided
+          if (
+            Array.isArray(cartItem.selectedSubServices) &&
+            cartItem.selectedSubServices.length > 0
+          ) {
+            serviceRequestData.selectedSubServices =
+              cartItem.selectedSubServices.map((selected) => {
+                const matchingSub = service.subServices
+                  ? service.subServices.find(
+                      (sub) =>
+                        sub.name.toLowerCase().trim() ===
+                        selected.name.toLowerCase().trim(),
+                    )
+                  : null;
+                return {
+                  name: matchingSub ? matchingSub.name : selected.name,
+                  items: matchingSub
+                    ? matchingSub.items || 1
+                    : selected.items || 1,
+                  rate: matchingSub ? matchingSub.rate : selected.rate || 0,
+                  quantity:
+                    selected.quantity !== undefined
+                      ? parseInt(selected.quantity)
+                      : 1,
+                };
+              });
+          }
+
+          // Add question answers if provided
+          if (
+            Array.isArray(cartItem.questionAnswers) &&
+            cartItem.questionAnswers.length > 0
+          ) {
+            serviceRequestData.questionAnswers = cartItem.questionAnswers
+              .filter(
+                (qa) => qa.question && qa.answer && qa.answer.trim() !== "",
+              )
+              .map((qa) => ({
+                question: qa.question.trim(),
+                answer: qa.answer.trim(),
+                questionType: qa.questionType || "text",
+              }));
+          }
         }
 
         const [serviceRequest] = await ServiceRequest.create(
           [serviceRequestData],
-          { session }
+          { session },
         );
         createdServiceRequests.push(serviceRequest);
       }
