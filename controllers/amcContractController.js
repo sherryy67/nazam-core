@@ -357,13 +357,24 @@ const getUserAMCContracts = async (req, res, next) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    // Find contracts by linked user or by email
+    // Find contracts by linked user, email, or phone
+    // Note: protect middleware sets req.user.id (not _id)
     const query = {};
-    if (req.user && req.user._id) {
-      query.$or = [
-        { user: req.user._id },
-        { contactEmail: req.user.email },
+    if (req.user && (req.user.id || req.user._id)) {
+      const userId = req.user.id || req.user._id;
+      const matchConditions = [
+        { user: userId },
       ];
+      if (req.user.email) {
+        matchConditions.push({ contactEmail: req.user.email.toLowerCase() });
+      }
+      // Also fetch user's phone number for matching
+      const User = require("../models/User");
+      const fullUser = await User.findById(userId).select("phoneNumber");
+      if (fullUser && fullUser.phoneNumber) {
+        matchConditions.push({ contactPhone: fullUser.phoneNumber });
+      }
+      query.$or = matchConditions;
     } else {
       return sendError(res, 401, "Not authenticated", "UNAUTHORIZED");
     }
