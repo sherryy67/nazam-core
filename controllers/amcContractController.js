@@ -100,14 +100,8 @@ const submitAMCContract = async (req, res, next) => {
       }
     }
 
-    // Try to find existing user by email or phone
-    const User = require("../models/User");
-    const existingUser = await User.findOne({
-      $or: [
-        { email: contactEmail.trim().toLowerCase() },
-        { phoneNumber: contactPhone.trim() },
-      ],
-    });
+    // Link contract to logged-in user directly via req.user (set by protect middleware)
+    const userId = req.user ? (req.user.id || req.user._id) : null;
 
     // Calculate endDate (default: 1 year from startDate)
     const contractStartDate = new Date(startDate);
@@ -134,7 +128,7 @@ const submitAMCContract = async (req, res, next) => {
             contactEmail: contactEmail.trim().toLowerCase(),
             address: address.trim(),
             message: message ? message.trim() : undefined,
-            user: existingUser ? existingUser._id : undefined,
+            user: userId || undefined,
             startDate: contractStartDate,
             endDate: contractEndDate,
             status: "Pending",
@@ -172,7 +166,7 @@ const submitAMCContract = async (req, res, next) => {
             number_of_units:
               cartItem.number_of_units || cartItem.quantity || 1,
             paymentMethod: "Cash On Delivery",
-            user: existingUser ? existingUser._id : undefined,
+            user: userId || undefined,
             amcContract: amcContract._id,
             isCustomService: true,
             customServiceName: cartItem.customServiceName.trim(),
@@ -203,7 +197,7 @@ const submitAMCContract = async (req, res, next) => {
             number_of_units:
               cartItem.number_of_units || cartItem.quantity || 1,
             paymentMethod: "Cash On Delivery",
-            user: existingUser ? existingUser._id : undefined,
+            user: userId || undefined,
             amcContract: amcContract._id,
           };
 

@@ -90,7 +90,7 @@ const router = express.Router();
  *       400:
  *         description: Validation error
  */
-router.post("/", submitAMCContract);
+router.post("/", protect, submitAMCContract);
 
 /**
  * @swagger
