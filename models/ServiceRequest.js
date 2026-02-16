@@ -7,10 +7,23 @@ const serviceRequestSchema = new mongoose.Schema({
   user_email: { type: String, required: true, trim: true, lowercase: true },
   
   // Service information
-  service_id: { type: mongoose.Schema.Types.ObjectId, ref: "Service", required: true },
+  service_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Service",
+    required: function () { return !this.isCustomService; },
+  },
   service_name: { type: String, required: true, trim: true },
-  category_id: { type: mongoose.Schema.Types.ObjectId, ref: "Category", required: true },
+  category_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Category",
+    required: function () { return !this.isCustomService; },
+  },
   category_name: { type: String, required: true, trim: true },
+
+  // Custom service (for AMC services not on the platform)
+  isCustomService: { type: Boolean, default: false },
+  customServiceName: { type: String, trim: true },
+  customServiceDescription: { type: String, trim: true },
   
   // Request details
   request_type: { 
