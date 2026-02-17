@@ -159,7 +159,35 @@ const createServiceValidation = [
   body('isBannerService')
     .optional()
     .isBoolean()
-    .withMessage('isBannerService must be a boolean value')
+    .withMessage('isBannerService must be a boolean value'),
+  // SEO & Meta validation rules (all optional)
+  body('metaTitle')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Meta title must be less than 200 characters'),
+  body('metaDescription')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Meta description must be less than 500 characters'),
+  body('urlSlug')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('URL slug must be less than 200 characters')
+    .matches(/^[a-z0-9-]*$/)
+    .withMessage('URL slug can only contain lowercase letters, numbers, and hyphens'),
+  body('ogTitle')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('OG title must be less than 200 characters'),
+  body('ogDescription')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('OG description must be less than 500 characters'),
 ];
 
 // Validation rules for paginated services
@@ -534,7 +562,8 @@ router.post('/', protect, isAdmin, upload.fields([
   { name: 'serviceImage', maxCount: 1 },
   { name: 'thumbnail', maxCount: 1 },
   { name: 'service_icon', maxCount: 1 },
-  { name: 'thumbnailUri', maxCount: 1 }
+  { name: 'thumbnailUri', maxCount: 1 },
+  { name: 'socialImage', maxCount: 1 }
 ]), createServiceValidation, createService);
 
 /**
