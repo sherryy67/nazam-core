@@ -1327,7 +1327,6 @@ const createService = async (req, res, next) => {
       // Update existing service
       service = await Service.findByIdAndUpdate(_id, updateOperation, {
         new: true,
-        runValidators: true,
       })
         .populate("createdBy", "name email")
         .populate("category_id", "name description");
