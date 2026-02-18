@@ -10,7 +10,8 @@
       "Bash(cd:*)",
       "Bash(node scripts/fix-payment-status.js:*)",
       "Bash(node scripts/seed-service-content.js:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Read(//d/Sher Ali/nazam/src/app/admin/**)"
     ],
     "additionalDirectories": [
       "D:\\Sher Ali\\nazam\\src\\app\\_common"

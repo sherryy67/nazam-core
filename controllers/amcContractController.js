@@ -29,7 +29,6 @@ const submitAMCContract = async (req, res, next) => {
       "contactPhone",
       "contactEmail",
       "address",
-      "startDate",
     ];
     const missingFields = requiredFields.filter((field) => !req.body[field]);
     if (missingFields.length > 0) {
@@ -103,14 +102,16 @@ const submitAMCContract = async (req, res, next) => {
     // Link contract to logged-in user directly via req.user (set by protect middleware)
     const userId = req.user ? (req.user.id || req.user._id) : null;
 
-    // Calculate endDate (default: 1 year from startDate)
-    const contractStartDate = new Date(startDate);
-    let contractEndDate;
-    if (endDate) {
-      contractEndDate = new Date(endDate);
-    } else {
-      contractEndDate = new Date(contractStartDate);
-      contractEndDate.setFullYear(contractEndDate.getFullYear() + 1);
+    // Calculate endDate (default: 1 year from startDate if provided)
+    const contractStartDate = startDate ? new Date(startDate) : null;
+    let contractEndDate = null;
+    if (contractStartDate) {
+      if (endDate) {
+        contractEndDate = new Date(endDate);
+      } else {
+        contractEndDate = new Date(contractStartDate);
+        contractEndDate.setFullYear(contractEndDate.getFullYear() + 1);
+      }
     }
 
     // Use a transaction to create the contract and all service requests atomically
@@ -129,8 +130,8 @@ const submitAMCContract = async (req, res, next) => {
             address: address.trim(),
             message: message ? message.trim() : undefined,
             user: userId || undefined,
-            startDate: contractStartDate,
-            endDate: contractEndDate,
+            startDate: contractStartDate || undefined,
+            endDate: contractEndDate || undefined,
             status: "Pending",
             serviceRequests: [],
           },
@@ -156,7 +157,7 @@ const submitAMCContract = async (req, res, next) => {
             request_type: "Quotation",
             requested_date: cartItem.requested_date
               ? new Date(cartItem.requested_date)
-              : contractStartDate,
+              : contractStartDate || new Date(),
             message: cartItem.customServiceDescription
               ? cartItem.customServiceDescription.trim()
               : cartItem.message
@@ -191,7 +192,7 @@ const submitAMCContract = async (req, res, next) => {
             request_type: "Quotation",
             requested_date: cartItem.requested_date
               ? new Date(cartItem.requested_date)
-              : contractStartDate,
+              : contractStartDate || new Date(),
             message: cartItem.message ? cartItem.message.trim() : undefined,
             status: "Pending",
             number_of_units:
@@ -503,10 +504,68 @@ const updateAMCContractStatus = async (req, res, next) => {
   }
 };
 
+// @desc    Update AMC contract details (admin)
+// @route   PUT /api/amc-contracts/:id
+// @access  Admin
+const updateAMCContractDetails = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { startDate, endDate, adminNotes, totalContractValue } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, "Invalid contract ID", "INVALID_ID");
+    }
+
+    const contract = await AMCContract.findById(id);
+    if (!contract) {
+      return sendError(res, 404, "AMC contract not found", "NOT_FOUND");
+    }
+
+    // Update fields if provided
+    if (startDate !== undefined) {
+      contract.startDate = startDate ? new Date(startDate) : null;
+    }
+    if (endDate !== undefined) {
+      contract.endDate = endDate ? new Date(endDate) : null;
+    }
+    if (adminNotes !== undefined) {
+      contract.adminNotes = adminNotes;
+    }
+    if (totalContractValue !== undefined) {
+      contract.totalContractValue = totalContractValue !== null
+        ? Number(totalContractValue)
+        : null;
+    }
+
+    // Auto-calculate endDate if startDate set but endDate not provided
+    if (contract.startDate && !contract.endDate) {
+      const end = new Date(contract.startDate);
+      end.setFullYear(end.getFullYear() + 1);
+      contract.endDate = end;
+    }
+
+    await contract.save();
+
+    // Return populated contract
+    const populatedContract = await AMCContract.findById(id).populate({
+      path: "serviceRequests",
+      select:
+        "service_name service_id category_name status requested_date number_of_units",
+    });
+
+    return sendSuccess(res, 200, "AMC contract details updated successfully", {
+      contract: populatedContract,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   submitAMCContract,
   getAMCContract,
   getUserAMCContracts,
   getAllAMCContracts,
   updateAMCContractStatus,
+  updateAMCContractDetails,
 };

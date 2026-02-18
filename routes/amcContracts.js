@@ -7,6 +7,7 @@ const {
   getUserAMCContracts,
   getAllAMCContracts,
   updateAMCContractStatus,
+  updateAMCContractDetails,
 } = require("../controllers/amcContractController");
 
 const router = express.Router();
@@ -198,5 +199,42 @@ router.get("/", protect, isAdmin, getAllAMCContracts);
  *         description: Status updated successfully
  */
 router.put("/:id/status", protect, isAdmin, updateAMCContractStatus);
+
+/**
+ * @swagger
+ * /api/amc-contracts/{id}:
+ *   put:
+ *     summary: Update AMC contract details (admin only)
+ *     tags: [AMC Contracts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               startDate:
+ *                 type: string
+ *                 format: date-time
+ *               endDate:
+ *                 type: string
+ *                 format: date-time
+ *               adminNotes:
+ *                 type: string
+ *               totalContractValue:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Contract details updated successfully
+ */
+router.put("/:id", protect, isAdmin, updateAMCContractDetails);
 
 module.exports = router;

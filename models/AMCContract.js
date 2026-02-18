@@ -15,8 +15,8 @@ const amcContractSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
 
   // Contract period
-  startDate: { type: Date, required: true },
-  endDate: { type: Date, required: true },
+  startDate: { type: Date, default: null },
+  endDate: { type: Date, default: null },
 
   // Linked service requests (each service in the cart becomes a ServiceRequest)
   serviceRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "ServiceRequest" }],
