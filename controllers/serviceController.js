@@ -750,6 +750,13 @@ const createService = async (req, res, next) => {
       }
     }
 
+    // Handle benefitsTitle (optional)
+    if (req.body.benefitsTitle !== undefined && req.body.benefitsTitle !== null) {
+      serviceData.benefitsTitle = String(req.body.benefitsTitle).trim();
+    } else if (!existingService) {
+      serviceData.benefitsTitle = "";
+    }
+
     // Handle benefits (optional - array of {icon, heading, description})
     if (benefits !== undefined && benefits !== null) {
       try {
@@ -1470,6 +1477,7 @@ const getServices = async (req, res, next) => {
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
       contentSections: service.contentSections || [],
+      benefitsTitle: service.benefitsTitle || "",
       benefits: service.benefits || [],
       whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
@@ -1616,6 +1624,7 @@ const getServicesPaginated = async (req, res, next) => {
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
       contentSections: service.contentSections || [],
+      benefitsTitle: service.benefitsTitle || "",
       benefits: service.benefits || [],
       whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
@@ -1707,6 +1716,7 @@ const getServiceById = async (req, res, next) => {
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
       contentSections: service.contentSections || [],
+      benefitsTitle: service.benefitsTitle || "",
       benefits: service.benefits || [],
       whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
@@ -1925,6 +1935,7 @@ const getAllActiveServices = async (req, res, next) => {
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
       contentSections: service.contentSections || [],
+      benefitsTitle: service.benefitsTitle || "",
       benefits: service.benefits || [],
       whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
@@ -2338,6 +2349,7 @@ const getResidentialServices = async (req, res, next) => {
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
       contentSections: service.contentSections || [],
+      benefitsTitle: service.benefitsTitle || "",
       benefits: service.benefits || [],
       whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
@@ -2449,6 +2461,7 @@ const getCommercialServices = async (req, res, next) => {
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
       contentSections: service.contentSections || [],
+      benefitsTitle: service.benefitsTitle || "",
       benefits: service.benefits || [],
       whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },

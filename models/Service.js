@@ -231,6 +231,7 @@ const serviceSchema = new mongoose.Schema(
       },
     ],
 
+    benefitsTitle: { type: String, trim: true, default: "" },
     benefits: [
       {
         icon: { type: String, trim: true },
