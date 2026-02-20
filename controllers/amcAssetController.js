@@ -71,7 +71,7 @@ const addAsset = async (req, res, next) => {
 
     const populatedAsset = await AMCAsset.findById(asset._id).populate(
       "linkedServices",
-      "serviceName status"
+      "service_name status"
     );
 
     return sendCreated(res, "Asset added successfully", populatedAsset);
@@ -92,10 +92,10 @@ const getAssets = async (req, res, next) => {
     }
 
     const assets = await AMCAsset.find({ amcContract: id })
-      .populate("linkedServices", "serviceName status")
+      .populate("linkedServices", "service_name status")
       .sort({ createdAt: -1 });
 
-    return sendSuccess(res, "Assets retrieved successfully", assets);
+    return sendSuccess(res, 200, "Assets retrieved successfully", assets);
   } catch (error) {
     next(error);
   }
@@ -151,10 +151,10 @@ const updateAsset = async (req, res, next) => {
 
     const populatedAsset = await AMCAsset.findById(asset._id).populate(
       "linkedServices",
-      "serviceName status"
+      "service_name status"
     );
 
-    return sendSuccess(res, "Asset updated successfully", populatedAsset);
+    return sendSuccess(res, 200, "Asset updated successfully", populatedAsset);
   } catch (error) {
     next(error);
   }
@@ -183,7 +183,7 @@ const deleteAsset = async (req, res, next) => {
       return sendError(res, 404, "Asset not found", "ASSET_NOT_FOUND");
     }
 
-    return sendSuccess(res, "Asset deleted successfully");
+    return sendSuccess(res, 200, "Asset deleted successfully");
   } catch (error) {
     next(error);
   }
@@ -224,11 +224,12 @@ const linkServices = async (req, res, next) => {
 
     const populatedAsset = await AMCAsset.findById(asset._id).populate(
       "linkedServices",
-      "serviceName status"
+      "service_name status"
     );
 
     return sendSuccess(
       res,
+      200,
       "Services linked successfully",
       populatedAsset
     );
