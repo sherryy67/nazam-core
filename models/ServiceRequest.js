@@ -164,6 +164,10 @@ const serviceRequestSchema = new mongoose.Schema({
   // AMC Contract link (optional - only for AMC service requests)
   amcContract: { type: mongoose.Schema.Types.ObjectId, ref: "AMCContract", default: null },
 
+  // AMC scheduling: how many times this service is needed + dates for each
+  numberOfTimes: { type: Number, default: 1 },
+  scheduledDates: [{ type: Date }],
+
   // Admin created order tracking
   createdByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
 

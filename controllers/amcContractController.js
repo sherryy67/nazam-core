@@ -145,6 +145,12 @@ const submitAMCContract = async (req, res, next) => {
       for (const cartItem of services) {
         let serviceRequestData;
 
+        // Parse numberOfTimes and scheduledDates from the cart item
+        const numberOfTimes = cartItem.numberOfTimes ? Number(cartItem.numberOfTimes) : 1;
+        const scheduledDates = Array.isArray(cartItem.scheduledDates)
+          ? cartItem.scheduledDates.map((d) => new Date(d))
+          : [];
+
         if (cartItem.isCustomService) {
           // Custom service — no platform service_id or category_id
           serviceRequestData = {
@@ -155,9 +161,9 @@ const submitAMCContract = async (req, res, next) => {
             service_name: cartItem.customServiceName.trim(),
             category_name: "Custom Service",
             request_type: "Quotation",
-            requested_date: cartItem.requested_date
-              ? new Date(cartItem.requested_date)
-              : contractStartDate || new Date(),
+            requested_date: scheduledDates[0]
+              || (cartItem.requested_date ? new Date(cartItem.requested_date) : null)
+              || contractStartDate || new Date(),
             message: cartItem.customServiceDescription
               ? cartItem.customServiceDescription.trim()
               : cartItem.message
@@ -174,6 +180,8 @@ const submitAMCContract = async (req, res, next) => {
             customServiceDescription: cartItem.customServiceDescription
               ? cartItem.customServiceDescription.trim()
               : undefined,
+            numberOfTimes,
+            scheduledDates: scheduledDates.length > 0 ? scheduledDates : undefined,
           };
         } else {
           // Platform service — existing logic
@@ -190,9 +198,9 @@ const submitAMCContract = async (req, res, next) => {
             category_id: cartItem.category_id || service.category_id,
             category_name: cartItem.category_name || "",
             request_type: "Quotation",
-            requested_date: cartItem.requested_date
-              ? new Date(cartItem.requested_date)
-              : contractStartDate || new Date(),
+            requested_date: scheduledDates[0]
+              || (cartItem.requested_date ? new Date(cartItem.requested_date) : null)
+              || contractStartDate || new Date(),
             message: cartItem.message ? cartItem.message.trim() : undefined,
             status: "Pending",
             number_of_units:
@@ -200,6 +208,8 @@ const submitAMCContract = async (req, res, next) => {
             paymentMethod: "Cash On Delivery",
             user: userId || undefined,
             amcContract: amcContract._id,
+            numberOfTimes,
+            scheduledDates: scheduledDates.length > 0 ? scheduledDates : undefined,
           };
 
           // Add duration/persons if provided
@@ -296,7 +306,7 @@ const submitAMCContract = async (req, res, next) => {
         .populate({
           path: "serviceRequests",
           select:
-            "service_name service_id category_name status requested_date number_of_units durationType duration numberOfPersons selectedSubServices",
+            "service_name service_id category_name status requested_date number_of_units durationType duration numberOfPersons selectedSubServices numberOfTimes scheduledDates",
         });
 
       return sendCreated(res, "AMC contract submitted successfully", {
