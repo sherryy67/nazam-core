@@ -2332,6 +2332,34 @@ const getCommercialServices = async (req, res, next) => {
   }
 };
 
+// @desc    Search active services for asset linking (lightweight, keyword-based)
+// @route   GET /api/services/search-active
+// @access  Admin
+const searchActiveServicesForAsset = async (req, res, next) => {
+  try {
+    const { keyword } = req.query;
+
+    const query = { isActive: true };
+
+    if (keyword && keyword.trim()) {
+      query.name = { $regex: keyword.trim(), $options: "i" };
+    }
+
+    const services = await Service.find(query)
+      .select("_id name thumbnailUri imageUri")
+      .sort({ name: 1 })
+      .limit(50)
+      .lean();
+
+    return sendSuccess(res, 200, "Active services retrieved successfully", {
+      services,
+      total: services.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createService,
   getServices,
@@ -2346,6 +2374,7 @@ module.exports = {
   getFeaturedServices,
   getResidentialServices,
   getCommercialServices,
+  searchActiveServicesForAsset,
   // New: Get only services of the "INTERIOR RENOVATION" category (public)
   getHomeCategoryServices: async (req, res, next) => {
     try {

@@ -52,21 +52,25 @@ const addAsset = async (req, res, next) => {
       }
     }
 
-    // Validate each linked service exists in the Service catalog and build entries
+    // Build linked services: supports both catalog services and custom services
     let validLinkedServices = [];
     if (Array.isArray(parsedLinkedServices) && parsedLinkedServices.length > 0) {
-      const serviceIds = parsedLinkedServices.map((ls) => ls.serviceId || ls.service).filter(Boolean);
-      const activeServices = await Service.find({
-        _id: { $in: serviceIds },
-        isActive: true,
-      }).select("name");
+      // Separate catalog and custom services
+      const catalogEntries = parsedLinkedServices.filter((ls) => !ls.isCustomService);
+      const customEntries = parsedLinkedServices.filter((ls) => ls.isCustomService);
+
+      // Validate catalog services
+      const serviceIds = catalogEntries.map((ls) => ls.serviceId || ls.service).filter(Boolean);
+      const activeServices = serviceIds.length > 0
+        ? await Service.find({ _id: { $in: serviceIds }, isActive: true }).select("name")
+        : [];
 
       const serviceMap = {};
       for (const svc of activeServices) {
         serviceMap[svc._id.toString()] = svc;
       }
 
-      validLinkedServices = parsedLinkedServices
+      const validCatalog = catalogEntries
         .filter((ls) => {
           const svcId = ls.serviceId || ls.service;
           return svcId && serviceMap[svcId.toString()];
@@ -83,8 +87,27 @@ const addAsset = async (req, res, next) => {
             serviceName: ls.serviceName || svc.name,
             numberOfTimes,
             scheduledDates,
+            isCustomService: false,
           };
         });
+
+      // Build custom service entries (no catalog ref needed)
+      const validCustom = customEntries
+        .filter((ls) => ls.serviceName && ls.serviceName.trim())
+        .map((ls) => {
+          const numberOfTimes = ls.numberOfTimes ? Number(ls.numberOfTimes) : 1;
+          const scheduledDates = Array.isArray(ls.scheduledDates)
+            ? ls.scheduledDates.map((d) => new Date(d))
+            : [];
+          return {
+            serviceName: ls.serviceName.trim(),
+            numberOfTimes,
+            scheduledDates,
+            isCustomService: true,
+          };
+        });
+
+      validLinkedServices = [...validCatalog, ...validCustom];
     }
 
     const asset = await AMCAsset.create({
@@ -235,21 +258,23 @@ const linkServices = async (req, res, next) => {
       return sendError(res, 404, "Asset not found", "ASSET_NOT_FOUND");
     }
 
-    // Validate and build linked services from active Service catalog
+    // Build linked services: supports both catalog services and custom services
     let validLinkedServices = [];
     if (Array.isArray(linkedServices) && linkedServices.length > 0) {
-      const serviceIds = linkedServices.map((ls) => ls.serviceId || ls.service).filter(Boolean);
-      const activeServices = await Service.find({
-        _id: { $in: serviceIds },
-        isActive: true,
-      }).select("name");
+      const catalogEntries = linkedServices.filter((ls) => !ls.isCustomService);
+      const customEntries = linkedServices.filter((ls) => ls.isCustomService);
+
+      const serviceIds = catalogEntries.map((ls) => ls.serviceId || ls.service).filter(Boolean);
+      const activeServices = serviceIds.length > 0
+        ? await Service.find({ _id: { $in: serviceIds }, isActive: true }).select("name")
+        : [];
 
       const serviceMap = {};
       for (const svc of activeServices) {
         serviceMap[svc._id.toString()] = svc;
       }
 
-      validLinkedServices = linkedServices
+      const validCatalog = catalogEntries
         .filter((ls) => {
           const svcId = ls.serviceId || ls.service;
           return svcId && serviceMap[svcId.toString()];
@@ -266,8 +291,26 @@ const linkServices = async (req, res, next) => {
             serviceName: ls.serviceName || svc.name,
             numberOfTimes,
             scheduledDates,
+            isCustomService: false,
           };
         });
+
+      const validCustom = customEntries
+        .filter((ls) => ls.serviceName && ls.serviceName.trim())
+        .map((ls) => {
+          const numberOfTimes = ls.numberOfTimes ? Number(ls.numberOfTimes) : 1;
+          const scheduledDates = Array.isArray(ls.scheduledDates)
+            ? ls.scheduledDates.map((d) => new Date(d))
+            : [];
+          return {
+            serviceName: ls.serviceName.trim(),
+            numberOfTimes,
+            scheduledDates,
+            isCustomService: true,
+          };
+        });
+
+      validLinkedServices = [...validCatalog, ...validCustom];
     }
 
     asset.linkedServices = validLinkedServices;

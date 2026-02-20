@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
 const ROLES = require('../constants/roles');
-const { createService, getServices, getServicesPaginated, getServiceById, deleteService, toggleServiceStatus, getAllActiveServices, getServiceSubServices, getRelatedServices, setFeaturedServices, getFeaturedServices, getResidentialServices, getCommercialServices, getHomeCategoryServices, getPopularServices, upload } = require('../controllers/serviceController');
+const { createService, getServices, getServicesPaginated, getServiceById, deleteService, toggleServiceStatus, getAllActiveServices, getServiceSubServices, getRelatedServices, setFeaturedServices, getFeaturedServices, getResidentialServices, getCommercialServices, getHomeCategoryServices, getPopularServices, searchActiveServicesForAsset, upload } = require('../controllers/serviceController');
 
 const router = express.Router();
 
@@ -734,6 +734,9 @@ router.get('/', protect, getServices);
  *         description: Server error
  */
 router.get('/active', getAllActiveServices);
+
+// Search active services for asset linking (admin, keyword-based, lightweight)
+router.get('/search-active', protect, isAdmin, searchActiveServicesForAsset);
 
 /**
  * @swagger

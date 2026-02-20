@@ -22,15 +22,15 @@ const amcAssetSchema = new mongoose.Schema(
     },
 
     // Linked services with scheduling info
-    // Each entry references an active Service (from catalog) and has its own schedule
+    // Each entry references an active Service (from catalog) or is a custom service
     linkedServices: [
       {
         service: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "Service",
-          required: true,
         },
-        serviceName: { type: String, trim: true },
+        isCustomService: { type: Boolean, default: false },
+        serviceName: { type: String, required: true, trim: true },
         numberOfTimes: { type: Number, default: 1 },
         scheduledDates: [{ type: Date }],
       },
