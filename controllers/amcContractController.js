@@ -571,6 +571,73 @@ const updateAMCContractDetails = async (req, res, next) => {
   }
 };
 
+// @desc    Update a service request's scheduling within an AMC contract
+// @route   PUT /api/amc-contracts/:id/service-requests/:srId
+// @access  Admin
+const updateContractServiceRequest = async (req, res, next) => {
+  try {
+    const { id, srId } = req.params;
+    const { numberOfTimes, scheduledDates, number_of_units } = req.body;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(id) ||
+      !mongoose.Types.ObjectId.isValid(srId)
+    ) {
+      return sendError(res, 400, "Invalid ID", "INVALID_ID");
+    }
+
+    // Verify the contract exists and contains this service request
+    const contract = await AMCContract.findById(id);
+    if (!contract) {
+      return sendError(res, 404, "AMC Contract not found", "CONTRACT_NOT_FOUND");
+    }
+
+    const srIdStr = srId.toString();
+    const isLinked = contract.serviceRequests.some(
+      (sr) => sr.toString() === srIdStr
+    );
+    if (!isLinked) {
+      return sendError(
+        res,
+        404,
+        "Service request not found in this contract",
+        "SR_NOT_IN_CONTRACT"
+      );
+    }
+
+    const serviceRequest = await ServiceRequest.findById(srId);
+    if (!serviceRequest) {
+      return sendError(res, 404, "Service request not found", "SR_NOT_FOUND");
+    }
+
+    // Update fields
+    if (numberOfTimes !== undefined) {
+      serviceRequest.numberOfTimes = Number(numberOfTimes);
+    }
+    if (scheduledDates !== undefined && Array.isArray(scheduledDates)) {
+      serviceRequest.scheduledDates = scheduledDates.map((d) => new Date(d));
+      // Also update requested_date to the first scheduled date if available
+      if (scheduledDates.length > 0) {
+        serviceRequest.requested_date = new Date(scheduledDates[0]);
+      }
+    }
+    if (number_of_units !== undefined) {
+      serviceRequest.number_of_units = Number(number_of_units);
+    }
+
+    await serviceRequest.save();
+
+    return sendSuccess(
+      res,
+      200,
+      "Service request updated successfully",
+      serviceRequest
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   submitAMCContract,
   getAMCContract,
@@ -578,4 +645,5 @@ module.exports = {
   getAllAMCContracts,
   updateAMCContractStatus,
   updateAMCContractDetails,
+  updateContractServiceRequest,
 };

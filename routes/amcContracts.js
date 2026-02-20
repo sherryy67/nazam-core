@@ -8,6 +8,7 @@ const {
   getAllAMCContracts,
   updateAMCContractStatus,
   updateAMCContractDetails,
+  updateContractServiceRequest,
 } = require("../controllers/amcContractController");
 const amcAssetRoutes = require("./amcAssets");
 
@@ -237,6 +238,9 @@ router.put("/:id/status", protect, isAdmin, updateAMCContractStatus);
  *         description: Contract details updated successfully
  */
 router.put("/:id", protect, isAdmin, updateAMCContractDetails);
+
+// Update a service request's scheduling within a contract (admin only)
+router.put("/:id/service-requests/:srId", protect, isAdmin, updateContractServiceRequest);
 
 // Mount asset sub-routes
 router.use("/:id/assets", amcAssetRoutes);
