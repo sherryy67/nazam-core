@@ -1,6 +1,6 @@
 const AMCAsset = require("../models/AMCAsset");
 const AMCContract = require("../models/AMCContract");
-const ServiceRequest = require("../models/ServiceRequest");
+const Service = require("../models/Service");
 const mongoose = require("mongoose");
 const { sendSuccess, sendError, sendCreated } = require("../utils/response");
 const { uploadToS3 } = require("../config/s3-final");
@@ -39,7 +39,7 @@ const addAsset = async (req, res, next) => {
       }
     }
 
-    // Parse linkedServices if it's a JSON string (from multipart form)
+    // Parse linkedServices from JSON string (multipart form) or array
     let parsedLinkedServices = [];
     if (linkedServices) {
       try {
@@ -52,13 +52,39 @@ const addAsset = async (req, res, next) => {
       }
     }
 
-    // Validate linked services belong to this contract
-    if (parsedLinkedServices.length > 0) {
-      const validServices = await ServiceRequest.find({
-        _id: { $in: parsedLinkedServices },
-        amcContract: id,
-      });
-      parsedLinkedServices = validServices.map((s) => s._id);
+    // Validate each linked service exists in the Service catalog and build entries
+    let validLinkedServices = [];
+    if (Array.isArray(parsedLinkedServices) && parsedLinkedServices.length > 0) {
+      const serviceIds = parsedLinkedServices.map((ls) => ls.serviceId || ls.service).filter(Boolean);
+      const activeServices = await Service.find({
+        _id: { $in: serviceIds },
+        isActive: true,
+      }).select("name");
+
+      const serviceMap = {};
+      for (const svc of activeServices) {
+        serviceMap[svc._id.toString()] = svc;
+      }
+
+      validLinkedServices = parsedLinkedServices
+        .filter((ls) => {
+          const svcId = ls.serviceId || ls.service;
+          return svcId && serviceMap[svcId.toString()];
+        })
+        .map((ls) => {
+          const svcId = ls.serviceId || ls.service;
+          const svc = serviceMap[svcId.toString()];
+          const numberOfTimes = ls.numberOfTimes ? Number(ls.numberOfTimes) : 1;
+          const scheduledDates = Array.isArray(ls.scheduledDates)
+            ? ls.scheduledDates.map((d) => new Date(d))
+            : [];
+          return {
+            service: svc._id,
+            serviceName: ls.serviceName || svc.name,
+            numberOfTimes,
+            scheduledDates,
+          };
+        });
     }
 
     const asset = await AMCAsset.create({
@@ -66,12 +92,12 @@ const addAsset = async (req, res, next) => {
       description: description ? description.trim() : undefined,
       images,
       amcContract: id,
-      linkedServices: parsedLinkedServices,
+      linkedServices: validLinkedServices,
     });
 
     const populatedAsset = await AMCAsset.findById(asset._id).populate(
-      "linkedServices",
-      "service_name status"
+      "linkedServices.service",
+      "name thumbnailUri imageUri"
     );
 
     return sendCreated(res, "Asset added successfully", populatedAsset);
@@ -92,7 +118,7 @@ const getAssets = async (req, res, next) => {
     }
 
     const assets = await AMCAsset.find({ amcContract: id })
-      .populate("linkedServices", "service_name status")
+      .populate("linkedServices.service", "name thumbnailUri imageUri")
       .sort({ createdAt: -1 });
 
     return sendSuccess(res, 200, "Assets retrieved successfully", assets);
@@ -150,8 +176,8 @@ const updateAsset = async (req, res, next) => {
     await asset.save();
 
     const populatedAsset = await AMCAsset.findById(asset._id).populate(
-      "linkedServices",
-      "service_name status"
+      "linkedServices.service",
+      "name thumbnailUri imageUri"
     );
 
     return sendSuccess(res, 200, "Asset updated successfully", populatedAsset);
@@ -189,7 +215,7 @@ const deleteAsset = async (req, res, next) => {
   }
 };
 
-// @desc    Link/unlink services to an asset
+// @desc    Link/update services on an asset (with scheduling)
 // @route   PUT /api/amc-contracts/:id/assets/:assetId/link-services
 // @access  Admin
 const linkServices = async (req, res, next) => {
@@ -209,22 +235,47 @@ const linkServices = async (req, res, next) => {
       return sendError(res, 404, "Asset not found", "ASSET_NOT_FOUND");
     }
 
-    // Validate linked services belong to this contract
-    let validServiceIds = [];
+    // Validate and build linked services from active Service catalog
+    let validLinkedServices = [];
     if (Array.isArray(linkedServices) && linkedServices.length > 0) {
-      const validServices = await ServiceRequest.find({
-        _id: { $in: linkedServices },
-        amcContract: id,
-      });
-      validServiceIds = validServices.map((s) => s._id);
+      const serviceIds = linkedServices.map((ls) => ls.serviceId || ls.service).filter(Boolean);
+      const activeServices = await Service.find({
+        _id: { $in: serviceIds },
+        isActive: true,
+      }).select("name");
+
+      const serviceMap = {};
+      for (const svc of activeServices) {
+        serviceMap[svc._id.toString()] = svc;
+      }
+
+      validLinkedServices = linkedServices
+        .filter((ls) => {
+          const svcId = ls.serviceId || ls.service;
+          return svcId && serviceMap[svcId.toString()];
+        })
+        .map((ls) => {
+          const svcId = ls.serviceId || ls.service;
+          const svc = serviceMap[svcId.toString()];
+          const numberOfTimes = ls.numberOfTimes ? Number(ls.numberOfTimes) : 1;
+          const scheduledDates = Array.isArray(ls.scheduledDates)
+            ? ls.scheduledDates.map((d) => new Date(d))
+            : [];
+          return {
+            service: svc._id,
+            serviceName: ls.serviceName || svc.name,
+            numberOfTimes,
+            scheduledDates,
+          };
+        });
     }
 
-    asset.linkedServices = validServiceIds;
+    asset.linkedServices = validLinkedServices;
     await asset.save();
 
     const populatedAsset = await AMCAsset.findById(asset._id).populate(
-      "linkedServices",
-      "service_name status"
+      "linkedServices.service",
+      "name thumbnailUri imageUri"
     );
 
     return sendSuccess(
