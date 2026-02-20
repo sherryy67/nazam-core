@@ -389,7 +389,7 @@ const getUserAMCContracts = async (req, res, next) => {
         .populate({
           path: "serviceRequests",
           select:
-            "service_name service_id category_name status requested_date total_price paymentType milestones",
+            "service_name service_id category_name status requested_date total_price paymentType milestones numberOfTimes scheduledDates number_of_units isCustomService customServiceName",
         })
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -560,7 +560,7 @@ const updateAMCContractDetails = async (req, res, next) => {
     const populatedContract = await AMCContract.findById(id).populate({
       path: "serviceRequests",
       select:
-        "service_name service_id category_name status requested_date number_of_units",
+        "service_name service_id category_name status requested_date number_of_units numberOfTimes scheduledDates isCustomService customServiceName",
     });
 
     return sendSuccess(res, 200, "AMC contract details updated successfully", {
