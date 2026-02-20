@@ -9,6 +9,7 @@ const {
   updateAMCContractStatus,
   updateAMCContractDetails,
 } = require("../controllers/amcContractController");
+const amcAssetRoutes = require("./amcAssets");
 
 const router = express.Router();
 
@@ -236,5 +237,8 @@ router.put("/:id/status", protect, isAdmin, updateAMCContractStatus);
  *         description: Contract details updated successfully
  */
 router.put("/:id", protect, isAdmin, updateAMCContractDetails);
+
+// Mount asset sub-routes
+router.use("/:id/assets", amcAssetRoutes);
 
 module.exports = router;

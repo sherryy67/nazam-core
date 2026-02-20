@@ -79,9 +79,10 @@ const createS3Client = () => {
 /**
  * Upload a file to AWS S3
  * @param {Object} file - File object from multer
+ * @param {string} folder - Folder/prefix in the S3 bucket (default: 'uploads')
  * @returns {Promise<string>} - The public URL of the uploaded file
  */
-const uploadToS3 = async (file) => {
+const uploadToS3 = async (file, folder = 'uploads') => {
   let s3Client;
   
   try {
@@ -91,7 +92,7 @@ const uploadToS3 = async (file) => {
     // Generate unique key with timestamp and original filename
     const timestamp = Date.now();
     const fileName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_'); // Sanitize filename
-    const key = `uploads/${timestamp}-${fileName}`;
+    const key = `${folder}/${timestamp}-${fileName}`;
 
     const credentials = getCredentials();
 
