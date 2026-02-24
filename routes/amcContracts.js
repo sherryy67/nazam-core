@@ -1,6 +1,6 @@
 const express = require("express");
 const { protect } = require("../middlewares/auth");
-const { isAdmin } = require("../middlewares/roleAuth");
+const { isAdmin, hasPermission } = require("../middlewares/roleAuth");
 const {
   submitAMCContract,
   getAMCContract,
@@ -168,7 +168,7 @@ router.get("/:id", getAMCContract);
  *       200:
  *         description: AMC contracts retrieved successfully
  */
-router.get("/", protect, isAdmin, getAllAMCContracts);
+router.get("/", protect, hasPermission('amc_contracts:read'), getAllAMCContracts);
 
 /**
  * @swagger
@@ -200,7 +200,7 @@ router.get("/", protect, isAdmin, getAllAMCContracts);
  *       200:
  *         description: Status updated successfully
  */
-router.put("/:id/status", protect, isAdmin, updateAMCContractStatus);
+router.put("/:id/status", protect, hasPermission('amc_contracts:write'), updateAMCContractStatus);
 
 /**
  * @swagger
@@ -237,10 +237,10 @@ router.put("/:id/status", protect, isAdmin, updateAMCContractStatus);
  *       200:
  *         description: Contract details updated successfully
  */
-router.put("/:id", protect, isAdmin, updateAMCContractDetails);
+router.put("/:id", protect, hasPermission('amc_contracts:write'), updateAMCContractDetails);
 
 // Update a service request's scheduling within a contract (admin only)
-router.put("/:id/service-requests/:srId", protect, isAdmin, updateContractServiceRequest);
+router.put("/:id/service-requests/:srId", protect, hasPermission('amc_contracts:write'), updateContractServiceRequest);
 
 // Mount asset sub-routes
 router.use("/:id/assets", amcAssetRoutes);

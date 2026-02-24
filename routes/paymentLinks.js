@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, param } = require('express-validator');
 const { protect } = require('../middlewares/auth');
-const { isAdmin } = require('../middlewares/roleAuth');
+const { isAdmin, hasPermission } = require('../middlewares/roleAuth');
 const {
   generatePaymentLink,
   getPaymentLinkDetails,
@@ -49,7 +49,7 @@ const router = express.Router();
 router.post(
   '/admin/payments/generate-link',
   protect,
-  isAdmin,
+  hasPermission('payments:write'),
   [
     body('serviceRequestId')
       .notEmpty()
@@ -91,7 +91,7 @@ router.post(
 router.post(
   '/admin/payments/invalidate-link',
   protect,
-  isAdmin,
+  hasPermission('payments:write'),
   [
     body('serviceRequestId')
       .notEmpty()
@@ -132,7 +132,7 @@ router.post(
 router.post(
   '/admin/payments/regenerate-link',
   protect,
-  isAdmin,
+  hasPermission('payments:write'),
   [
     body('serviceRequestId')
       .notEmpty()
@@ -169,7 +169,7 @@ router.post(
 router.get(
   '/admin/payments/link-status/:serviceRequestId',
   protect,
-  isAdmin,
+  hasPermission('payments:read'),
   [
     param('serviceRequestId')
       .notEmpty()

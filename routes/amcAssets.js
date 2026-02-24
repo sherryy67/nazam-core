@@ -1,7 +1,7 @@
 const express = require("express");
 const multer = require("multer");
 const { protect } = require("../middlewares/auth");
-const { isAdmin } = require("../middlewares/roleAuth");
+const { isAdmin, hasPermission } = require("../middlewares/roleAuth");
 const {
   addAsset,
   getAssets,
@@ -29,11 +29,11 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 });
 
-// All routes are admin-protected
-router.post("/", protect, isAdmin, upload.array("images", 10), addAsset);
-router.get("/", protect, isAdmin, getAssets);
-router.put("/:assetId", protect, isAdmin, upload.array("images", 10), updateAsset);
-router.delete("/:assetId", protect, isAdmin, deleteAsset);
-router.put("/:assetId/link-services", protect, isAdmin, linkServices);
+// All routes are permission-protected
+router.post("/", protect, hasPermission('amc_contracts:write'), upload.array("images", 10), addAsset);
+router.get("/", protect, hasPermission('amc_contracts:read'), getAssets);
+router.put("/:assetId", protect, hasPermission('amc_contracts:write'), upload.array("images", 10), updateAsset);
+router.delete("/:assetId", protect, hasPermission('amc_contracts:delete'), deleteAsset);
+router.put("/:assetId/link-services", protect, hasPermission('amc_contracts:write'), linkServices);
 
 module.exports = router;

@@ -1,6 +1,8 @@
 const User = require('../models/User');
 const Vendor = require('../models/Vendor');
 const Admin = require('../models/Admin');
+const Staff = require('../models/Staff');
+const Role = require('../models/Role');
 const OTP = require('../models/OTP');
 const Address = require('../models/Address');
 const { sendSuccess, sendError } = require('../utils/response');
@@ -128,8 +130,8 @@ const login = async (req, res, next) => {
     let userModel;
 
     // Determine which model to use based on role
-    if (role === ROLES.ADMIN) {
-      userModel = Admin;
+    if (role >= 3) {
+      userModel = Staff;
     } else if (role === ROLES.VENDOR) {
       userModel = Vendor;
     } else {
@@ -141,6 +143,11 @@ const login = async (req, res, next) => {
       user = await userModel.findOne({ phoneNumber }).select('+password');
     } else {
       user = await userModel.findOne({ email }).select('+password');
+    }
+
+    // For staff roles, fallback to legacy Admin model if not found in Staff
+    if (!user && role >= 3) {
+      user = await Admin.findOne({ email }).select('+password');
     }
 
     if (!user) {
@@ -187,8 +194,9 @@ const getMe = async (req, res, next) => {
     const userRole = req.user.role;
 
     // Get user from appropriate model based on role
-    if (userRole === ROLES.ADMIN) {
-      user = await Admin.findById(userId);
+    if (ROLES.isStaffRole(userRole)) {
+      user = await Staff.findById(userId);
+      if (!user) user = await Admin.findById(userId); // legacy fallback
     } else if (userRole === ROLES.VENDOR) {
       user = await Vendor.findById(userId);
     } else {
@@ -227,11 +235,17 @@ const updateDetails = async (req, res, next) => {
     const userRole = req.user.role;
 
     // Update user in appropriate model based on role
-    if (userRole === ROLES.ADMIN) {
-      user = await Admin.findByIdAndUpdate(userId, fieldsToUpdate, {
+    if (ROLES.isStaffRole(userRole)) {
+      user = await Staff.findByIdAndUpdate(userId, fieldsToUpdate, {
         new: true,
         runValidators: true
       });
+      if (!user) {
+        user = await Admin.findByIdAndUpdate(userId, fieldsToUpdate, {
+          new: true,
+          runValidators: true
+        });
+      }
     } else if (userRole === ROLES.VENDOR) {
       // For vendors, allow updating more fields
       const vendorFields = {
@@ -283,8 +297,9 @@ const updatePassword = async (req, res, next) => {
     const userRole = req.user.role;
 
     // Get user from appropriate model based on role
-    if (userRole === ROLES.ADMIN) {
-      user = await Admin.findById(userId).select('+password');
+    if (ROLES.isStaffRole(userRole)) {
+      user = await Staff.findById(userId).select('+password');
+      if (!user) user = await Admin.findById(userId).select('+password');
     } else if (userRole === ROLES.VENDOR) {
       user = await Vendor.findById(userId).select('+password');
     } else {
@@ -775,8 +790,24 @@ const sendTokenResponse = async (user, statusCode, res) => {
     userData.approved = user.approved;
     userData.jobService = user.jobService;
     userData.coveredCity = user.coveredCity;
-  } else if (user.role === ROLES.ADMIN) {
+  } else if (ROLES.isStaffRole(user.role)) {
     userData.name = user.name;
+    // Include staff-specific fields for the frontend
+    if (user.roleRef) {
+      const roleDoc = await Role.findById(user.roleRef).lean();
+      if (roleDoc) {
+        userData.staffRole = roleDoc.slug;
+        let perms = roleDoc.permissions || [];
+        // Apply per-user permission overrides
+        if (user.permissionOverrides) {
+          const revoked = user.permissionOverrides.revoke || [];
+          const granted = user.permissionOverrides.grant || [];
+          perms = perms.filter(p => !revoked.includes(p));
+          perms = [...new Set([...perms, ...granted])];
+        }
+        userData.permissions = perms;
+      }
+    }
   } else if (user.role === ROLES.USER) {
     // For users (role 1), include all user fields for consistent response
     userData.name = user.name;
@@ -1264,11 +1295,19 @@ const adminLogin = async (req, res, next) => {
       return sendError(res, 400, 'Please provide an email and password', 'MISSING_CREDENTIALS');
     }
 
-    // Check for admin in Admin model
-    const admin = await Admin.findOne({ email }).select('+password');
+    // Check Staff first, then legacy Admin model
+    let admin = await Staff.findOne({ email }).select('+password');
+    if (!admin) {
+      admin = await Admin.findOne({ email }).select('+password');
+    }
 
     if (!admin) {
       return sendError(res, 401, 'Invalid credentials', 'INVALID_CREDENTIALS');
+    }
+
+    // Check if staff account is deactivated
+    if (admin.isActive === false) {
+      return sendError(res, 403, 'Your account is deactivated, please contact support', 'STAFF_DEACTIVATED');
     }
 
     // Check if password matches
@@ -1296,18 +1335,26 @@ const createAdmin = async (req, res, next) => {
       return sendError(res, 400, 'Name, email, and password are required', 'MISSING_REQUIRED_FIELDS');
     }
 
-    // Check if admin already exists with this email
+    // Check if staff/admin already exists with this email
+    const existingStaff = await Staff.findOne({ email });
     const existingAdmin = await Admin.findOne({ email });
-    if (existingAdmin) {
+    if (existingStaff || existingAdmin) {
       return sendError(res, 409, 'Admin with this email already exists', 'ADMIN_EXISTS');
     }
 
-    // Create new admin
-    const admin = await Admin.create({
+    // Find the super_admin role
+    const superAdminRole = await Role.findOne({ slug: 'super_admin' });
+    if (!superAdminRole) {
+      return sendError(res, 500, 'Super admin role not found. Run seedRoles script first.', 'ROLE_NOT_FOUND');
+    }
+
+    // Create new staff member as Super Admin
+    const admin = await Staff.create({
       name,
       email,
       password,
-      role: ROLES.ADMIN
+      role: ROLES.SUPER_ADMIN,
+      roleRef: superAdminRole._id,
     });
 
     // Remove password from response
