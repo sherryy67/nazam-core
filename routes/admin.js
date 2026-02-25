@@ -5,7 +5,7 @@ const { adminLogin, createAdmin } = require('../controllers/authController');
 const { getEligibleVendors, assignServiceToVendor, unassignServiceFromVendor, getAssignedServices, getAdminDashboard, toggleUserStatus, getAllUsers, adminCreateUser, getUserAddresses, deleteUser } = require('../controllers/adminController');
 const { updateVendorAvailability } = require('../controllers/vendorController');
 const { protect } = require('../middlewares/auth');
-const { isAdmin } = require('../middlewares/roleAuth');
+const { isAdmin, hasPermission } = require('../middlewares/roleAuth');
 const uploadVideo = require('../middlewares/uploadVideo');
 const { createVideo, getAllVideos, getVideoById, deleteVideo } = require('../controllers/videoController');
 
@@ -428,7 +428,7 @@ router.post('/create', adminCreateValidation, createAdmin);
  *       403:
  *         description: Forbidden - admin access required
  */
-router.get('/users', protect, isAdmin, getAllUsers);
+router.get('/users', protect, hasPermission('users:read'), getAllUsers);
 
 /**
  * @swagger
@@ -506,7 +506,7 @@ const toggleUserStatusValidation = [
     .withMessage('isActive must be a boolean value')
 ];
 
-router.patch('/users/:userId/status', protect, isAdmin, toggleUserStatusValidation, toggleUserStatus);
+router.patch('/users/:userId/status', protect, hasPermission('users:write'), toggleUserStatusValidation, toggleUserStatus);
 
 /**
  * @swagger
@@ -644,7 +644,7 @@ router.patch('/users/:userId/status', protect, isAdmin, toggleUserStatusValidati
  *                   type: string
  *                   example: "NOT_FOUND"
  */
-router.get('/users/:userId/addresses', protect, isAdmin, getUserAddresses);
+router.get('/users/:userId/addresses', protect, hasPermission('users:read'), getUserAddresses);
 
 /**
  * @swagger
@@ -730,7 +730,7 @@ router.get('/users/:userId/addresses', protect, isAdmin, getUserAddresses);
  *                   type: string
  *                   example: "NOT_FOUND"
  */
-router.delete('/users/:userId', protect, isAdmin, deleteUser);
+router.delete('/users/:userId', protect, hasPermission('users:delete'), deleteUser);
 
 // Validation for admin create user
 const adminCreateUserValidation = [
@@ -878,7 +878,7 @@ const adminCreateUserValidation = [
  *       500:
  *         description: Server error
  */
-router.post('/users/create', protect, isAdmin, adminCreateUserValidation, adminCreateUser);
+router.post('/users/create', protect, hasPermission('users:write'), adminCreateUserValidation, adminCreateUser);
 
 router.get('/status', (req, res) => {
   sendSuccess(res, 200, 'Admin module is available', {
@@ -1057,7 +1057,7 @@ router.get('/status', (req, res) => {
  *       401:
  *         description: Unauthorized - admin access required
  */
-router.get('/eligible-vendors/:serviceId', protect, isAdmin, getEligibleVendors);
+router.get('/eligible-vendors/:serviceId', protect, hasPermission('vendors:read'), getEligibleVendors);
 
 /**
  * @swagger
@@ -1200,7 +1200,7 @@ router.get('/eligible-vendors/:serviceId', protect, isAdmin, getEligibleVendors)
  *       401:
  *         description: Unauthorized - admin access required
  */
-router.post('/assign-service', protect, isAdmin, assignServiceToVendor);
+router.post('/assign-service', protect, hasPermission('vendors:assign'), assignServiceToVendor);
 
 /**
  * @swagger
@@ -1302,7 +1302,7 @@ router.post('/assign-service', protect, isAdmin, assignServiceToVendor);
  *       401:
  *         description: Unauthorized - admin access required
  */
-router.delete('/unassign-service/:serviceId', protect, isAdmin, unassignServiceFromVendor);
+router.delete('/unassign-service/:serviceId', protect, hasPermission('vendors:assign'), unassignServiceFromVendor);
 
 /**
  * @swagger
@@ -1430,7 +1430,7 @@ router.delete('/unassign-service/:serviceId', protect, isAdmin, unassignServiceF
  *       401:
  *         description: Unauthorized - admin access required
  */
-router.get('/assigned-services', protect, isAdmin, getAssignedServices);
+router.get('/assigned-services', protect, hasPermission('vendors:read'), getAssignedServices);
 
 /**
  * @swagger
@@ -1596,7 +1596,7 @@ router.get('/assigned-services', protect, isAdmin, getAssignedServices);
  *       401:
  *         description: Unauthorized - admin access required
  */
-router.put('/vendor/:vendorId/availability', protect, isAdmin, updateVendorAvailability);
+router.put('/vendor/:vendorId/availability', protect, hasPermission('vendors:write'), updateVendorAvailability);
 
 /**
  * @swagger
@@ -1696,7 +1696,7 @@ router.put('/vendor/:vendorId/availability', protect, isAdmin, updateVendorAvail
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.get('/dashboard', protect, isAdmin, getAdminDashboard);
+router.get('/dashboard', protect, hasPermission('dashboard:read'), getAdminDashboard);
 
 // Video routes validation
 const createVideoValidation = [
@@ -1785,7 +1785,7 @@ const createVideoValidation = [
 router.post(
   '/videos',
   protect,
-  isAdmin,
+  hasPermission('videos:write'),
   uploadVideo,
   createVideoValidation,
   createVideo
@@ -1815,7 +1815,7 @@ router.post(
  *       500:
  *         description: Server error
  */
-router.get('/videos', protect, isAdmin, getAllVideos);
+router.get('/videos', protect, hasPermission('videos:read'), getAllVideos);
 
 /**
  * @swagger
@@ -1846,7 +1846,7 @@ router.get('/videos', protect, isAdmin, getAllVideos);
  *       500:
  *         description: Server error
  */
-router.get('/videos/:id', protect, isAdmin, getVideoById);
+router.get('/videos/:id', protect, hasPermission('videos:read'), getVideoById);
 
 /**
  * @swagger
@@ -1877,6 +1877,6 @@ router.get('/videos/:id', protect, isAdmin, getVideoById);
  *       500:
  *         description: Server error
  */
-router.delete('/videos/:id', protect, isAdmin, deleteVideo);
+router.delete('/videos/:id', protect, hasPermission('videos:delete'), deleteVideo);
 
 module.exports = router;

@@ -1,7 +1,7 @@
 const express = require('express');
 const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
-const { authorize, isAdmin } = require('../middlewares/roleAuth');
+const { authorize, isAdmin, hasPermission } = require('../middlewares/roleAuth');
 const ROLES = require('../constants/roles');
 const { createService, getServices, getServicesPaginated, getServiceById, deleteService, toggleServiceStatus, getAllActiveServices, getServiceSubServices, getRelatedServices, setFeaturedServices, getFeaturedServices, getResidentialServices, getCommercialServices, getHomeCategoryServices, getPopularServices, searchActiveServicesForAsset, upload } = require('../controllers/serviceController');
 
@@ -265,7 +265,7 @@ const setFeaturedServicesValidation = [
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.post('/featured', protect, isAdmin, setFeaturedServicesValidation, setFeaturedServices);
+router.post('/featured', protect, hasPermission('services:write'), setFeaturedServicesValidation, setFeaturedServices);
 
 /**
  * @swagger
@@ -530,7 +530,7 @@ router.get('/commercial', getCommercialServices);
  *       500:
  *         description: Server error
  */
-router.post('/', protect, isAdmin, upload.fields([
+router.post('/', protect, hasPermission('services:write'), upload.fields([
   { name: 'serviceImage', maxCount: 1 },
   { name: 'thumbnail', maxCount: 1 },
   { name: 'service_icon', maxCount: 1 },
@@ -736,7 +736,7 @@ router.get('/', protect, getServices);
 router.get('/active', getAllActiveServices);
 
 // Search active services for asset linking (admin, keyword-based, lightweight)
-router.get('/search-active', protect, isAdmin, searchActiveServicesForAsset);
+router.get('/search-active', protect, hasPermission('services:read'), searchActiveServicesForAsset);
 
 /**
  * @swagger
@@ -1253,7 +1253,7 @@ router.post('/paginated', protect, getServicesPaginatedValidation, getServicesPa
  *       404:
  *         description: Service not found
  */
-router.patch('/:id/status', protect, isAdmin, toggleServiceStatus);
+router.patch('/:id/status', protect, hasPermission('services:write'), toggleServiceStatus);
 
 /**
  * @swagger
@@ -1320,6 +1320,6 @@ router.patch('/:id/status', protect, isAdmin, toggleServiceStatus);
  *       404:
  *         description: Service not found
  */
-router.delete('/:id', protect, isAdmin, deleteService);
+router.delete('/:id', protect, hasPermission('services:delete'), deleteService);
 
 module.exports = router;

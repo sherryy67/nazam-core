@@ -1,7 +1,7 @@
 const express = require('express');
 const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
-const { isAdmin } = require('../middlewares/roleAuth');
+const { isAdmin, hasPermission } = require('../middlewares/roleAuth');
 const uploadBanner = require('../middlewares/uploadBanner');
 const {
   createBanner,
@@ -132,7 +132,7 @@ const updateSortOrderValidation = [
 router.post(
   '/banner',
   protect,
-  isAdmin,
+  hasPermission('banners:write'),
   uploadBanner,
   createBannerValidation,
   createBanner
@@ -223,7 +223,7 @@ router.get('/banner', getBanners);
 router.patch(
   '/banner/sort-order',
   protect,
-  isAdmin,
+  hasPermission('banners:write'),
   updateSortOrderValidation,
   updateSortOrder
 );
@@ -257,7 +257,7 @@ router.patch(
  *       500:
  *         description: Server error
  */
-router.delete('/banner/:bannerId', protect, isAdmin, deleteBanner);
+router.delete('/banner/:bannerId', protect, hasPermission('banners:delete'), deleteBanner);
 
 module.exports = router;
 

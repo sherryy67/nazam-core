@@ -19,6 +19,8 @@ const marketingRoutes = require("./marketing");
 const paymentLinkRoutes = require("./paymentLinks");
 const milestoneRoutes = require("./milestones");
 const amcContractRoutes = require("./amcContracts");
+const roleRoutes = require("./roles");
+const staffRoutes = require("./staff");
 const { sendSuccess } = require("../utils/response");
 const {
   getCategoryServiceSummary,
@@ -47,6 +49,8 @@ router.use("/payments", paymentRoutes);
 router.use("/marketing", marketingRoutes);
 router.use("/milestones", milestoneRoutes);
 router.use("/amc-contracts", amcContractRoutes);
+router.use("/roles", roleRoutes);
+router.use("/staff", staffRoutes);
 router.use("/", paymentLinkRoutes);
 router.use("/", bannerRoutes);
 

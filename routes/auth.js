@@ -20,7 +20,7 @@ const {
   upload
 } = require('../controllers/authController');
 const { protect } = require('../middlewares/auth');
-const { authorize, isAdmin } = require('../middlewares/roleAuth');
+const { authorize, isAdmin, hasPermission } = require('../middlewares/roleAuth');
 
 const router = express.Router();
 
@@ -679,7 +679,7 @@ router.put('/updatepassword', protect, updatePasswordValidation, updatePassword)
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/admin/create-vendor', protect, isAdmin, upload.single('profilePic'), vendorRegisterValidation, adminCreateVendor);
+router.post('/admin/create-vendor', protect, hasPermission('vendors:write'), upload.single('profilePic'), vendorRegisterValidation, adminCreateVendor);
 
 /**
  * @swagger
@@ -801,7 +801,7 @@ router.post('/admin/create-vendor', protect, isAdmin, upload.single('profilePic'
  *       500:
  *         description: Server error
  */
-router.get('/admin/vendors', protect, isAdmin, getAllVendors);
+router.get('/admin/vendors', protect, hasPermission('vendors:read'), getAllVendors);
 
 /**
  * @swagger

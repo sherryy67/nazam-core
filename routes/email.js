@@ -5,7 +5,7 @@ const {
   testEmail,
 } = require("../controllers/emailController");
 const { protect } = require("../middlewares/auth");
-const { isAdmin } = require("../middlewares/roleAuth");
+const { isAdmin, hasPermission } = require("../middlewares/roleAuth");
 
 const router = express.Router();
 
@@ -88,7 +88,7 @@ const testEmailValidation = [
     .withMessage("Please provide a valid email address"),
 ];
 
-router.post("/test", protect, isAdmin, testEmailValidation, testEmail);
+router.post("/test", protect, hasPermission('settings:write'), testEmailValidation, testEmail);
 
 /**
  * @swagger
@@ -203,7 +203,7 @@ const sendMarketingEmailValidation = [
 router.post(
   "/marketing",
   protect,
-  isAdmin,
+  hasPermission('marketing:write'),
   sendMarketingEmailValidation,
   sendMarketingEmail,
 );

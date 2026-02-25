@@ -1,7 +1,7 @@
 const express = require('express');
 const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
-const { authorize, isAdmin } = require('../middlewares/roleAuth');
+const { authorize, isAdmin, hasPermission } = require('../middlewares/roleAuth');
 const {
   submitServiceRequest,
   adminSubmitServiceRequest,
@@ -287,7 +287,7 @@ router.post('/submit-service-requests', submitServiceRequestValidation, submitSe
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.post('/admin-submit', protect, isAdmin, adminSubmitServiceRequest);
+router.post('/admin-submit', protect, hasPermission('orders:write'), adminSubmitServiceRequest);
 
 /**
  * @swagger
@@ -401,7 +401,7 @@ router.post('/admin-submit', protect, isAdmin, adminSubmitServiceRequest);
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.get('/', protect, isAdmin, getServiceRequests);
+router.get('/', protect, hasPermission('orders:read'), getServiceRequests);
 
 /**
  * @swagger
@@ -462,7 +462,7 @@ router.get('/', protect, isAdmin, getServiceRequests);
  *       404:
  *         description: Service request not found
  */
-router.put('/:id/status', protect, isAdmin, updateStatusValidation, updateServiceRequestStatus);
+router.put('/:id/status', protect, hasPermission('orders:update'), updateStatusValidation, updateServiceRequestStatus);
 
 /**
  * @swagger
@@ -533,7 +533,7 @@ router.put('/:id/status', protect, isAdmin, updateStatusValidation, updateServic
  *       404:
  *         description: Service request not found
  */
-router.put('/:id/quote', protect, isAdmin, updateQuotationPrice);
+router.put('/:id/quote', protect, hasPermission('orders:update'), updateQuotationPrice);
 
 /**
  * @swagger
@@ -611,7 +611,7 @@ router.put('/:id/quote', protect, isAdmin, updateQuotationPrice);
  *       404:
  *         description: Service request not found
  */
-router.put('/:id/payment-status', protect, isAdmin, updatePaymentStatus);
+router.put('/:id/payment-status', protect, hasPermission('payments:write'), updatePaymentStatus);
 
 /**
  * @swagger
@@ -737,9 +737,9 @@ router.put('/:id/payment-status', protect, isAdmin, updatePaymentStatus);
  *       404:
  *         description: No service requests found with provided IDs
  */
-router.delete('/bulk-delete', protect, isAdmin, bulkDeleteServiceRequests);
+router.delete('/bulk-delete', protect, hasPermission('orders:delete'), bulkDeleteServiceRequests);
 
-router.delete('/:id', protect, isAdmin, deleteServiceRequest);
+router.delete('/:id', protect, hasPermission('orders:delete'), deleteServiceRequest);
 
 /**
  * @swagger
