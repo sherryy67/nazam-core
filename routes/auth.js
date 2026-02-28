@@ -250,17 +250,43 @@ const createAccountValidation = [
 
 // Password reset validation rules
 const forgotPasswordValidation = [
+  body()
+    .custom((value, { req }) => {
+      if (!req.body.email && !req.body.phoneNumber) {
+        throw new Error('Either email or phone number is required');
+      }
+      return true;
+    }),
   body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Please provide a valid email address')
-];
-
-const verifyResetOTPValidation = [
-  body('email')
+    .optional()
     .isEmail()
     .normalizeEmail()
     .withMessage('Please provide a valid email address'),
+  body('phoneNumber')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number cannot be empty')
+];
+
+const verifyResetOTPValidation = [
+  body()
+    .custom((value, { req }) => {
+      if (!req.body.email && !req.body.phoneNumber) {
+        throw new Error('Either email or phone number is required');
+      }
+      return true;
+    }),
+  body('email')
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
+  body('phoneNumber')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number cannot be empty'),
   body('otpCode')
     .isLength({ min: 6, max: 6 })
     .isNumeric()
@@ -268,10 +294,23 @@ const verifyResetOTPValidation = [
 ];
 
 const resetPasswordValidation = [
+  body()
+    .custom((value, { req }) => {
+      if (!req.body.email && !req.body.phoneNumber) {
+        throw new Error('Either email or phone number is required');
+      }
+      return true;
+    }),
   body('email')
+    .optional()
     .isEmail()
     .normalizeEmail()
     .withMessage('Please provide a valid email address'),
+  body('phoneNumber')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number cannot be empty'),
   body('newPassword')
     .isLength({ min: 6 })
     .withMessage('New password must be at least 6 characters long')
