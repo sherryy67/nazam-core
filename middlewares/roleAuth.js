@@ -1,11 +1,16 @@
 const { sendError } = require('../utils/response');
 const ROLES = require('../constants/roles');
 
-// Grant access to specific roles
+// Grant access to specific roles (Super Admin always bypasses)
 const authorize = (...roles) => {
   return (req, res, next) => {
     if (!req.user) {
       return sendError(res, 401, 'Not authorized to access this route', 'NO_USER');
+    }
+
+    // Super admin bypasses all role checks
+    if (ROLES.isSuperAdmin(req.user.role)) {
+      return next();
     }
 
     if (!roles.includes(req.user.role)) {

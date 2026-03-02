@@ -389,7 +389,7 @@ const getUserAMCContracts = async (req, res, next) => {
         .populate({
           path: "serviceRequests",
           select:
-            "service_name service_id category_name status requested_date total_price paymentType milestones numberOfTimes scheduledDates number_of_units isCustomService customServiceName",
+            "service_name service_id category_name status requested_date total_price paymentType milestones numberOfTimes scheduledDates number_of_units isCustomService customServiceName quotedPrice quotationNotes quotationRespondedAt",
         })
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -625,7 +625,7 @@ const updateContractServiceRequest = async (req, res, next) => {
       serviceRequest.number_of_units = Number(number_of_units);
     }
     if (status !== undefined) {
-      const validStatuses = ["Pending", "Quoted", "Assigned", "Accepted", "InProgress", "Completed", "Cancelled"];
+      const validStatuses = ["Pending", "Quoted", "Assigned", "Accepted", "InProgress", "Completed", "Cancelled", "Rejected"];
       if (!validStatuses.includes(status)) {
         return sendError(
           res,
@@ -752,6 +752,145 @@ const rescheduleServiceRequest = async (req, res, next) => {
   }
 };
 
+// @desc    Admin sets quotation price for a service request & emails the customer
+// @route   PUT /api/amc-contracts/:id/service-requests/:srId/quote
+// @access  Admin
+const setQuotationPrice = async (req, res, next) => {
+  try {
+    const { id, srId } = req.params;
+    const { quotedPrice, quotationNotes } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(srId)) {
+      return sendError(res, 400, "Invalid ID", "INVALID_ID");
+    }
+
+    if (quotedPrice === undefined || quotedPrice === null || Number(quotedPrice) <= 0) {
+      return sendError(res, 400, "quotedPrice must be a positive number", "INVALID_PRICE");
+    }
+
+    // Verify contract contains this service request
+    const contract = await AMCContract.findById(id);
+    if (!contract) {
+      return sendError(res, 404, "AMC Contract not found", "CONTRACT_NOT_FOUND");
+    }
+
+    const isLinked = contract.serviceRequests.some((sr) => sr.toString() === srId.toString());
+    if (!isLinked) {
+      return sendError(res, 404, "Service request not found in this contract", "SR_NOT_IN_CONTRACT");
+    }
+
+    const serviceRequest = await ServiceRequest.findById(srId);
+    if (!serviceRequest) {
+      return sendError(res, 404, "Service request not found", "SR_NOT_FOUND");
+    }
+
+    // Update pricing and status
+    serviceRequest.quotedPrice = Number(quotedPrice);
+    serviceRequest.quotationNotes = quotationNotes ? quotationNotes.trim() : "";
+    serviceRequest.status = "Quoted";
+    await serviceRequest.save();
+
+    // Build the review link for the email
+    const frontendUrl = process.env.FRONTEND_URL || "https://zushh.com";
+    const reviewLink = `${frontendUrl}/orders?contractId=${id}&srId=${srId}`;
+
+    // Send quotation email to user
+    try {
+      if (emailService.isValidEmail(serviceRequest.user_email)) {
+        await emailService.sendQuotationPriceEmail(
+          serviceRequest.user_email,
+          { ...serviceRequest.toObject(), reviewLink },
+          Number(quotedPrice),
+          quotationNotes || null
+        );
+      }
+    } catch (emailError) {
+      console.error("Failed to send quotation email:", emailError.message);
+    }
+
+    return sendSuccess(res, 200, "Quotation price set and email sent to customer", serviceRequest);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    User accepts or rejects a quotation
+// @route   PUT /api/amc-contracts/:id/service-requests/:srId/respond
+// @access  Protected (contract owner)
+const respondToQuotation = async (req, res, next) => {
+  try {
+    const { id, srId } = req.params;
+    const { action } = req.body; // "accept" or "reject"
+
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(srId)) {
+      return sendError(res, 400, "Invalid ID", "INVALID_ID");
+    }
+
+    if (!action || !["accept", "reject"].includes(action)) {
+      return sendError(res, 400, 'action must be "accept" or "reject"', "INVALID_ACTION");
+    }
+
+    // Verify the contract exists
+    const contract = await AMCContract.findById(id);
+    if (!contract) {
+      return sendError(res, 404, "AMC Contract not found", "CONTRACT_NOT_FOUND");
+    }
+
+    // Verify ownership
+    const userId = req.user ? (req.user.id || req.user._id) : null;
+    if (userId && contract.user && contract.user.toString() !== userId.toString()) {
+      const userEmail = req.user?.email;
+      const userPhone = req.user?.phoneNumber;
+      const matchesContact =
+        (userEmail && contract.contactEmail === userEmail.toLowerCase()) ||
+        (userPhone && contract.contactPhone === userPhone);
+      if (!matchesContact) {
+        return sendError(res, 403, "Not authorized to respond to this quotation", "FORBIDDEN");
+      }
+    }
+
+    const isLinked = contract.serviceRequests.some((sr) => sr.toString() === srId.toString());
+    if (!isLinked) {
+      return sendError(res, 404, "Service request not found in this contract", "SR_NOT_IN_CONTRACT");
+    }
+
+    const serviceRequest = await ServiceRequest.findById(srId);
+    if (!serviceRequest) {
+      return sendError(res, 404, "Service request not found", "SR_NOT_FOUND");
+    }
+
+    if (serviceRequest.status !== "Quoted") {
+      return sendError(res, 400, "Can only respond to quotations with status 'Quoted'", "INVALID_STATUS");
+    }
+
+    serviceRequest.status = action === "accept" ? "Accepted" : "Rejected";
+    serviceRequest.quotationRespondedAt = new Date();
+    await serviceRequest.save();
+
+    // Notify admin about the response
+    try {
+      const adminEmail = process.env.ADMIN_EMAIL || "info@zushh.com";
+      if (emailService.isValidEmail(adminEmail)) {
+        await emailService.sendAdminNotificationEmail(adminEmail, {
+          ...serviceRequest.toObject(),
+          service_name: `Quotation ${action === "accept" ? "ACCEPTED" : "REJECTED"}: ${serviceRequest.service_name} (AMC: ${contract.contractNumber})`,
+        });
+      }
+    } catch (emailError) {
+      console.error("Failed to send admin notification:", emailError.message);
+    }
+
+    return sendSuccess(
+      res,
+      200,
+      `Quotation ${action === "accept" ? "accepted" : "rejected"} successfully`,
+      serviceRequest
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   submitAMCContract,
   getAMCContract,
@@ -761,4 +900,6 @@ module.exports = {
   updateAMCContractDetails,
   updateContractServiceRequest,
   rescheduleServiceRequest,
+  setQuotationPrice,
+  respondToQuotation,
 };

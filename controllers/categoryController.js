@@ -462,7 +462,7 @@ const getMobileHomeContent = async (req, res, next) => {
 
       if (serviceType === "commercial") {
         commercialBanner.push(bannerObj);
-      } else if (serviceType === "residential") {
+      } else if (serviceType === "residential" || !serviceType) {
         residentialBanner.push(bannerObj);
       }
     });
@@ -481,11 +481,11 @@ const getMobileHomeContent = async (req, res, next) => {
       .slice(0, 9)
       .map(transformService);
 
-    /* ---------------- Residential services ---------------- */
+    /* ---------------- Residential services (include null/missing serviceType) ---------------- */
 
     const residentialServicesData = await Service.find({
       isActive: true,
-      serviceType: "residential",
+      $or: [{ serviceType: "residential" }, { serviceType: { $exists: false } }, { serviceType: null }],
     })
       .populate("category_id", "_id name")
       .sort({ name: 1 })
@@ -704,19 +704,18 @@ module.exports = {
 
       // Helper function to process services by serviceType
       const processServicesByType = async (serviceType) => {
+        // Include services with missing/null serviceType as "residential"
+        const typeFilter = serviceType === "residential"
+          ? { $or: [{ serviceType: "residential" }, { serviceType: { $exists: false } }, { serviceType: null }] }
+          : { serviceType: serviceType };
+
         const results = await Promise.all(
           categories.map(async (category) => {
+            const baseFilter = { category_id: category._id, isActive: true };
+            const query = { ...baseFilter, ...typeFilter };
             const [totalServices, services] = await Promise.all([
-              Service.countDocuments({
-                category_id: category._id,
-                isActive: true,
-                serviceType: serviceType,
-              }),
-              Service.find({
-                category_id: category._id,
-                isActive: true,
-                serviceType: serviceType,
-              })
+              Service.countDocuments(query),
+              Service.find(query)
                 .sort({ createdAt: -1 })
                 .select({
                   _id: 1,

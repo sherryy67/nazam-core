@@ -1742,7 +1742,12 @@ const getAllActiveServices = async (req, res, next) => {
           "INVALID_SERVICE_TYPE",
         );
       }
-      query.serviceType = serviceType.toLowerCase();
+      // Include services with missing/null serviceType as "residential"
+      if (serviceType.toLowerCase() === "residential") {
+        query.$or = [{ serviceType: "residential" }, { serviceType: { $exists: false } }, { serviceType: null }];
+      } else {
+        query.serviceType = serviceType.toLowerCase();
+      }
     }
 
     // Add category filter if provided (support both 'category' and 'category_id' for flexibility)
@@ -2147,8 +2152,8 @@ const getResidentialServices = async (req, res, next) => {
       }
     }
 
-    // Build query
-    const query = { isActive: true, serviceType: "residential" };
+    // Build query — include services with missing/null serviceType as "residential"
+    const query = { isActive: true, $or: [{ serviceType: "residential" }, { serviceType: { $exists: false } }, { serviceType: null }] };
 
     // Add category filter if provided
     if (category) {
@@ -2469,7 +2474,7 @@ module.exports = {
         .map(transformService);
 
       const residentialServices = services
-        .filter((svc) => svc.serviceType === "residential")
+        .filter((svc) => !svc.serviceType || svc.serviceType === "residential")
         .map(transformService);
 
       // Fetch banners

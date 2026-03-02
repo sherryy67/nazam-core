@@ -10,6 +10,8 @@ const {
   updateAMCContractDetails,
   updateContractServiceRequest,
   rescheduleServiceRequest,
+  setQuotationPrice,
+  respondToQuotation,
 } = require("../controllers/amcContractController");
 const amcAssetRoutes = require("./amcAssets");
 
@@ -245,6 +247,12 @@ router.put("/:id/service-requests/:srId", protect, hasPermission('amc_contracts:
 
 // User reschedule a service request within their AMC contract
 router.put("/:id/service-requests/:srId/reschedule", protect, rescheduleServiceRequest);
+
+// Admin sets quotation price for a service request (sends email to customer)
+router.put("/:id/service-requests/:srId/quote", protect, hasPermission('amc_contracts:write'), setQuotationPrice);
+
+// User accepts or rejects a quotation
+router.put("/:id/service-requests/:srId/respond", protect, respondToQuotation);
 
 // Mount asset sub-routes
 router.use("/:id/assets", amcAssetRoutes);

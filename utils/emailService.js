@@ -2533,8 +2533,11 @@ Need help? Contact us at info@zushh.com
                       <p style="color: #856404; margin: 0;">${adminNotes}</p>
                     </div>
                     ` : ""}
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${serviceRequest.reviewLink || '#'}" style="display: inline-block; padding: 14px 40px; background-color: #f97316; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: bold;">Review & Respond</a>
+                    </div>
                     <p style="color: #666; font-size: 16px; line-height: 1.6;">
-                      To proceed with this quotation, please log in to your account to accept it, or contact our support team if you have any questions.
+                      Click the button above to review the quotation and accept or reject it from your portal. You can also contact our support team if you have any questions.
                     </p>
                     <p style="color: #666; font-size: 16px; line-height: 1.6; margin-top: 30px;">
                       Best regards,<br>
