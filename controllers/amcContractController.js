@@ -577,7 +577,7 @@ const updateAMCContractDetails = async (req, res, next) => {
 const updateContractServiceRequest = async (req, res, next) => {
   try {
     const { id, srId } = req.params;
-    const { numberOfTimes, scheduledDates, number_of_units } = req.body;
+    const { numberOfTimes, scheduledDates, number_of_units, status } = req.body;
 
     if (
       !mongoose.Types.ObjectId.isValid(id) ||
@@ -624,6 +624,18 @@ const updateContractServiceRequest = async (req, res, next) => {
     if (number_of_units !== undefined) {
       serviceRequest.number_of_units = Number(number_of_units);
     }
+    if (status !== undefined) {
+      const validStatuses = ["Pending", "Quoted", "Assigned", "Accepted", "InProgress", "Completed", "Cancelled"];
+      if (!validStatuses.includes(status)) {
+        return sendError(
+          res,
+          400,
+          `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
+          "INVALID_STATUS"
+        );
+      }
+      serviceRequest.status = status;
+    }
 
     await serviceRequest.save();
 
@@ -631,6 +643,108 @@ const updateContractServiceRequest = async (req, res, next) => {
       res,
       200,
       "Service request updated successfully",
+      serviceRequest
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    User reschedule a service request within their AMC contract
+// @route   PUT /api/amc-contracts/:id/service-requests/:srId/reschedule
+// @access  Protected (contract owner)
+const rescheduleServiceRequest = async (req, res, next) => {
+  try {
+    const { id, srId } = req.params;
+    const { scheduledDates } = req.body;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(id) ||
+      !mongoose.Types.ObjectId.isValid(srId)
+    ) {
+      return sendError(res, 400, "Invalid ID", "INVALID_ID");
+    }
+
+    // Verify the contract exists and belongs to the user
+    const contract = await AMCContract.findById(id);
+    if (!contract) {
+      return sendError(res, 404, "AMC Contract not found", "CONTRACT_NOT_FOUND");
+    }
+
+    const userId = req.user ? (req.user.id || req.user._id) : null;
+    if (!userId || (contract.user && contract.user.toString() !== userId.toString())) {
+      // Also check by email/phone
+      const userEmail = req.user?.email;
+      const userPhone = req.user?.phoneNumber;
+      const matchesContact =
+        (userEmail && contract.contactEmail === userEmail.toLowerCase()) ||
+        (userPhone && contract.contactPhone === userPhone);
+      if (!matchesContact) {
+        return sendError(res, 403, "Not authorized to modify this contract", "FORBIDDEN");
+      }
+    }
+
+    // Verify contract is active
+    if (!["Active", "Pending"].includes(contract.status)) {
+      return sendError(
+        res,
+        400,
+        "Can only reschedule services in Active or Pending contracts",
+        "INVALID_CONTRACT_STATUS"
+      );
+    }
+
+    // Verify service request belongs to contract
+    const srIdStr = srId.toString();
+    const isLinked = contract.serviceRequests.some(
+      (sr) => sr.toString() === srIdStr
+    );
+    if (!isLinked) {
+      return sendError(
+        res,
+        404,
+        "Service request not found in this contract",
+        "SR_NOT_IN_CONTRACT"
+      );
+    }
+
+    const serviceRequest = await ServiceRequest.findById(srId);
+    if (!serviceRequest) {
+      return sendError(res, 404, "Service request not found", "SR_NOT_FOUND");
+    }
+
+    // Only allow rescheduling if service is not completed or cancelled
+    if (["Completed", "Cancelled"].includes(serviceRequest.status)) {
+      return sendError(
+        res,
+        400,
+        "Cannot reschedule a completed or cancelled service",
+        "INVALID_SR_STATUS"
+      );
+    }
+
+    // Update scheduled dates
+    if (!Array.isArray(scheduledDates) || scheduledDates.length === 0) {
+      return sendError(
+        res,
+        400,
+        "scheduledDates must be a non-empty array",
+        "INVALID_DATES"
+      );
+    }
+
+    serviceRequest.scheduledDates = scheduledDates.map((d) => new Date(d));
+    serviceRequest.numberOfTimes = scheduledDates.length;
+    if (scheduledDates.length > 0) {
+      serviceRequest.requested_date = new Date(scheduledDates[0]);
+    }
+
+    await serviceRequest.save();
+
+    return sendSuccess(
+      res,
+      200,
+      "Service rescheduled successfully",
       serviceRequest
     );
   } catch (error) {
@@ -646,4 +760,5 @@ module.exports = {
   updateAMCContractStatus,
   updateAMCContractDetails,
   updateContractServiceRequest,
+  rescheduleServiceRequest,
 };

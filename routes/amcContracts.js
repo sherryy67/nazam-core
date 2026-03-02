@@ -9,6 +9,7 @@ const {
   updateAMCContractStatus,
   updateAMCContractDetails,
   updateContractServiceRequest,
+  rescheduleServiceRequest,
 } = require("../controllers/amcContractController");
 const amcAssetRoutes = require("./amcAssets");
 
@@ -241,6 +242,9 @@ router.put("/:id", protect, hasPermission('amc_contracts:write'), updateAMCContr
 
 // Update a service request's scheduling within a contract (admin only)
 router.put("/:id/service-requests/:srId", protect, hasPermission('amc_contracts:write'), updateContractServiceRequest);
+
+// User reschedule a service request within their AMC contract
+router.put("/:id/service-requests/:srId/reschedule", protect, rescheduleServiceRequest);
 
 // Mount asset sub-routes
 router.use("/:id/assets", amcAssetRoutes);
