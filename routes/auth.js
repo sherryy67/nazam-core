@@ -20,7 +20,7 @@ const {
   upload
 } = require('../controllers/authController');
 const { protect } = require('../middlewares/auth');
-const { authorize, isAdmin } = require('../middlewares/roleAuth');
+const { authorize, isAdmin, hasPermission } = require('../middlewares/roleAuth');
 
 const router = express.Router();
 
@@ -250,17 +250,43 @@ const createAccountValidation = [
 
 // Password reset validation rules
 const forgotPasswordValidation = [
+  body()
+    .custom((value, { req }) => {
+      if (!req.body.email && !req.body.phoneNumber) {
+        throw new Error('Either email or phone number is required');
+      }
+      return true;
+    }),
   body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Please provide a valid email address')
-];
-
-const verifyResetOTPValidation = [
-  body('email')
+    .optional()
     .isEmail()
     .normalizeEmail()
     .withMessage('Please provide a valid email address'),
+  body('phoneNumber')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number cannot be empty')
+];
+
+const verifyResetOTPValidation = [
+  body()
+    .custom((value, { req }) => {
+      if (!req.body.email && !req.body.phoneNumber) {
+        throw new Error('Either email or phone number is required');
+      }
+      return true;
+    }),
+  body('email')
+    .optional()
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Please provide a valid email address'),
+  body('phoneNumber')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number cannot be empty'),
   body('otpCode')
     .isLength({ min: 6, max: 6 })
     .isNumeric()
@@ -268,10 +294,23 @@ const verifyResetOTPValidation = [
 ];
 
 const resetPasswordValidation = [
+  body()
+    .custom((value, { req }) => {
+      if (!req.body.email && !req.body.phoneNumber) {
+        throw new Error('Either email or phone number is required');
+      }
+      return true;
+    }),
   body('email')
+    .optional()
     .isEmail()
     .normalizeEmail()
     .withMessage('Please provide a valid email address'),
+  body('phoneNumber')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Phone number cannot be empty'),
   body('newPassword')
     .isLength({ min: 6 })
     .withMessage('New password must be at least 6 characters long')
@@ -679,7 +718,7 @@ router.put('/updatepassword', protect, updatePasswordValidation, updatePassword)
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/admin/create-vendor', protect, isAdmin, upload.single('profilePic'), vendorRegisterValidation, adminCreateVendor);
+router.post('/admin/create-vendor', protect, hasPermission('vendors:write'), upload.single('profilePic'), vendorRegisterValidation, adminCreateVendor);
 
 /**
  * @swagger
@@ -801,7 +840,7 @@ router.post('/admin/create-vendor', protect, isAdmin, upload.single('profilePic'
  *       500:
  *         description: Server error
  */
-router.get('/admin/vendors', protect, isAdmin, getAllVendors);
+router.get('/admin/vendors', protect, hasPermission('vendors:read'), getAllVendors);
 
 /**
  * @swagger

@@ -16,12 +16,21 @@ const authorize = (...roles) => {
   };
 };
 
-// Check if user is admin
+// Check if user is any staff member (role >= 3) — replaces old isAdmin for backward compat
 const isAdmin = (req, res, next) => {
-  if (req.user && req.user.role === ROLES.ADMIN) {
+  if (req.user && ROLES.isStaffRole(req.user.role)) {
     next();
   } else {
     return sendError(res, 403, 'Admin access required', 'ADMIN_REQUIRED');
+  }
+};
+
+// Alias for clarity in new code
+const isStaff = (req, res, next) => {
+  if (req.user && ROLES.isStaffRole(req.user.role)) {
+    next();
+  } else {
+    return sendError(res, 403, 'Staff access required', 'STAFF_REQUIRED');
   }
 };
 
@@ -43,9 +52,9 @@ const isUser = (req, res, next) => {
   }
 };
 
-// Check if user is vendor or admin
+// Check if user is vendor or admin/staff
 const isVendorOrAdmin = (req, res, next) => {
-  if (req.user && (req.user.role === ROLES.VENDOR || req.user.role === ROLES.ADMIN)) {
+  if (req.user && (req.user.role === ROLES.VENDOR || ROLES.isStaffRole(req.user.role))) {
     next();
   } else {
     return sendError(res, 403, 'Vendor or Admin access required', 'VENDOR_OR_ADMIN_REQUIRED');
@@ -61,7 +70,7 @@ const isApprovedVendor = async (req, res, next) => {
 
     const Vendor = require('../models/Vendor');
     const vendor = await Vendor.findById(req.user.id);
-    
+
     if (!vendor) {
       return sendError(res, 404, 'Vendor not found', 'VENDOR_NOT_FOUND');
     }
@@ -77,11 +86,51 @@ const isApprovedVendor = async (req, res, next) => {
   }
 };
 
+/**
+ * Permission-based authorization middleware.
+ * Checks if the staff user has ALL of the required permissions.
+ * Super Admin (role 11) bypasses all permission checks.
+ *
+ * Usage: hasPermission('orders:read', 'users:read')
+ */
+const hasPermission = (...requiredPermissions) => {
+  return (req, res, next) => {
+    if (!req.user || !ROLES.isStaffRole(req.user.role)) {
+      return sendError(res, 403, 'Staff access required', 'STAFF_REQUIRED');
+    }
+
+    // Super admin bypasses all permission checks
+    if (ROLES.isSuperAdmin(req.user.role)) {
+      return next();
+    }
+
+    const userPermissions = req.user.permissions || [];
+
+    const hasAll = requiredPermissions.every(perm => {
+      return userPermissions.some(userPerm => {
+        if (userPerm === '*') return true;
+        if (userPerm.endsWith(':*')) {
+          return perm.startsWith(userPerm.replace(':*', ':'));
+        }
+        return userPerm === perm;
+      });
+    });
+
+    if (!hasAll) {
+      return sendError(res, 403, 'Insufficient permissions', 'INSUFFICIENT_PERMISSIONS');
+    }
+
+    next();
+  };
+};
+
 module.exports = {
   authorize,
   isAdmin,
+  isStaff,
   isVendor,
   isUser,
   isVendorOrAdmin,
-  isApprovedVendor
+  isApprovedVendor,
+  hasPermission,
 };

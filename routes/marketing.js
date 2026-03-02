@@ -1,7 +1,7 @@
 const express = require('express');
 const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
-const { isAdmin } = require('../middlewares/roleAuth');
+const { isAdmin, hasPermission } = require('../middlewares/roleAuth');
 const {
   setMarketingServices,
   getMarketingServices,
@@ -130,7 +130,7 @@ const setMarketingServicesValidation = [
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.post('/services', protect, isAdmin, setMarketingServicesValidation, setMarketingServices);
+router.post('/services', protect, hasPermission('marketing:write'), setMarketingServicesValidation, setMarketingServices);
 
 /**
  * @swagger
@@ -319,6 +319,6 @@ router.get('/services', getMarketingServices);
  *       500:
  *         description: Server error
  */
-router.get('/services/all', protect, isAdmin, getAllServicesForMarketing);
+router.get('/services/all', protect, hasPermission('marketing:read'), getAllServicesForMarketing);
 
 module.exports = router;

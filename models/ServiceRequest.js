@@ -7,10 +7,23 @@ const serviceRequestSchema = new mongoose.Schema({
   user_email: { type: String, required: true, trim: true, lowercase: true },
   
   // Service information
-  service_id: { type: mongoose.Schema.Types.ObjectId, ref: "Service", required: true },
+  service_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Service",
+    required: function () { return !this.isCustomService; },
+  },
   service_name: { type: String, required: true, trim: true },
-  category_id: { type: mongoose.Schema.Types.ObjectId, ref: "Category", required: true },
+  category_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Category",
+    required: function () { return !this.isCustomService; },
+  },
   category_name: { type: String, required: true, trim: true },
+
+  // Custom service (for AMC services not on the platform)
+  isCustomService: { type: Boolean, default: false },
+  customServiceName: { type: String, trim: true },
+  customServiceDescription: { type: String, trim: true },
   
   // Request details
   request_type: { 
@@ -150,6 +163,10 @@ const serviceRequestSchema = new mongoose.Schema({
   
   // AMC Contract link (optional - only for AMC service requests)
   amcContract: { type: mongoose.Schema.Types.ObjectId, ref: "AMCContract", default: null },
+
+  // AMC scheduling: how many times this service is needed + dates for each
+  numberOfTimes: { type: Number, default: 1 },
+  scheduledDates: [{ type: Date }],
 
   // Admin created order tracking
   createdByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },

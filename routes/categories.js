@@ -1,7 +1,7 @@
 const express = require('express');
 const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
-const { authorize, isAdmin } = require('../middlewares/roleAuth');
+const { authorize, isAdmin, hasPermission } = require('../middlewares/roleAuth');
 const { 
   createCategory, 
   getCategories, 
@@ -142,7 +142,7 @@ const updateSortOrderValidation = [
  *       500:
  *         description: Server error
  */
-router.post('/', protect, isAdmin, createCategoryValidation, createCategory);
+router.post('/', protect, hasPermission('categories:write'), createCategoryValidation, createCategory);
 
 /**
  * @swagger
@@ -302,7 +302,7 @@ router.get('/', protect, getCategories);
  *       403:
  *         description: Forbidden - Admin access required
  */
-router.get('/all', protect, isAdmin, getAllCategories);
+router.get('/all', protect, hasPermission('categories:read'), getAllCategories);
 
 /**
  * @swagger
@@ -426,7 +426,7 @@ router.get('/all', protect, isAdmin, getAllCategories);
  *       404:
  *         description: Categories not found
  */
-router.put('/sort', protect, isAdmin, updateSortOrderValidation, updateCategorySortOrder);
+router.put('/sort', protect, hasPermission('categories:write'), updateSortOrderValidation, updateCategorySortOrder);
 
 router.get('/:id', protect, getCategoryById);
 
@@ -483,7 +483,7 @@ router.get('/:id', protect, getCategoryById);
  *       409:
  *         description: Category name already exists
  */
-router.put('/:id', protect, isAdmin, updateCategoryValidation, updateCategory);
+router.put('/:id', protect, hasPermission('categories:write'), updateCategoryValidation, updateCategory);
 
 /**
  * @swagger
@@ -512,6 +512,6 @@ router.put('/:id', protect, isAdmin, updateCategoryValidation, updateCategory);
  *       404:
  *         description: Category not found
  */
-router.delete('/:id', protect, isAdmin, deleteCategory);
+router.delete('/:id', protect, hasPermission('categories:delete'), deleteCategory);
 
 module.exports = router;

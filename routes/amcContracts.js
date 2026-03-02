@@ -1,13 +1,16 @@
 const express = require("express");
 const { protect } = require("../middlewares/auth");
-const { isAdmin } = require("../middlewares/roleAuth");
+const { isAdmin, hasPermission } = require("../middlewares/roleAuth");
 const {
   submitAMCContract,
   getAMCContract,
   getUserAMCContracts,
   getAllAMCContracts,
   updateAMCContractStatus,
+  updateAMCContractDetails,
+  updateContractServiceRequest,
 } = require("../controllers/amcContractController");
+const amcAssetRoutes = require("./amcAssets");
 
 const router = express.Router();
 
@@ -90,7 +93,7 @@ const router = express.Router();
  *       400:
  *         description: Validation error
  */
-router.post("/", submitAMCContract);
+router.post("/", protect, submitAMCContract);
 
 /**
  * @swagger
@@ -165,7 +168,7 @@ router.get("/:id", getAMCContract);
  *       200:
  *         description: AMC contracts retrieved successfully
  */
-router.get("/", protect, isAdmin, getAllAMCContracts);
+router.get("/", protect, hasPermission('amc_contracts:read'), getAllAMCContracts);
 
 /**
  * @swagger
@@ -197,6 +200,49 @@ router.get("/", protect, isAdmin, getAllAMCContracts);
  *       200:
  *         description: Status updated successfully
  */
-router.put("/:id/status", protect, isAdmin, updateAMCContractStatus);
+router.put("/:id/status", protect, hasPermission('amc_contracts:write'), updateAMCContractStatus);
+
+/**
+ * @swagger
+ * /api/amc-contracts/{id}:
+ *   put:
+ *     summary: Update AMC contract details (admin only)
+ *     tags: [AMC Contracts]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               startDate:
+ *                 type: string
+ *                 format: date-time
+ *               endDate:
+ *                 type: string
+ *                 format: date-time
+ *               adminNotes:
+ *                 type: string
+ *               totalContractValue:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Contract details updated successfully
+ */
+router.put("/:id", protect, hasPermission('amc_contracts:write'), updateAMCContractDetails);
+
+// Update a service request's scheduling within a contract (admin only)
+router.put("/:id/service-requests/:srId", protect, hasPermission('amc_contracts:write'), updateContractServiceRequest);
+
+// Mount asset sub-routes
+router.use("/:id/assets", amcAssetRoutes);
 
 module.exports = router;

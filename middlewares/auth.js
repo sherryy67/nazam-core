@@ -2,6 +2,9 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Vendor = require('../models/Vendor');
 const Admin = require('../models/Admin');
+const Staff = require('../models/Staff');
+const Role = require('../models/Role');
+const ROLES = require('../constants/roles');
 const { sendError } = require('../utils/response');
 
 // Protect routes - verify JWT token
@@ -24,16 +27,23 @@ const protect = async (req, res, next) => {
 
     // Get user from appropriate model based on role
     let user;
-    if (decoded.role === 1) {
+    if (decoded.role === ROLES.USER) {
       user = await User.findById(decoded.id);
       // Check if user is active (only for regular users)
       if (user && !user.isActive) {
         return sendError(res, 403, 'Your account is deactivated by admin please contact support', 'USER_DEACTIVATED');
       }
-    } else if (decoded.role === 2) {
+    } else if (decoded.role === ROLES.VENDOR) {
       user = await Vendor.findById(decoded.id);
-    } else if (decoded.role === 3) {
-      user = await Admin.findById(decoded.id);
+    } else if (decoded.role >= 3) {
+      // Staff roles (3-11) — try Staff first, then legacy Admin fallback
+      user = await Staff.findById(decoded.id);
+      if (!user) {
+        user = await Admin.findById(decoded.id);
+      }
+      if (user && user.isActive === false) {
+        return sendError(res, 403, 'Your account is deactivated, please contact support', 'STAFF_DEACTIVATED');
+      }
     }
 
     if (!user) {
@@ -44,8 +54,31 @@ const protect = async (req, res, next) => {
     req.user = {
       id: user._id,
       email: user.email,
-      role: user.role
+      role: user.role,
     };
+
+    // For staff users, resolve and attach permissions
+    if (decoded.role >= 3) {
+      if (user.roleRef) {
+        const roleDoc = await Role.findById(user.roleRef).lean();
+        let perms = roleDoc ? roleDoc.permissions : [];
+
+        // Apply per-user permission overrides
+        if (user.permissionOverrides) {
+          const revoked = user.permissionOverrides.revoke || [];
+          const granted = user.permissionOverrides.grant || [];
+          perms = perms.filter(p => !revoked.includes(p));
+          perms = [...new Set([...perms, ...granted])];
+        }
+
+        req.user.permissions = perms;
+        req.user.staffRole = roleDoc ? roleDoc.slug : null;
+      } else {
+        // Legacy Admin users (no roleRef) — grant full access
+        req.user.permissions = ['*'];
+        req.user.staffRole = 'admin';
+      }
+    }
 
     next();
   } catch (error) {

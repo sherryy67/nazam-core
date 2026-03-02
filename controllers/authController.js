@@ -1,6 +1,8 @@
 const User = require('../models/User');
 const Vendor = require('../models/Vendor');
 const Admin = require('../models/Admin');
+const Staff = require('../models/Staff');
+const Role = require('../models/Role');
 const OTP = require('../models/OTP');
 const Address = require('../models/Address');
 const { sendSuccess, sendError } = require('../utils/response');
@@ -128,8 +130,8 @@ const login = async (req, res, next) => {
     let userModel;
 
     // Determine which model to use based on role
-    if (role === ROLES.ADMIN) {
-      userModel = Admin;
+    if (role >= 3) {
+      userModel = Staff;
     } else if (role === ROLES.VENDOR) {
       userModel = Vendor;
     } else {
@@ -141,6 +143,11 @@ const login = async (req, res, next) => {
       user = await userModel.findOne({ phoneNumber }).select('+password');
     } else {
       user = await userModel.findOne({ email }).select('+password');
+    }
+
+    // For staff roles, fallback to legacy Admin model if not found in Staff
+    if (!user && role >= 3) {
+      user = await Admin.findOne({ email }).select('+password');
     }
 
     if (!user) {
@@ -187,8 +194,9 @@ const getMe = async (req, res, next) => {
     const userRole = req.user.role;
 
     // Get user from appropriate model based on role
-    if (userRole === ROLES.ADMIN) {
-      user = await Admin.findById(userId);
+    if (ROLES.isStaffRole(userRole)) {
+      user = await Staff.findById(userId);
+      if (!user) user = await Admin.findById(userId); // legacy fallback
     } else if (userRole === ROLES.VENDOR) {
       user = await Vendor.findById(userId);
     } else {
@@ -227,11 +235,17 @@ const updateDetails = async (req, res, next) => {
     const userRole = req.user.role;
 
     // Update user in appropriate model based on role
-    if (userRole === ROLES.ADMIN) {
-      user = await Admin.findByIdAndUpdate(userId, fieldsToUpdate, {
+    if (ROLES.isStaffRole(userRole)) {
+      user = await Staff.findByIdAndUpdate(userId, fieldsToUpdate, {
         new: true,
         runValidators: true
       });
+      if (!user) {
+        user = await Admin.findByIdAndUpdate(userId, fieldsToUpdate, {
+          new: true,
+          runValidators: true
+        });
+      }
     } else if (userRole === ROLES.VENDOR) {
       // For vendors, allow updating more fields
       const vendorFields = {
@@ -283,8 +297,9 @@ const updatePassword = async (req, res, next) => {
     const userRole = req.user.role;
 
     // Get user from appropriate model based on role
-    if (userRole === ROLES.ADMIN) {
-      user = await Admin.findById(userId).select('+password');
+    if (ROLES.isStaffRole(userRole)) {
+      user = await Staff.findById(userId).select('+password');
+      if (!user) user = await Admin.findById(userId).select('+password');
     } else if (userRole === ROLES.VENDOR) {
       user = await Vendor.findById(userId).select('+password');
     } else {
@@ -775,8 +790,24 @@ const sendTokenResponse = async (user, statusCode, res) => {
     userData.approved = user.approved;
     userData.jobService = user.jobService;
     userData.coveredCity = user.coveredCity;
-  } else if (user.role === ROLES.ADMIN) {
+  } else if (ROLES.isStaffRole(user.role)) {
     userData.name = user.name;
+    // Include staff-specific fields for the frontend
+    if (user.roleRef) {
+      const roleDoc = await Role.findById(user.roleRef).lean();
+      if (roleDoc) {
+        userData.staffRole = roleDoc.slug;
+        let perms = roleDoc.permissions || [];
+        // Apply per-user permission overrides
+        if (user.permissionOverrides) {
+          const revoked = user.permissionOverrides.revoke || [];
+          const granted = user.permissionOverrides.grant || [];
+          perms = perms.filter(p => !revoked.includes(p));
+          perms = [...new Set([...perms, ...granted])];
+        }
+        userData.permissions = perms;
+      }
+    }
   } else if (user.role === ROLES.USER) {
     // For users (role 1), include all user fields for consistent response
     userData.name = user.name;
@@ -1264,11 +1295,19 @@ const adminLogin = async (req, res, next) => {
       return sendError(res, 400, 'Please provide an email and password', 'MISSING_CREDENTIALS');
     }
 
-    // Check for admin in Admin model
-    const admin = await Admin.findOne({ email }).select('+password');
+    // Check Staff first, then legacy Admin model
+    let admin = await Staff.findOne({ email }).select('+password');
+    if (!admin) {
+      admin = await Admin.findOne({ email }).select('+password');
+    }
 
     if (!admin) {
       return sendError(res, 401, 'Invalid credentials', 'INVALID_CREDENTIALS');
+    }
+
+    // Check if staff account is deactivated
+    if (admin.isActive === false) {
+      return sendError(res, 403, 'Your account is deactivated, please contact support', 'STAFF_DEACTIVATED');
     }
 
     // Check if password matches
@@ -1296,18 +1335,26 @@ const createAdmin = async (req, res, next) => {
       return sendError(res, 400, 'Name, email, and password are required', 'MISSING_REQUIRED_FIELDS');
     }
 
-    // Check if admin already exists with this email
+    // Check if staff/admin already exists with this email
+    const existingStaff = await Staff.findOne({ email });
     const existingAdmin = await Admin.findOne({ email });
-    if (existingAdmin) {
+    if (existingStaff || existingAdmin) {
       return sendError(res, 409, 'Admin with this email already exists', 'ADMIN_EXISTS');
     }
 
-    // Create new admin
-    const admin = await Admin.create({
+    // Find the super_admin role
+    const superAdminRole = await Role.findOne({ slug: 'super_admin' });
+    if (!superAdminRole) {
+      return sendError(res, 500, 'Super admin role not found. Run seedRoles script first.', 'ROLE_NOT_FOUND');
+    }
+
+    // Create new staff member as Super Admin
+    const admin = await Staff.create({
       name,
       email,
       password,
-      role: ROLES.ADMIN
+      role: ROLES.SUPER_ADMIN,
+      roleRef: superAdminRole._id,
     });
 
     // Remove password from response
@@ -1638,54 +1685,60 @@ const createAccount = async (req, res, next) => {
 // @access  Public
 const forgotPassword = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    const { email, phoneNumber } = req.body;
 
-    // Validate email is provided
-    if (!email) {
-      return sendError(res, 400, 'Email is required', 'MISSING_EMAIL');
+    // Validate that at least one contact method is provided
+    if (!email && !phoneNumber) {
+      return sendError(res, 400, 'Either email or phone number is required', 'MISSING_CONTACT_INFO');
     }
 
-    // Validate email format
-    if (!emailService.isValidEmail(email)) {
+    // Validate formats
+    if (email && !emailService.isValidEmail(email)) {
       return sendError(res, 400, 'Please provide a valid email address', 'INVALID_EMAIL');
     }
+    if (phoneNumber && !smsService.isValidUAEPhoneNumber(phoneNumber)) {
+      return sendError(res, 400, 'Please provide a valid UAE phone number', 'INVALID_PHONE_NUMBER');
+    }
 
-    // Check if user exists with this email
-    const user = await User.findOne({ email });
+    // Check if user exists
+    const userQuery = email ? { email } : { phoneNumber };
+    const user = await User.findOne(userQuery);
 
-    // For security reasons, we don't reveal if the email exists or not
-    // We always return success, but only send email if user exists
+    // For security reasons, we don't reveal if the user exists or not
     if (user) {
-      // Generate OTP code
       const otpCode = smsService.generateOTP();
-
-      // Set expiration time (5 minutes from now)
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-      // Invalidate any existing OTPs for this email
-      await OTP.updateMany({ email, isUsed: false }, { isUsed: true });
+      // Invalidate any existing OTPs for this contact
+      const invalidateQuery = { isUsed: false };
+      if (email) invalidateQuery.email = email;
+      if (phoneNumber) invalidateQuery.phoneNumber = phoneNumber;
+      await OTP.updateMany(invalidateQuery, { isUsed: true });
 
       // Create new OTP record
-      await OTP.create({
-        email,
-        code: otpCode,
-        expiresAt
-      });
+      const otpData = { code: otpCode, expiresAt };
+      if (email) otpData.email = email;
+      if (phoneNumber) otpData.phoneNumber = phoneNumber;
+      await OTP.create(otpData);
 
-      // Send password reset email
+      // Send OTP via appropriate channel
       try {
-        await emailService.sendPasswordResetOTP(email, otpCode, user.name);
+        if (email) {
+          await emailService.sendPasswordResetOTP(email, otpCode, user.name);
+        } else {
+          await smsService.sendOTP(phoneNumber, otpCode);
+        }
       } catch (error) {
-        console.error('Failed to send password reset email:', error.message);
-        return sendError(res, 500, 'Failed to send password reset email', 'EMAIL_SEND_FAILED');
+        console.error('Failed to send password reset OTP:', error.message);
+        return sendError(res, 500, 'Failed to send password reset code', 'OTP_SEND_FAILED');
       }
     }
 
-    // Always return success for security (don't reveal if email exists)
-    sendSuccess(res, 200, 'If an account exists with this email, a password reset code has been sent', {
-      email,
-      expiresIn: '5 minutes'
-    });
+    const responseData = { expiresIn: '5 minutes' };
+    if (email) responseData.email = email;
+    if (phoneNumber) responseData.phoneNumber = phoneNumber;
+
+    sendSuccess(res, 200, 'If an account exists, a password reset code has been sent', responseData);
   } catch (error) {
     next(error);
   }
@@ -1696,50 +1749,48 @@ const forgotPassword = async (req, res, next) => {
 // @access  Public
 const verifyResetOTP = async (req, res, next) => {
   try {
-    const { email, otpCode } = req.body;
+    const { email, phoneNumber, otpCode } = req.body;
 
-    // Validate required fields
-    if (!email || !otpCode) {
-      return sendError(res, 400, 'Email and OTP code are required', 'MISSING_REQUIRED_FIELDS');
+    if ((!email && !phoneNumber) || !otpCode) {
+      return sendError(res, 400, 'Either email or phone number, and OTP code are required', 'MISSING_REQUIRED_FIELDS');
     }
 
-    // Validate email format
-    if (!emailService.isValidEmail(email)) {
+    if (email && !emailService.isValidEmail(email)) {
       return sendError(res, 400, 'Please provide a valid email address', 'INVALID_EMAIL');
+    }
+    if (phoneNumber && !smsService.isValidUAEPhoneNumber(phoneNumber)) {
+      return sendError(res, 400, 'Please provide a valid UAE phone number', 'INVALID_PHONE_NUMBER');
     }
 
     // Find valid OTP record
-    const otpRecord = await OTP.findOne({
-      email,
-      code: otpCode,
-      isUsed: false,
-      expiresAt: { $gt: new Date() }
-    });
+    const otpQuery = { code: otpCode, isUsed: false, expiresAt: { $gt: new Date() } };
+    if (email) otpQuery.email = email;
+    if (phoneNumber) otpQuery.phoneNumber = phoneNumber;
+
+    const otpRecord = await OTP.findOne(otpQuery);
 
     if (!otpRecord) {
       return sendError(res, 400, 'Invalid or expired OTP code', 'INVALID_OTP');
     }
 
-    // Check if OTP has exceeded max attempts
     if (otpRecord.attempts >= otpRecord.maxAttempts) {
       return sendError(res, 400, 'OTP code has exceeded maximum attempts', 'OTP_MAX_ATTEMPTS_EXCEEDED');
     }
 
     // Check if user exists
-    const user = await User.findOne({ email });
+    const userQuery = email ? { email } : { phoneNumber };
+    const user = await User.findOne(userQuery);
     if (!user) {
       return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
     }
 
-    // Mark OTP as used
     await otpRecord.markAsUsed();
 
-    // Return success - user can now proceed to reset password
-    sendSuccess(res, 200, 'OTP verified successfully. You can now reset your password.', {
-      email,
-      verified: true,
-      message: 'Proceed to reset your password'
-    });
+    const responseData = { verified: true, message: 'Proceed to reset your password' };
+    if (email) responseData.email = email;
+    if (phoneNumber) responseData.phoneNumber = phoneNumber;
+
+    sendSuccess(res, 200, 'OTP verified successfully. You can now reset your password.', responseData);
   } catch (error) {
     next(error);
   }
@@ -1750,55 +1801,60 @@ const verifyResetOTP = async (req, res, next) => {
 // @access  Public
 const resetPassword = async (req, res, next) => {
   try {
-    const { email, newPassword } = req.body;
+    const { email, phoneNumber, newPassword } = req.body;
 
-    // Validate required fields
-    if (!email || !newPassword) {
-      return sendError(res, 400, 'Email and new password are required', 'MISSING_REQUIRED_FIELDS');
+    if (!email && !phoneNumber) {
+      return sendError(res, 400, 'Either email or phone number is required', 'MISSING_CONTACT_INFO');
     }
 
-    // Validate email format
-    if (!emailService.isValidEmail(email)) {
+    if (!newPassword) {
+      return sendError(res, 400, 'New password is required', 'MISSING_PASSWORD');
+    }
+
+    if (email && !emailService.isValidEmail(email)) {
       return sendError(res, 400, 'Please provide a valid email address', 'INVALID_EMAIL');
     }
+    if (phoneNumber && !smsService.isValidUAEPhoneNumber(phoneNumber)) {
+      return sendError(res, 400, 'Please provide a valid UAE phone number', 'INVALID_PHONE_NUMBER');
+    }
 
-    // Validate password length
     if (newPassword.length < 6) {
       return sendError(res, 400, 'Password must be at least 6 characters long', 'INVALID_PASSWORD_LENGTH');
     }
 
-    // Check if OTP was verified (there should be a used OTP for this email)
-    const verifiedOTP = await OTP.findOne({
-      email,
-      isUsed: true
-    }).sort({ createdAt: -1 });
+    // Check if OTP was verified
+    const otpQuery = { isUsed: true };
+    if (email) otpQuery.email = email;
+    if (phoneNumber) otpQuery.phoneNumber = phoneNumber;
+
+    const verifiedOTP = await OTP.findOne(otpQuery).sort({ createdAt: -1 });
 
     if (!verifiedOTP) {
-      return sendError(res, 400, 'Email must be verified with OTP before resetting password', 'EMAIL_NOT_VERIFIED');
+      return sendError(res, 400, 'Contact must be verified with OTP before resetting password', 'CONTACT_NOT_VERIFIED');
     }
 
-    // Check if the OTP was verified recently (within last 10 minutes for security)
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
     if (verifiedOTP.updatedAt < tenMinutesAgo) {
       return sendError(res, 400, 'OTP verification expired. Please request a new password reset.', 'OTP_VERIFICATION_EXPIRED');
     }
 
-    // Find user by email
-    const user = await User.findOne({ email });
+    const userQuery = email ? { email } : { phoneNumber };
+    const user = await User.findOne(userQuery);
 
     if (!user) {
       return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
     }
 
-    // Update user password
     user.password = newPassword;
     await user.save();
 
-    // Delete all OTPs for this email after successful password reset
-    await OTP.deleteMany({ email });
+    // Clean up OTPs
+    const deleteQuery = {};
+    if (email) deleteQuery.email = email;
+    if (phoneNumber) deleteQuery.phoneNumber = phoneNumber;
+    await OTP.deleteMany(deleteQuery);
 
     sendSuccess(res, 200, 'Password reset successfully. You can now login with your new password.', {
-      email,
       message: 'Password has been reset successfully'
     });
   } catch (error) {
