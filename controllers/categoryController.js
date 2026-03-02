@@ -704,19 +704,18 @@ module.exports = {
 
       // Helper function to process services by serviceType
       const processServicesByType = async (serviceType) => {
+        // Build serviceType filter — include documents with missing/null serviceType as "residential"
+        const typeFilter = serviceType === "residential"
+          ? { $or: [{ serviceType: "residential" }, { serviceType: { $exists: false } }, { serviceType: null }] }
+          : { serviceType: serviceType };
+
         const results = await Promise.all(
           categories.map(async (category) => {
+            const baseFilter = { category_id: category._id, isActive: true };
+            const query = { ...baseFilter, ...typeFilter };
             const [totalServices, services] = await Promise.all([
-              Service.countDocuments({
-                category_id: category._id,
-                isActive: true,
-                serviceType: serviceType,
-              }),
-              Service.find({
-                category_id: category._id,
-                isActive: true,
-                serviceType: serviceType,
-              })
+              Service.countDocuments(query),
+              Service.find(query)
                 .sort({ createdAt: -1 })
                 .select({
                   _id: 1,
