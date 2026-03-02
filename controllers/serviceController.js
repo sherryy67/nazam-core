@@ -87,6 +87,7 @@ const upload = multer({
       "thumbnail",
       "service_icon",
       "thumbnailUri",
+      "socialImage",
     ];
     if (!allowedFieldNames.includes(file.fieldname)) {
       return cb(
@@ -153,6 +154,12 @@ const createService = async (req, res, next) => {
       youtubeLink,
       faqs,
       testimonials,
+      // SEO & Meta fields (all optional)
+      metaTitle,
+      metaDescription,
+      urlSlug,
+      ogTitle,
+      ogDescription,
     } = req.body;
 
     // Check if this is an update operation
@@ -743,6 +750,13 @@ const createService = async (req, res, next) => {
       }
     }
 
+    // Handle benefitsTitle (optional)
+    if (req.body.benefitsTitle !== undefined && req.body.benefitsTitle !== null) {
+      serviceData.benefitsTitle = String(req.body.benefitsTitle).trim();
+    } else if (!existingService) {
+      serviceData.benefitsTitle = "";
+    }
+
     // Handle benefits (optional - array of {icon, heading, description})
     if (benefits !== undefined && benefits !== null) {
       try {
@@ -846,6 +860,60 @@ const createService = async (req, res, next) => {
         }
       } catch (e) {
         // ignore parse errors for optional field
+      }
+    }
+
+    // Handle SEO & Meta fields (all optional)
+    if (metaTitle !== undefined && metaTitle !== null) {
+      serviceData.metaTitle = String(metaTitle).trim();
+    } else if (!existingService) {
+      serviceData.metaTitle = "";
+    }
+
+    if (metaDescription !== undefined && metaDescription !== null) {
+      serviceData.metaDescription = String(metaDescription).trim();
+    } else if (!existingService) {
+      serviceData.metaDescription = "";
+    }
+
+    if (ogTitle !== undefined && ogTitle !== null) {
+      serviceData.ogTitle = String(ogTitle).trim();
+    } else if (!existingService) {
+      serviceData.ogTitle = "";
+    }
+
+    if (ogDescription !== undefined && ogDescription !== null) {
+      serviceData.ogDescription = String(ogDescription).trim();
+    } else if (!existingService) {
+      serviceData.ogDescription = "";
+    }
+
+    // Handle urlSlug - auto-generate from name if not provided
+    if (urlSlug !== undefined && urlSlug !== null && String(urlSlug).trim().length > 0) {
+      serviceData.urlSlug = String(urlSlug).trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+    } else if (name) {
+      serviceData.urlSlug = String(name).trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+    }
+
+    // Ensure urlSlug uniqueness
+    if (serviceData.urlSlug) {
+      const slugQuery = { urlSlug: serviceData.urlSlug };
+      if (existingService) {
+        slugQuery._id = { $ne: existingService._id };
+      }
+      const slugExists = await Service.findOne(slugQuery);
+      if (slugExists) {
+        serviceData.urlSlug = `${serviceData.urlSlug}-${Date.now().toString(36)}`;
       }
     }
 
@@ -1172,6 +1240,54 @@ const createService = async (req, res, next) => {
       }
     }
 
+    // Handle socialImage file upload for og:image
+    if (req.files && req.files.socialImage && req.files.socialImage[0]) {
+      try {
+        const socialImageFile = req.files.socialImage[0];
+        console.log("Starting social image upload...");
+
+        const fileContent = fs.readFileSync(socialImageFile.path);
+        const key = `service-social-images/${req.user.id}/${socialImageFile.filename}`;
+
+        const uploadParams = {
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: key,
+          Body: fileContent,
+          ContentType: socialImageFile.mimetype,
+        };
+
+        let result;
+        if (PutObjectCommand) {
+          const command = new PutObjectCommand(uploadParams);
+          result = await s3Client.send(command);
+        } else {
+          result = await s3Client.upload(uploadParams).promise();
+        }
+
+        const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${
+          process.env.AWS_REGION || "us-east-1"
+        }.amazonaws.com/${key}`;
+        serviceData.socialImage = s3Url;
+
+        fs.unlinkSync(socialImageFile.path);
+        console.log("Social image uploaded successfully");
+      } catch (s3Error) {
+        console.error("Social image S3 upload error:", s3Error);
+        if (
+          req.files.socialImage &&
+          fs.existsSync(req.files.socialImage[0].path)
+        ) {
+          fs.unlinkSync(req.files.socialImage[0].path);
+        }
+        return sendError(
+          res,
+          500,
+          `Failed to upload social image: ${s3Error.message}`,
+          "S3_UPLOAD_FAILED",
+        );
+      }
+    }
+
     // Handle service_icon and thumbnailUri from request body if not set by file uploads
     if (
       service_icon &&
@@ -1218,7 +1334,6 @@ const createService = async (req, res, next) => {
       // Update existing service
       service = await Service.findByIdAndUpdate(_id, updateOperation, {
         new: true,
-        runValidators: true,
       })
         .populate("createdBy", "name email")
         .populate("category_id", "name description");
@@ -1362,12 +1477,19 @@ const getServices = async (req, res, next) => {
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
       contentSections: service.contentSections || [],
+      benefitsTitle: service.benefitsTitle || "",
       benefits: service.benefits || [],
       whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
       youtubeLink: service.youtubeLink || "",
       faqs: service.faqs || [],
       testimonials: service.testimonials || [],
+      metaTitle: service.metaTitle || "",
+      metaDescription: service.metaDescription || "",
+      urlSlug: service.urlSlug || "",
+      socialImage: service.socialImage || "",
+      ogTitle: service.ogTitle || "",
+      ogDescription: service.ogDescription || "",
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -1502,12 +1624,19 @@ const getServicesPaginated = async (req, res, next) => {
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
       contentSections: service.contentSections || [],
+      benefitsTitle: service.benefitsTitle || "",
       benefits: service.benefits || [],
       whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
       youtubeLink: service.youtubeLink || "",
       faqs: service.faqs || [],
       testimonials: service.testimonials || [],
+      metaTitle: service.metaTitle || "",
+      metaDescription: service.metaDescription || "",
+      urlSlug: service.urlSlug || "",
+      socialImage: service.socialImage || "",
+      ogTitle: service.ogTitle || "",
+      ogDescription: service.ogDescription || "",
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -1587,12 +1716,19 @@ const getServiceById = async (req, res, next) => {
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
       contentSections: service.contentSections || [],
+      benefitsTitle: service.benefitsTitle || "",
       benefits: service.benefits || [],
       whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
       youtubeLink: service.youtubeLink || "",
       faqs: service.faqs || [],
       testimonials: service.testimonials || [],
+      metaTitle: service.metaTitle || "",
+      metaDescription: service.metaDescription || "",
+      urlSlug: service.urlSlug || "",
+      socialImage: service.socialImage || "",
+      ogTitle: service.ogTitle || "",
+      ogDescription: service.ogDescription || "",
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -1799,12 +1935,19 @@ const getAllActiveServices = async (req, res, next) => {
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
       contentSections: service.contentSections || [],
+      benefitsTitle: service.benefitsTitle || "",
       benefits: service.benefits || [],
       whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
       youtubeLink: service.youtubeLink || "",
       faqs: service.faqs || [],
       testimonials: service.testimonials || [],
+      metaTitle: service.metaTitle || "",
+      metaDescription: service.metaDescription || "",
+      urlSlug: service.urlSlug || "",
+      socialImage: service.socialImage || "",
+      ogTitle: service.ogTitle || "",
+      ogDescription: service.ogDescription || "",
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -2206,12 +2349,19 @@ const getResidentialServices = async (req, res, next) => {
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
       contentSections: service.contentSections || [],
+      benefitsTitle: service.benefitsTitle || "",
       benefits: service.benefits || [],
       whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
       youtubeLink: service.youtubeLink || "",
       faqs: service.faqs || [],
       testimonials: service.testimonials || [],
+      metaTitle: service.metaTitle || "",
+      metaDescription: service.metaDescription || "",
+      urlSlug: service.urlSlug || "",
+      socialImage: service.socialImage || "",
+      ogTitle: service.ogTitle || "",
+      ogDescription: service.ogDescription || "",
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -2311,12 +2461,19 @@ const getCommercialServices = async (req, res, next) => {
       subServices: service.subServices || [],
       quotationQuestions: service.quotationQuestions || [],
       contentSections: service.contentSections || [],
+      benefitsTitle: service.benefitsTitle || "",
       benefits: service.benefits || [],
       whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
       whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
       youtubeLink: service.youtubeLink || "",
       faqs: service.faqs || [],
       testimonials: service.testimonials || [],
+      metaTitle: service.metaTitle || "",
+      metaDescription: service.metaDescription || "",
+      urlSlug: service.urlSlug || "",
+      socialImage: service.socialImage || "",
+      ogTitle: service.ogTitle || "",
+      ogDescription: service.ogDescription || "",
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
