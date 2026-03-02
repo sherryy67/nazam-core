@@ -6,7 +6,11 @@
       "Bash(find:*)",
       "Bash(npx tsc:*)",
       "Bash(node -c:*)",
-      "Bash(ls:*)"
-    ]
+      "Bash(ls:*)",
+      "Bash(cd:*)",
+      "Bash(node scripts/fix-payment-status.js:*)",
+      "Bash(node scripts/seed-service-content.js:*)"
+    ],
+    "additionalDirectories": ["D:\\Sher Ali\\nazam\\src\\app\\_common"]
   }
 }

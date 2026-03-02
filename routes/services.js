@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin } = require('../middlewares/roleAuth');
 const ROLES = require('../constants/roles');
-const { createService, getServices, getServicesPaginated, getServiceById, deleteService, toggleServiceStatus, getAllActiveServices, getServiceSubServices, setFeaturedServices, getFeaturedServices, getResidentialServices, getCommercialServices, getHomeCategoryServices, getPopularServices, upload } = require('../controllers/serviceController');
+const { createService, getServices, getServicesPaginated, getServiceById, deleteService, toggleServiceStatus, getAllActiveServices, getServiceSubServices, getRelatedServices, setFeaturedServices, getFeaturedServices, getResidentialServices, getCommercialServices, getHomeCategoryServices, getPopularServices, upload } = require('../controllers/serviceController');
 
 const router = express.Router();
 
@@ -159,7 +159,35 @@ const createServiceValidation = [
   body('isBannerService')
     .optional()
     .isBoolean()
-    .withMessage('isBannerService must be a boolean value')
+    .withMessage('isBannerService must be a boolean value'),
+  // SEO & Meta validation rules (all optional)
+  body('metaTitle')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Meta title must be less than 200 characters'),
+  body('metaDescription')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Meta description must be less than 500 characters'),
+  body('urlSlug')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('URL slug must be less than 200 characters')
+    .matches(/^[a-z0-9-]*$/)
+    .withMessage('URL slug can only contain lowercase letters, numbers, and hyphens'),
+  body('ogTitle')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('OG title must be less than 200 characters'),
+  body('ogDescription')
+    .optional()
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('OG description must be less than 500 characters'),
 ];
 
 // Validation rules for paginated services
@@ -534,7 +562,8 @@ router.post('/', protect, isAdmin, upload.fields([
   { name: 'serviceImage', maxCount: 1 },
   { name: 'thumbnail', maxCount: 1 },
   { name: 'service_icon', maxCount: 1 },
-  { name: 'thumbnailUri', maxCount: 1 }
+  { name: 'thumbnailUri', maxCount: 1 },
+  { name: 'socialImage', maxCount: 1 }
 ]), createServiceValidation, createService);
 
 /**
@@ -900,6 +929,85 @@ router.get('/popular', getPopularServices);
  *       404:
  *         description: Service not found
  */
+/**
+ * @swagger
+ * /api/services/{id}/related:
+ *   get:
+ *     summary: Get all services in the same category as the given service
+ *     description: Accepts a service ID and returns all active services that belong to the same category
+ *     tags: [Services]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Service ID
+ *         example: "64a1b2c3d4e5f6789abcdef1"
+ *     responses:
+ *       200:
+ *         description: Related services retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 exception:
+ *                   type: string
+ *                   nullable: true
+ *                   example: null
+ *                 description:
+ *                   type: string
+ *                   example: "Related services retrieved successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     sourceService:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                     category:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         description:
+ *                           type: string
+ *                     services:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                           basePrice:
+ *                             type: number
+ *                           unitType:
+ *                             type: string
+ *                           service_icon:
+ *                             type: string
+ *                     total:
+ *                       type: number
+ *                       example: 5
+ *       400:
+ *         description: Invalid service ID format or service has no category
+ *       404:
+ *         description: Service not found
+ */
+router.get('/:id/related', getRelatedServices);
+
 /**
  * @swagger
  * /api/services/{id}/sub-services:
