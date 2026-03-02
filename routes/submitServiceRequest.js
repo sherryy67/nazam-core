@@ -1,6 +1,6 @@
 const express = require('express');
 const { body } = require('express-validator');
-const { submitServiceRequest } = require('../controllers/serviceRequestController');
+const { submitServiceRequest, submitBulkServiceRequests } = require('../controllers/serviceRequestController');
 
 const router = express.Router();
 
@@ -256,5 +256,8 @@ const submitServiceRequestValidation = [
  *         description: Server error
  */
 router.post('/', submitServiceRequestValidation, submitServiceRequest);
+
+// Bulk submit service requests (cart checkout)
+router.post('/bulk', submitBulkServiceRequests);
 
 module.exports = router;

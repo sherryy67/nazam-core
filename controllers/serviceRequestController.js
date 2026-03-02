@@ -137,23 +137,23 @@ const submitServiceRequest = async (req, res, next) => {
       }
     }
 
-    // Validate and normalize payment method
+    // Validate and normalize payment method (skip for Quotation requests)
     let paymentMethod = 'Cash On Delivery'; // Default
-    if (payment_method) {
+    if (request_type !== 'Quotation' && payment_method) {
       // Normalize common variations
       const normalizedPaymentMethod = payment_method
         .trim()
         .split(' ')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
         .join(' ');
-      
+
       const validPaymentMethods = ['Cash On Delivery', 'Online Payment'];
-      
+
       // Check if normalized matches valid methods
       if (!validPaymentMethods.includes(normalizedPaymentMethod)) {
         return sendError(res, 400, `Payment method must be one of: ${validPaymentMethods.join(', ')}`, 'INVALID_PAYMENT_METHOD');
       }
-      
+
       paymentMethod = normalizedPaymentMethod;
     }
 
@@ -634,9 +634,9 @@ const adminSubmitServiceRequest = async (req, res, next) => {
       }
     }
 
-    // Validate and normalize payment method
+    // Validate and normalize payment method (skip for Quotation requests)
     let paymentMethod = 'Cash On Delivery';
-    if (payment_method) {
+    if (request_type !== 'Quotation' && payment_method) {
       const normalizedPaymentMethod = payment_method
         .trim()
         .split(' ')
@@ -914,7 +914,7 @@ const adminSubmitServiceRequest = async (req, res, next) => {
 // @access  Admin only
 const getServiceRequests = async (req, res, next) => {
   try {
-    const { status, request_type, serviceId, keyword, page = 1, limit = 10 } = req.query;
+    const { status, request_type, serviceId, keyword, page = 1, limit = 10, startDate, endDate } = req.query;
 
     // Build query — exclude AMC-linked service requests (shown in AMC tab)
     const query = { amcContract: null };
@@ -922,7 +922,14 @@ const getServiceRequests = async (req, res, next) => {
     // Apply filters
     if (status) query.status = status;
     if (request_type) query.request_type = request_type;
-    
+
+    // Date range filter
+    if (startDate || endDate) {
+      query.requested_date = {};
+      if (startDate) query.requested_date.$gte = new Date(startDate);
+      if (endDate) query.requested_date.$lte = new Date(endDate);
+    }
+
     // Filter by service ID
     if (serviceId) {
       if (!mongoose.Types.ObjectId.isValid(serviceId)) {
@@ -1572,7 +1579,7 @@ const userUpdateServiceRequest = async (req, res, next) => {
       }
     }
 
-    if (payment_method !== undefined) {
+    if (payment_method !== undefined && serviceRequest.request_type !== 'Quotation') {
       const normalizedPaymentMethod = payment_method
         .trim()
         .split(' ')
@@ -2149,6 +2156,593 @@ const updatePaymentStatus = async (req, res, next) => {
   }
 };
 
+// @desc    Submit multiple service requests at once (cart checkout)
+// @route   POST /api/submit-service-requests/bulk
+// @access  Public (no authentication required)
+const submitBulkServiceRequests = async (req, res, next) => {
+  try {
+    const {
+      user_name,
+      user_phone,
+      user_email,
+      address,
+      payment_method,
+      payment_type,
+      services
+    } = req.body;
+
+    // Validate required user fields
+    const requiredFields = ['user_name', 'user_phone', 'user_email', 'address'];
+    const missingFields = requiredFields.filter(field => !req.body[field]);
+    if (missingFields.length > 0) {
+      return sendError(res, 400, `Missing required fields: ${missingFields.join(', ')}`, 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(user_email)) {
+      return sendError(res, 400, 'Invalid email format', 'INVALID_EMAIL');
+    }
+
+    // Validate services array
+    if (!services || !Array.isArray(services) || services.length === 0) {
+      return sendError(res, 400, 'At least one service is required', 'NO_SERVICES');
+    }
+
+    if (services.length > 20) {
+      return sendError(res, 400, 'Maximum 20 services per submission', 'TOO_MANY_SERVICES');
+    }
+
+    // Check if any non-Quotation services exist (payment_method required for those)
+    const hasNonQuotation = services.some(s => s.request_type !== 'Quotation');
+
+    // Validate and normalize payment method for non-Quotation services
+    let paymentMethod = 'Cash On Delivery';
+    if (hasNonQuotation && payment_method) {
+      const normalizedPaymentMethod = payment_method
+        .trim()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+
+      const validPaymentMethods = ['Cash On Delivery', 'Online Payment'];
+      if (!validPaymentMethods.includes(normalizedPaymentMethod)) {
+        return sendError(res, 400, `Payment method must be one of: ${validPaymentMethods.join(', ')}`, 'INVALID_PAYMENT_METHOD');
+      }
+      paymentMethod = normalizedPaymentMethod;
+    }
+
+    // Try to find existing user by email or phone to link the order
+    const User = require('../models/User');
+    const existingUser = await User.findOne({
+      $or: [
+        { email: user_email.trim().toLowerCase() },
+        { phoneNumber: user_phone.trim() }
+      ]
+    });
+
+    // Fetch all unique service IDs and category IDs at once for efficiency
+    const serviceIds = [...new Set(services.filter(s => s.service_id).map(s => s.service_id))];
+    const categoryIds = [...new Set(services.filter(s => s.category_id).map(s => s.category_id))];
+
+    const [serviceRecords, categoryRecords] = await Promise.all([
+      Service.find({ _id: { $in: serviceIds } }),
+      Category.find({ _id: { $in: categoryIds } })
+    ]);
+
+    const serviceMap = {};
+    serviceRecords.forEach(s => { serviceMap[s._id.toString()] = s; });
+    const categoryMap = {};
+    categoryRecords.forEach(c => { categoryMap[c._id.toString()] = c; });
+
+    // Process each service and create service requests
+    const createdRequests = [];
+    const errors = [];
+
+    for (let i = 0; i < services.length; i++) {
+      const item = services[i];
+      const itemLabel = `Service ${i + 1} (${item.service_name || 'Unknown'})`;
+
+      // Validate required fields per service
+      if (!item.service_id || !item.service_name || !item.category_id || !item.category_name) {
+        errors.push(`${itemLabel}: Missing required service fields`);
+        continue;
+      }
+
+      if (!item.request_type || !['Quotation', 'OnTime', 'Scheduled'].includes(item.request_type)) {
+        errors.push(`${itemLabel}: Invalid request type`);
+        continue;
+      }
+
+      if (!item.requested_date) {
+        errors.push(`${itemLabel}: Missing requested date`);
+        continue;
+      }
+
+      const numberOfUnits = Number(item.number_of_units) || 1;
+      if (numberOfUnits < 1) {
+        errors.push(`${itemLabel}: number_of_units must be at least 1`);
+        continue;
+      }
+
+      // Validate service exists and is active
+      const service = serviceMap[item.service_id];
+      if (!service || !service.isActive) {
+        errors.push(`${itemLabel}: Service not found or inactive`);
+        continue;
+      }
+
+      // Validate category
+      const category = categoryMap[item.category_id];
+      if (!category || !category.isActive) {
+        errors.push(`${itemLabel}: Category not found or inactive`);
+        continue;
+      }
+
+      // Validate requested date
+      const requestedDate = new Date(item.requested_date);
+      const now = new Date();
+      if (requestedDate < now) {
+        errors.push(`${itemLabel}: Requested date cannot be in the past`);
+        continue;
+      }
+
+      // Validate minimum advance hours
+      if (service.minAdvanceHours && service.minAdvanceHours > 0) {
+        const minAdvanceMs = service.minAdvanceHours * 60 * 60 * 1000;
+        const minAllowedDate = new Date(now.getTime() + minAdvanceMs);
+        if (requestedDate < minAllowedDate) {
+          errors.push(`${itemLabel}: Requires at least ${service.minAdvanceHours} hour(s) in advance`);
+          continue;
+        }
+      }
+
+      // Parse sub-services
+      let parsedSelectedSubServices = [];
+      if (item.selectedSubServices) {
+        parsedSelectedSubServices = typeof item.selectedSubServices === 'string'
+          ? JSON.parse(item.selectedSubServices)
+          : item.selectedSubServices;
+      }
+
+      // Calculate pricing
+      let unitType, unitPrice, totalPrice;
+      const hasSubServices = service.subServices && service.subServices.length > 0;
+      const hasSelectedSubServices = parsedSelectedSubServices && parsedSelectedSubServices.length > 0;
+
+      if (item.request_type === 'Quotation') {
+        unitType = service.unitType || null;
+
+        if (hasSubServices && hasSelectedSubServices) {
+          let subServicesTotal = 0;
+          for (const selected of parsedSelectedSubServices) {
+            const matchingSubService = service.subServices.find(
+              sub => sub.name.toLowerCase().trim() === selected.name.toLowerCase().trim()
+            );
+            if (matchingSubService) {
+              const quantity = selected.quantity !== undefined ? parseInt(selected.quantity) : 1;
+              subServicesTotal += matchingSubService.rate * quantity;
+            }
+          }
+          if (subServicesTotal > 0) {
+            unitPrice = subServicesTotal;
+            totalPrice = unitPrice * numberOfUnits;
+          }
+        }
+
+        if (unitPrice === undefined) {
+          unitPrice = null;
+          totalPrice = null;
+        }
+      } else {
+        // For OnTime and Scheduled requests
+        if (hasSubServices && hasSelectedSubServices) {
+          let subServicesTotal = 0;
+          for (const selected of parsedSelectedSubServices) {
+            const matchingSubService = service.subServices.find(
+              sub => sub.name.toLowerCase().trim() === selected.name.toLowerCase().trim()
+            );
+            if (matchingSubService) {
+              const quantity = selected.quantity !== undefined ? parseInt(selected.quantity) : 1;
+              subServicesTotal += matchingSubService.rate * quantity;
+            }
+          }
+          if (subServicesTotal <= 0) {
+            errors.push(`${itemLabel}: Invalid sub-services pricing`);
+            continue;
+          }
+          unitType = service.unitType || 'per_unit';
+          unitPrice = subServicesTotal;
+          totalPrice = unitPrice * numberOfUnits;
+        } else {
+          unitType = service.unitType;
+          if (!unitType || !['per_unit', 'per_hour'].includes(unitType)) {
+            errors.push(`${itemLabel}: Invalid service unit type`);
+            continue;
+          }
+
+          if (unitType === 'per_hour') {
+            const tier = resolveTimeBasedTier(service, numberOfUnits);
+            if (tier) {
+              unitPrice = tier.price;
+              totalPrice = tier.price;
+            } else if (service.basePrice && service.basePrice > 0) {
+              unitPrice = service.basePrice;
+              totalPrice = service.basePrice * numberOfUnits;
+            } else {
+              errors.push(`${itemLabel}: No time-based pricing found for ${numberOfUnits} hour(s)`);
+              continue;
+            }
+          } else {
+            const basePrice = service.basePrice;
+            if (!basePrice || basePrice <= 0) {
+              errors.push(`${itemLabel}: Service must have a valid base price`);
+              continue;
+            }
+            unitPrice = basePrice;
+            totalPrice = unitPrice * numberOfUnits;
+          }
+        }
+      }
+
+      // Check for discount
+      let discount = null;
+      let discountPercentage = null;
+      if (item.request_type !== 'Quotation' && totalPrice !== null && totalPrice !== undefined) {
+        const activeBanner = await Banner.findOne({
+          service: item.service_id,
+          isActive: true,
+        }).lean();
+
+        discountPercentage = service.discount ?? activeBanner?.discountPercentage ?? null;
+
+        if (discountPercentage && discountPercentage > 0) {
+          discount = (totalPrice * discountPercentage) / 100;
+          totalPrice = totalPrice - discount;
+          totalPrice = Math.round(totalPrice * 100) / 100;
+          discount = Math.round(discount * 100) / 100;
+        }
+      }
+
+      // Determine payment method for this item
+      const itemPaymentMethod = item.request_type === 'Quotation' ? 'Cash On Delivery' : paymentMethod;
+
+      // Build service request data
+      const serviceRequestData = {
+        user_name: user_name.trim(),
+        user_phone: user_phone.trim(),
+        user_email: user_email.trim().toLowerCase(),
+        address: address.trim(),
+        service_id: item.service_id,
+        service_name: item.service_name.trim(),
+        category_id: item.category_id,
+        category_name: item.category_name.trim(),
+        request_type: item.request_type,
+        requested_date: requestedDate,
+        message: item.message ? item.message.trim() : undefined,
+        status: 'Pending',
+        number_of_units: numberOfUnits,
+        paymentMethod: itemPaymentMethod,
+        paymentStatus: itemPaymentMethod === 'Online Payment' ? 'Pending' : undefined,
+        user: existingUser ? existingUser._id : undefined
+      };
+
+      // Add selected sub-services
+      if (parsedSelectedSubServices.length > 0) {
+        serviceRequestData.selectedSubServices = parsedSelectedSubServices.map(selected => {
+          const matchingSubService = service.subServices.find(
+            sub => sub.name.toLowerCase().trim() === selected.name.toLowerCase().trim()
+          );
+          return {
+            name: matchingSubService ? matchingSubService.name : selected.name,
+            items: matchingSubService ? (matchingSubService.items || 1) : 1,
+            rate: matchingSubService ? matchingSubService.rate : selected.rate,
+            quantity: selected.quantity !== undefined ? parseInt(selected.quantity) : 1
+          };
+        });
+      }
+
+      // Add question answers for Quotation requests
+      if (item.questionAnswers && item.request_type === 'Quotation') {
+        let parsedQuestionAnswers = item.questionAnswers;
+        if (typeof parsedQuestionAnswers === 'string') {
+          try {
+            parsedQuestionAnswers = JSON.parse(parsedQuestionAnswers);
+          } catch (parseError) {
+            parsedQuestionAnswers = null;
+          }
+        }
+        if (Array.isArray(parsedQuestionAnswers) && parsedQuestionAnswers.length > 0) {
+          serviceRequestData.questionAnswers = parsedQuestionAnswers
+            .filter(qa => qa.question && qa.answer && qa.answer.trim() !== '')
+            .map(qa => ({
+              question: qa.question.trim(),
+              answer: qa.answer.trim(),
+              questionType: qa.questionType || 'text'
+            }));
+        }
+      }
+
+      // Add pricing fields
+      if (item.request_type !== 'Quotation') {
+        serviceRequestData.unit_type = unitType;
+        serviceRequestData.unit_price = unitPrice;
+        serviceRequestData.total_price = totalPrice;
+        if (discountPercentage && discountPercentage > 0) {
+          serviceRequestData.discountPercentage = discountPercentage;
+          serviceRequestData.discountAmount = discount;
+        }
+      } else {
+        if (unitType) serviceRequestData.unit_type = unitType;
+        if (unitPrice !== null && unitPrice !== undefined) serviceRequestData.unit_price = unitPrice;
+        if (totalPrice !== null && totalPrice !== undefined) serviceRequestData.total_price = totalPrice;
+      }
+
+      // Handle payment type
+      if (item.request_type !== 'Quotation') {
+        if (payment_type === 'full' || itemPaymentMethod === 'Online Payment') {
+          serviceRequestData.paymentType = 'full';
+        }
+      }
+
+      // Create the service request
+      const serviceRequest = await ServiceRequest.create(serviceRequestData);
+      createdRequests.push(serviceRequest);
+    }
+
+    // If no requests were created, return error
+    if (createdRequests.length === 0) {
+      return sendError(res, 400, `Failed to create any service requests. Errors: ${errors.join('; ')}`, 'ALL_SERVICES_FAILED');
+    }
+
+    // Send a single admin notification email
+    try {
+      const adminEmail = process.env.ADMIN_EMAIL || 'info@zushh.com';
+      if (emailService.isValidEmail(adminEmail)) {
+        // Send notification for the first request (summary)
+        const summaryRequest = {
+          ...createdRequests[0].toObject(),
+          service_name: createdRequests.length > 1
+            ? `${createdRequests[0].service_name} (+${createdRequests.length - 1} more services)`
+            : createdRequests[0].service_name
+        };
+        await emailService.sendAdminNotificationEmail(adminEmail, summaryRequest);
+      }
+    } catch (emailError) {
+      console.error('Failed to send admin notification email:', emailError.message);
+    }
+
+    // Transform response
+    const transformedRequests = createdRequests.map(sr => ({
+      _id: sr._id,
+      user_name: sr.user_name,
+      user_phone: sr.user_phone,
+      user_email: sr.user_email,
+      address: sr.address,
+      service_id: sr.service_id,
+      service_name: sr.service_name,
+      category_id: sr.category_id,
+      category_name: sr.category_name,
+      request_type: sr.request_type,
+      requested_date: sr.requested_date.toISOString(),
+      message: sr.message,
+      status: sr.status,
+      unit_type: sr.unit_type,
+      unit_price: sr.unit_price,
+      number_of_units: sr.number_of_units,
+      total_price: sr.total_price,
+      selectedSubServices: sr.selectedSubServices || [],
+      questionAnswers: sr.questionAnswers || [],
+      paymentMethod: sr.paymentMethod,
+      paymentStatus: sr.paymentStatus,
+      createdAt: sr.createdAt.toISOString(),
+      updatedAt: sr.updatedAt.toISOString()
+    }));
+
+    const response = {
+      success: true,
+      exception: null,
+      description: `${createdRequests.length} service request(s) submitted successfully${errors.length > 0 ? `. ${errors.length} service(s) had issues.` : ''}`,
+      content: {
+        serviceRequests: transformedRequests,
+        totalCreated: createdRequests.length,
+        totalFailed: errors.length,
+        errors: errors.length > 0 ? errors : undefined
+      }
+    };
+
+    res.status(201).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Reschedule a service request (User)
+// @route   PUT /api/service-requests/:id/reschedule
+// @access  Private (authenticated user, ownership verified)
+const rescheduleServiceRequest = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { requested_date } = req.body;
+
+    // Validate request ID
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, 'Invalid request ID', 'INVALID_REQUEST_ID');
+    }
+
+    // Validate requested_date
+    if (!requested_date) {
+      return sendError(res, 400, 'Requested date is required', 'MISSING_REQUESTED_DATE');
+    }
+
+    const newDate = new Date(requested_date);
+    if (isNaN(newDate.getTime())) {
+      return sendError(res, 400, 'Invalid date format', 'INVALID_DATE_FORMAT');
+    }
+
+    if (newDate < new Date()) {
+      return sendError(res, 400, 'Requested date cannot be in the past', 'DATE_IN_PAST');
+    }
+
+    // Find the service request
+    const serviceRequest = await ServiceRequest.findById(id);
+    if (!serviceRequest) {
+      return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
+    }
+
+    // Verify ownership via JWT token
+    const User = require('../models/User');
+    const currentUser = await User.findById(req.user.id);
+    if (!currentUser) {
+      return sendError(res, 401, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    const emailMatch = currentUser.email && serviceRequest.user_email.toLowerCase() === currentUser.email.toLowerCase();
+    const phoneMatch = currentUser.phoneNumber && serviceRequest.user_phone === currentUser.phoneNumber;
+    if (!emailMatch && !phoneMatch) {
+      return sendError(res, 403, 'You are not authorized to reschedule this service request', 'UNAUTHORIZED_ACCESS');
+    }
+
+    // Status gate: block if Completed or Cancelled
+    if (['Completed', 'Cancelled'].includes(serviceRequest.status)) {
+      return sendError(
+        res,
+        400,
+        `Cannot reschedule service request. Current status is "${serviceRequest.status}". Completed or cancelled requests cannot be rescheduled.`,
+        'REQUEST_NOT_RESCHEDULABLE'
+      );
+    }
+
+    const oldDate = serviceRequest.requested_date;
+    serviceRequest.requested_date = newDate;
+    await serviceRequest.save();
+
+    // Send notification email to admin about reschedule
+    try {
+      const admins = await Admin.find({ status: 'Active' }).select('email');
+      const adminEmails = admins.map(a => a.email).filter(Boolean);
+      if (adminEmails.length > 0) {
+        await emailService.sendEmail({
+          to: adminEmails,
+          subject: `Service Request Rescheduled - #${serviceRequest._id.toString().slice(-8)}`,
+          html: `
+            <h2>Service Request Rescheduled</h2>
+            <p><strong>Order ID:</strong> #${serviceRequest._id.toString().slice(-8)}</p>
+            <p><strong>Customer:</strong> ${serviceRequest.user_name} (${serviceRequest.user_email})</p>
+            <p><strong>Service:</strong> ${serviceRequest.service_name}</p>
+            <p><strong>Previous Date:</strong> ${oldDate ? oldDate.toISOString() : 'N/A'}</p>
+            <p><strong>New Date:</strong> ${newDate.toISOString()}</p>
+            <p>The customer has rescheduled their service request.</p>
+          `
+        });
+      }
+    } catch (emailError) {
+      console.error('Failed to send reschedule notification email:', emailError.message);
+    }
+
+    sendSuccess(res, 200, 'Service request rescheduled successfully', {
+      serviceRequest: {
+        _id: serviceRequest._id,
+        service_name: serviceRequest.service_name,
+        requested_date: serviceRequest.requested_date.toISOString(),
+        status: serviceRequest.status
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Reschedule a service request (Admin)
+// @route   PUT /api/service-requests/:id/admin-reschedule
+// @access  Private (Admin with orders:update permission)
+const adminRescheduleServiceRequest = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { requested_date } = req.body;
+
+    // Validate request ID
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, 'Invalid request ID', 'INVALID_REQUEST_ID');
+    }
+
+    // Validate requested_date
+    if (!requested_date) {
+      return sendError(res, 400, 'Requested date is required', 'MISSING_REQUESTED_DATE');
+    }
+
+    const newDate = new Date(requested_date);
+    if (isNaN(newDate.getTime())) {
+      return sendError(res, 400, 'Invalid date format', 'INVALID_DATE_FORMAT');
+    }
+
+    // Find the service request
+    const serviceRequest = await ServiceRequest.findById(id);
+    if (!serviceRequest) {
+      return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
+    }
+
+    // Status gate: block if Completed or Cancelled
+    if (['Completed', 'Cancelled'].includes(serviceRequest.status)) {
+      return sendError(
+        res,
+        400,
+        `Cannot reschedule service request. Current status is "${serviceRequest.status}". Completed or cancelled requests cannot be rescheduled.`,
+        'REQUEST_NOT_RESCHEDULABLE'
+      );
+    }
+
+    const oldDate = serviceRequest.requested_date;
+    serviceRequest.requested_date = newDate;
+    await serviceRequest.save();
+
+    // Send notification email + SMS to customer about admin reschedule
+    try {
+      if (serviceRequest.user_email) {
+        await emailService.sendEmail({
+          to: serviceRequest.user_email,
+          subject: `Your Service Request Has Been Rescheduled - #${serviceRequest._id.toString().slice(-8)}`,
+          html: `
+            <h2>Service Request Rescheduled</h2>
+            <p>Dear ${serviceRequest.user_name},</p>
+            <p>Your service request has been rescheduled by our team.</p>
+            <p><strong>Service:</strong> ${serviceRequest.service_name}</p>
+            <p><strong>Previous Date:</strong> ${oldDate ? oldDate.toISOString() : 'N/A'}</p>
+            <p><strong>New Date:</strong> ${newDate.toISOString()}</p>
+            <p>If you have any questions, please contact our support team.</p>
+          `
+        });
+      }
+    } catch (emailError) {
+      console.error('Failed to send reschedule notification to customer:', emailError.message);
+    }
+
+    try {
+      if (serviceRequest.user_phone) {
+        await smsService.sendSMS(
+          serviceRequest.user_phone,
+          `Your service "${serviceRequest.service_name}" (Order #${serviceRequest._id.toString().slice(-8)}) has been rescheduled to ${newDate.toLocaleDateString()}. Contact us for questions.`
+        );
+      }
+    } catch (smsError) {
+      console.error('Failed to send reschedule SMS:', smsError.message);
+    }
+
+    sendSuccess(res, 200, 'Service request rescheduled successfully', {
+      serviceRequest: {
+        _id: serviceRequest._id,
+        user_name: serviceRequest.user_name,
+        user_email: serviceRequest.user_email,
+        service_name: serviceRequest.service_name,
+        requested_date: serviceRequest.requested_date.toISOString(),
+        status: serviceRequest.status
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   submitServiceRequest,
   adminSubmitServiceRequest,
@@ -2162,5 +2756,8 @@ module.exports = {
   userCancelServiceRequest,
   userDeleteServiceRequest,
   updateQuotationPrice,
-  updatePaymentStatus
+  updatePaymentStatus,
+  submitBulkServiceRequests,
+  rescheduleServiceRequest,
+  adminRescheduleServiceRequest
 };

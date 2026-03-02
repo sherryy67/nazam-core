@@ -14,7 +14,9 @@ const {
   userCancelServiceRequest,
   userDeleteServiceRequest,
   updateQuotationPrice,
-  updatePaymentStatus
+  updatePaymentStatus,
+  rescheduleServiceRequest,
+  adminRescheduleServiceRequest
 } = require('../controllers/serviceRequestController');
 
 const router = express.Router();
@@ -1153,5 +1155,9 @@ router.put('/:id/cancel', protect, userCancelServiceRequest);
  *         description: Service request not found
  */
 router.delete('/:id/request-delete', protect, userDeleteServiceRequest);
+
+// Reschedule routes
+router.put('/:id/reschedule', protect, rescheduleServiceRequest);
+router.put('/:id/admin-reschedule', protect, hasPermission('orders:update'), adminRescheduleServiceRequest);
 
 module.exports = router;
