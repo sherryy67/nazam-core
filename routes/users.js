@@ -1,6 +1,6 @@
 const express = require('express');
 const { body } = require('express-validator');
-const { getProfile, updateProfile, deleteProfilePicture, updatePassword, getUserOrderHistory, testS3, upload } = require('../controllers/userController');
+const { getProfile, updateProfile, deleteProfilePicture, updatePassword, getUserOrderHistory, testS3, upload, deleteAccount } = require('../controllers/userController');
 const { protect } = require('../middlewares/auth');
 const { isUser } = require('../middlewares/roleAuth');
 
@@ -749,5 +749,37 @@ router.put('/update-password', protect, isUser, updatePasswordValidation, update
  *                   example: "USER_NOT_FOUND"
  */
 router.get('/orders', protect, isUser, getUserOrderHistory);
+
+/**
+ * @swagger
+ * /api/users/delete-account:
+ *   delete:
+ *     summary: Permanently delete user account and all associated data
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - password
+ *             properties:
+ *               password:
+ *                 type: string
+ *                 description: Current password for verification
+ *     responses:
+ *       200:
+ *         description: Account deleted successfully
+ *       400:
+ *         description: Password is required
+ *       401:
+ *         description: Incorrect password
+ *       404:
+ *         description: User not found
+ */
+router.delete('/delete-account', protect, isUser, deleteAccount);
 
 module.exports = router;

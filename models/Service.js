@@ -231,6 +231,7 @@ const serviceSchema = new mongoose.Schema(
       },
     ],
 
+    benefitsTitle: { type: String, trim: true, default: "" },
     benefits: [
       {
         icon: { type: String, trim: true },
@@ -266,6 +267,14 @@ const serviceSchema = new mongoose.Schema(
         description: { type: String },
       },
     ],
+
+    // SEO & Meta fields (all optional)
+    metaTitle: { type: String, trim: true, default: "" },
+    metaDescription: { type: String, trim: true, default: "" },
+    urlSlug: { type: String, trim: true, default: "", unique: true, sparse: true },
+    socialImage: { type: String, default: "" },
+    ogTitle: { type: String, trim: true, default: "" },
+    ogDescription: { type: String, trim: true, default: "" },
   },
   { timestamps: true },
 );
