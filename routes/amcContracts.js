@@ -3,12 +3,16 @@ const { protect } = require("../middlewares/auth");
 const { isAdmin, hasPermission } = require("../middlewares/roleAuth");
 const {
   submitAMCContract,
+  adminSubmitAMCContract,
   getAMCContract,
   getUserAMCContracts,
   getAllAMCContracts,
   updateAMCContractStatus,
   updateAMCContractDetails,
   updateContractServiceRequest,
+  rescheduleServiceRequest,
+  setQuotationPrice,
+  respondToQuotation,
 } = require("../controllers/amcContractController");
 const amcAssetRoutes = require("./amcAssets");
 
@@ -94,6 +98,9 @@ const router = express.Router();
  *         description: Validation error
  */
 router.post("/", protect, submitAMCContract);
+
+// Admin: Submit AMC contract on behalf of a user
+router.post("/admin-submit", protect, hasPermission('amc_contracts:write'), adminSubmitAMCContract);
 
 /**
  * @swagger
@@ -241,6 +248,15 @@ router.put("/:id", protect, hasPermission('amc_contracts:write'), updateAMCContr
 
 // Update a service request's scheduling within a contract (admin only)
 router.put("/:id/service-requests/:srId", protect, hasPermission('amc_contracts:write'), updateContractServiceRequest);
+
+// User reschedule a service request within their AMC contract
+router.put("/:id/service-requests/:srId/reschedule", protect, rescheduleServiceRequest);
+
+// Admin sets quotation price for a service request (sends email to customer)
+router.put("/:id/service-requests/:srId/quote", protect, hasPermission('amc_contracts:write'), setQuotationPrice);
+
+// User accepts or rejects a quotation
+router.put("/:id/service-requests/:srId/respond", protect, respondToQuotation);
 
 // Mount asset sub-routes
 router.use("/:id/assets", amcAssetRoutes);

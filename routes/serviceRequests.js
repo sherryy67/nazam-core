@@ -14,7 +14,10 @@ const {
   userCancelServiceRequest,
   userDeleteServiceRequest,
   updateQuotationPrice,
-  updatePaymentStatus
+  respondToServiceRequestQuotation,
+  updatePaymentStatus,
+  rescheduleServiceRequest,
+  adminRescheduleServiceRequest
 } = require('../controllers/serviceRequestController');
 
 const router = express.Router();
@@ -1066,6 +1069,9 @@ router.put('/:id/request-update', protect, requestUpdateValidation, userUpdateSe
  */
 router.put('/:id/cancel', protect, userCancelServiceRequest);
 
+// User responds to a quotation (accept or reject)
+router.put('/:id/respond', protect, respondToServiceRequestQuotation);
+
 /**
  * @swagger
  * /api/service-requests/{id}/request-delete:
@@ -1153,5 +1159,9 @@ router.put('/:id/cancel', protect, userCancelServiceRequest);
  *         description: Service request not found
  */
 router.delete('/:id/request-delete', protect, userDeleteServiceRequest);
+
+// Reschedule routes
+router.put('/:id/reschedule', protect, rescheduleServiceRequest);
+router.put('/:id/admin-reschedule', protect, hasPermission('orders:update'), adminRescheduleServiceRequest);
 
 module.exports = router;

@@ -378,7 +378,7 @@ const updatePassword = async (req, res, next) => {
 const getUserOrderHistory = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { status, request_type, page = 1, limit = 10 } = req.query;
+    const { status, request_type, page = 1, limit = 10, startDate, endDate } = req.query;
 
     // Get authenticated user's email and phone number
     const user = await User.findById(userId);
@@ -396,6 +396,13 @@ const getUserOrderHistory = async (req, res, next) => {
         { user_phone: user.phoneNumber }
       ]
     };
+
+    // Date range filter
+    if (startDate || endDate) {
+      query.requested_date = {};
+      if (startDate) query.requested_date.$gte = new Date(startDate);
+      if (endDate) query.requested_date.$lte = new Date(endDate);
+    }
 
     // Apply optional filters
     if (status) {
@@ -474,6 +481,68 @@ const getUserOrderHistory = async (req, res, next) => {
   }
 };
 
+// @desc    Hard delete user account and all related data
+// @route   DELETE /api/users/delete-account
+// @access  Private (User only)
+const deleteAccount = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { password } = req.body;
+
+    if (!password) {
+      return sendError(res, 400, 'Password is required to delete account', 'MISSING_PASSWORD');
+    }
+
+    // Find user with password field
+    const user = await User.findById(userId).select('+password');
+    if (!user) {
+      return sendError(res, 404, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    // Verify password
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return sendError(res, 401, 'Incorrect password', 'INCORRECT_PASSWORD');
+    }
+
+    // Delete profile picture from S3 if exists
+    if (user.profilePic) {
+      try {
+        const key = user.profilePic.split('/').slice(-2).join('/');
+        const deleteParams = {
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: key,
+        };
+
+        if (DeleteObjectCommand) {
+          const command = new DeleteObjectCommand(deleteParams);
+          await s3Client.send(command);
+        } else {
+          await s3Client.deleteObject(deleteParams).promise();
+        }
+      } catch (s3Error) {
+        console.error('Error deleting profile pic from S3 during account deletion:', s3Error);
+      }
+    }
+
+    // Delete all related data
+    await Address.deleteMany({ user: userId });
+
+    // Remove user reference from service requests (keep requests for admin records)
+    await ServiceRequest.updateMany(
+      { user: userId },
+      { $unset: { user: "" } }
+    );
+
+    // Delete the user document
+    await User.findByIdAndDelete(userId);
+
+    sendSuccess(res, 200, 'Account deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getProfile,
   updateProfile,
@@ -481,5 +550,6 @@ module.exports = {
   updatePassword,
   getUserOrderHistory,
   testS3,
-  upload
+  upload,
+  deleteAccount
 };
