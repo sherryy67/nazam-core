@@ -1775,12 +1775,12 @@ const userCancelServiceRequest = async (req, res, next) => {
       return sendError(res, 403, 'You are not authorized to cancel this service request', 'UNAUTHORIZED_ACCESS');
     }
 
-    // Check if status is Pending - only allow cancel when Pending
-    if (serviceRequest.status !== 'Pending') {
+    // Check if status allows cancellation - Pending or Quoted
+    if (!['Pending', 'Quoted'].includes(serviceRequest.status)) {
       return sendError(
         res,
         400,
-        `Cannot cancel service request. Current status is "${serviceRequest.status}". Only requests with "Pending" status can be cancelled.`,
+        `Cannot cancel service request. Current status is "${serviceRequest.status}". Only Pending or Quoted requests can be cancelled.`,
         'REQUEST_NOT_CANCELLABLE'
       );
     }
@@ -1943,6 +1943,7 @@ const updateQuotationPrice = async (req, res, next) => {
     // Update quotation
     serviceRequest.total_price = Number(total_price);
     serviceRequest.unit_price = unit_price ? Number(unit_price) : Number(total_price);
+    serviceRequest.quotedPrice = Number(total_price);
 
     // Update status if provided (e.g., from "Pending" to "Quoted")
     if (status && ['Pending', 'Quoted', 'Assigned', 'Accepted', 'InProgress', 'Completed', 'Cancelled'].includes(status)) {
@@ -1954,6 +1955,7 @@ const updateQuotationPrice = async (req, res, next) => {
 
     // Add admin notes if provided
     if (admin_notes) {
+      serviceRequest.quotationNotes = admin_notes.trim();
       if (!serviceRequest.message) {
         serviceRequest.message = `[Admin Notes] ${admin_notes}`;
       } else {
@@ -2023,6 +2025,96 @@ const updateQuotationPrice = async (req, res, next) => {
     };
 
     return res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    User accepts or rejects a quotation for a regular service request
+ * @route   PUT /api/service-requests/:id/respond
+ * @access  Private (User only - verified via JWT token)
+ */
+const respondToServiceRequestQuotation = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { action } = req.body; // "accept" or "reject"
+
+    // Validate ID
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, 'Invalid service request ID', 'INVALID_ID');
+    }
+
+    // Validate action
+    if (!action || !['accept', 'reject'].includes(action)) {
+      return sendError(res, 400, 'action must be "accept" or "reject"', 'INVALID_ACTION');
+    }
+
+    // Find the service request
+    const serviceRequest = await ServiceRequest.findById(id);
+    if (!serviceRequest) {
+      return sendError(res, 404, 'Service request not found', 'SERVICE_REQUEST_NOT_FOUND');
+    }
+
+    // Verify ownership via JWT token
+    const User = require('../models/User');
+    const currentUser = await User.findById(req.user.id || req.user._id);
+    if (!currentUser) {
+      return sendError(res, 401, 'User not found', 'USER_NOT_FOUND');
+    }
+
+    const emailMatch = currentUser.email && serviceRequest.user_email &&
+      serviceRequest.user_email.toLowerCase() === currentUser.email.toLowerCase();
+    const phoneMatch = currentUser.phoneNumber && serviceRequest.user_phone &&
+      serviceRequest.user_phone === currentUser.phoneNumber;
+
+    if (!emailMatch && !phoneMatch) {
+      return sendError(res, 403, 'You are not authorized to respond to this quotation', 'UNAUTHORIZED_ACCESS');
+    }
+
+    // Verify status is Quoted
+    if (serviceRequest.status !== 'Quoted') {
+      return sendError(
+        res,
+        400,
+        `Can only respond to quotations with status "Quoted". Current status is "${serviceRequest.status}".`,
+        'INVALID_STATUS'
+      );
+    }
+
+    // Update status
+    serviceRequest.status = action === 'accept' ? 'Accepted' : 'Rejected';
+    serviceRequest.quotationRespondedAt = new Date();
+    await serviceRequest.save();
+
+    // Send admin notification email about the response
+    try {
+      const adminEmail = process.env.ADMIN_EMAIL || 'info@zushh.com';
+      if (emailService.isValidEmail(adminEmail)) {
+        await emailService.sendAdminNotificationEmail(adminEmail, {
+          ...serviceRequest.toObject(),
+          service_name: `Quotation ${action === 'accept' ? 'ACCEPTED' : 'REJECTED'}: ${serviceRequest.service_name} (Order #${serviceRequest._id.toString().slice(-8)})`,
+        });
+      }
+    } catch (emailError) {
+      console.error('Failed to send admin notification:', emailError.message);
+    }
+
+    return sendSuccess(
+      res,
+      200,
+      `Quotation ${action === 'accept' ? 'accepted' : 'rejected'} successfully`,
+      {
+        serviceRequest: {
+          _id: serviceRequest._id,
+          service_name: serviceRequest.service_name,
+          status: serviceRequest.status,
+          quotedPrice: serviceRequest.quotedPrice,
+          total_price: serviceRequest.total_price,
+          quotationRespondedAt: serviceRequest.quotationRespondedAt,
+        },
+      }
+    );
   } catch (error) {
     next(error);
   }
@@ -2756,6 +2848,7 @@ module.exports = {
   userCancelServiceRequest,
   userDeleteServiceRequest,
   updateQuotationPrice,
+  respondToServiceRequestQuotation,
   updatePaymentStatus,
   submitBulkServiceRequests,
   rescheduleServiceRequest,

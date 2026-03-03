@@ -3,6 +3,7 @@ const { protect } = require("../middlewares/auth");
 const { isAdmin, hasPermission } = require("../middlewares/roleAuth");
 const {
   submitAMCContract,
+  adminSubmitAMCContract,
   getAMCContract,
   getUserAMCContracts,
   getAllAMCContracts,
@@ -97,6 +98,9 @@ const router = express.Router();
  *         description: Validation error
  */
 router.post("/", protect, submitAMCContract);
+
+// Admin: Submit AMC contract on behalf of a user
+router.post("/admin-submit", protect, hasPermission('amc_contracts:write'), adminSubmitAMCContract);
 
 /**
  * @swagger

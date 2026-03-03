@@ -14,6 +14,7 @@ const {
   userCancelServiceRequest,
   userDeleteServiceRequest,
   updateQuotationPrice,
+  respondToServiceRequestQuotation,
   updatePaymentStatus,
   rescheduleServiceRequest,
   adminRescheduleServiceRequest
@@ -1067,6 +1068,9 @@ router.put('/:id/request-update', protect, requestUpdateValidation, userUpdateSe
  *         description: Service request not found
  */
 router.put('/:id/cancel', protect, userCancelServiceRequest);
+
+// User responds to a quotation (accept or reject)
+router.put('/:id/respond', protect, respondToServiceRequestQuotation);
 
 /**
  * @swagger

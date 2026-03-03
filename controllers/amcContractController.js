@@ -322,6 +322,334 @@ const submitAMCContract = async (req, res, next) => {
   }
 };
 
+// @desc    Admin submits an AMC contract on behalf of a user (with optional quotation prices)
+// @route   POST /api/amc-contracts/admin-submit
+// @access  Admin (amc_contracts:write)
+const adminSubmitAMCContract = async (req, res, next) => {
+  try {
+    const {
+      userId,
+      companyName,
+      contactPerson,
+      contactPhone,
+      contactEmail,
+      address,
+      message,
+      startDate,
+      endDate,
+      services, // Array of cart items, each may have quotedPrice and quotationNotes
+    } = req.body;
+
+    // Validate userId
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return sendError(res, 400, "Valid userId is required", "INVALID_USER_ID");
+    }
+
+    const User = require("../models/User");
+    const targetUser = await User.findById(userId);
+    if (!targetUser) {
+      return sendError(res, 404, "User not found", "USER_NOT_FOUND");
+    }
+
+    // Use target user's info as fallback for contact fields
+    const finalCompanyName = (companyName && companyName.trim()) || targetUser.name || "N/A";
+    const finalContactPerson = (contactPerson && contactPerson.trim()) || targetUser.name || "N/A";
+    const finalContactPhone = (contactPhone && contactPhone.trim()) || targetUser.phoneNumber || "";
+    const finalContactEmail = (contactEmail && contactEmail.trim()) || targetUser.email || "";
+    const finalAddress = (address && address.trim()) || targetUser.address || "";
+
+    // Validate required fields
+    if (!finalContactPhone) {
+      return sendError(res, 400, "Contact phone is required", "MISSING_PHONE");
+    }
+    if (!finalContactEmail) {
+      return sendError(res, 400, "Contact email is required", "MISSING_EMAIL");
+    }
+    if (!finalAddress) {
+      return sendError(res, 400, "Address is required", "MISSING_ADDRESS");
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(finalContactEmail)) {
+      return sendError(res, 400, "Invalid email format", "INVALID_EMAIL");
+    }
+
+    // Validate services array
+    if (!Array.isArray(services) || services.length === 0) {
+      return sendError(
+        res,
+        400,
+        "At least one service is required",
+        "NO_SERVICES"
+      );
+    }
+
+    // Separate custom services from platform services
+    const platformServices = services.filter((s) => !s.isCustomService);
+    const customServices = services.filter((s) => s.isCustomService);
+
+    // Validate custom services have a name
+    for (const cs of customServices) {
+      if (!cs.customServiceName || !cs.customServiceName.trim()) {
+        return sendError(
+          res,
+          400,
+          "Custom services must have a name",
+          "INVALID_CUSTOM_SERVICE"
+        );
+      }
+    }
+
+    // Validate platform services exist and are active
+    const serviceMap = {};
+    if (platformServices.length > 0) {
+      const serviceIds = platformServices.map((s) => s.service_id);
+      const activeServices = await Service.find({
+        _id: { $in: serviceIds },
+        isActive: true,
+      }).select("+subServices");
+
+      if (activeServices.length !== serviceIds.length) {
+        const activeIds = activeServices.map((s) => s._id.toString());
+        const invalidIds = serviceIds.filter(
+          (id) => !activeIds.includes(id)
+        );
+        return sendError(
+          res,
+          400,
+          `Some services are invalid or inactive: ${invalidIds.join(", ")}`,
+          "INVALID_SERVICES"
+        );
+      }
+
+      for (const svc of activeServices) {
+        serviceMap[svc._id.toString()] = svc;
+      }
+    }
+
+    // Calculate contract dates
+    const contractStartDate = startDate ? new Date(startDate) : null;
+    let contractEndDate = null;
+    if (contractStartDate) {
+      if (endDate) {
+        contractEndDate = new Date(endDate);
+      } else {
+        contractEndDate = new Date(contractStartDate);
+        contractEndDate.setFullYear(contractEndDate.getFullYear() + 1);
+      }
+    }
+
+    // Use a transaction
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      // Create the AMC contract
+      const [amcContract] = await AMCContract.create(
+        [
+          {
+            companyName: finalCompanyName,
+            contactPerson: finalContactPerson,
+            contactPhone: finalContactPhone,
+            contactEmail: finalContactEmail.toLowerCase(),
+            address: finalAddress,
+            message: message ? message.trim() : undefined,
+            user: targetUser._id,
+            createdByAdmin: req.user._id || req.user.id,
+            startDate: contractStartDate || undefined,
+            endDate: contractEndDate || undefined,
+            status: "Pending",
+            serviceRequests: [],
+          },
+        ],
+        { session }
+      );
+
+      // Create a ServiceRequest for each cart item
+      const createdServiceRequests = [];
+
+      for (const cartItem of services) {
+        let serviceRequestData;
+
+        const numberOfTimes = cartItem.numberOfTimes ? Number(cartItem.numberOfTimes) : 1;
+        const scheduledDates = Array.isArray(cartItem.scheduledDates)
+          ? cartItem.scheduledDates.map((d) => new Date(d))
+          : [];
+
+        // Determine if admin provided a quotation price
+        const hasQuotedPrice = cartItem.quotedPrice !== undefined && cartItem.quotedPrice !== null && cartItem.quotedPrice !== "" && Number(cartItem.quotedPrice) > 0;
+        const initialStatus = hasQuotedPrice ? "Quoted" : "Pending";
+
+        if (cartItem.isCustomService) {
+          serviceRequestData = {
+            user_name: finalContactPerson,
+            user_phone: finalContactPhone,
+            user_email: finalContactEmail.toLowerCase(),
+            address: finalAddress,
+            service_name: cartItem.customServiceName.trim(),
+            category_name: "Custom Service",
+            request_type: "Quotation",
+            requested_date: scheduledDates[0]
+              || (cartItem.requested_date ? new Date(cartItem.requested_date) : null)
+              || contractStartDate || new Date(),
+            message: cartItem.customServiceDescription
+              ? cartItem.customServiceDescription.trim()
+              : cartItem.message
+                ? cartItem.message.trim()
+                : undefined,
+            status: initialStatus,
+            number_of_units: cartItem.number_of_units || cartItem.quantity || 1,
+            paymentMethod: "Cash On Delivery",
+            user: targetUser._id,
+            createdByAdmin: req.user._id || req.user.id,
+            amcContract: amcContract._id,
+            isCustomService: true,
+            customServiceName: cartItem.customServiceName.trim(),
+            customServiceDescription: cartItem.customServiceDescription
+              ? cartItem.customServiceDescription.trim()
+              : undefined,
+            numberOfTimes,
+            scheduledDates: scheduledDates.length > 0 ? scheduledDates : undefined,
+          };
+        } else {
+          const service = serviceMap[cartItem.service_id];
+          if (!service) continue;
+
+          serviceRequestData = {
+            user_name: finalContactPerson,
+            user_phone: finalContactPhone,
+            user_email: finalContactEmail.toLowerCase(),
+            address: finalAddress,
+            service_id: cartItem.service_id,
+            service_name: cartItem.service_name || service.name,
+            category_id: cartItem.category_id || service.category_id,
+            category_name: cartItem.category_name || "",
+            request_type: "Quotation",
+            requested_date: scheduledDates[0]
+              || (cartItem.requested_date ? new Date(cartItem.requested_date) : null)
+              || contractStartDate || new Date(),
+            message: cartItem.message ? cartItem.message.trim() : undefined,
+            status: initialStatus,
+            number_of_units: cartItem.number_of_units || cartItem.quantity || 1,
+            paymentMethod: "Cash On Delivery",
+            user: targetUser._id,
+            createdByAdmin: req.user._id || req.user.id,
+            amcContract: amcContract._id,
+            numberOfTimes,
+            scheduledDates: scheduledDates.length > 0 ? scheduledDates : undefined,
+          };
+
+          if (cartItem.durationType) {
+            serviceRequestData.durationType = cartItem.durationType;
+            serviceRequestData.duration = cartItem.duration ? Number(cartItem.duration) : 1;
+          }
+          if (cartItem.numberOfPersons) {
+            serviceRequestData.numberOfPersons = Number(cartItem.numberOfPersons);
+          }
+
+          if (Array.isArray(cartItem.selectedSubServices) && cartItem.selectedSubServices.length > 0) {
+            serviceRequestData.selectedSubServices = cartItem.selectedSubServices.map((selected) => {
+              const matchingSub = service.subServices
+                ? service.subServices.find(
+                    (sub) => sub.name.toLowerCase().trim() === selected.name.toLowerCase().trim()
+                  )
+                : null;
+              return {
+                name: matchingSub ? matchingSub.name : selected.name,
+                items: matchingSub ? matchingSub.items || 1 : selected.items || 1,
+                rate: matchingSub ? matchingSub.rate : selected.rate || 0,
+                quantity: selected.quantity !== undefined ? parseInt(selected.quantity) : 1,
+              };
+            });
+          }
+
+          if (Array.isArray(cartItem.questionAnswers) && cartItem.questionAnswers.length > 0) {
+            serviceRequestData.questionAnswers = cartItem.questionAnswers
+              .filter((qa) => qa.question && qa.answer && qa.answer.trim() !== "")
+              .map((qa) => ({
+                question: qa.question.trim(),
+                answer: qa.answer.trim(),
+                questionType: qa.questionType || "text",
+              }));
+          }
+        }
+
+        // Add quotation fields if price was provided
+        if (hasQuotedPrice) {
+          serviceRequestData.quotedPrice = Number(cartItem.quotedPrice);
+          serviceRequestData.quotationNotes = cartItem.quotationNotes ? cartItem.quotationNotes.trim() : "";
+        }
+
+        const [serviceRequest] = await ServiceRequest.create(
+          [serviceRequestData],
+          { session }
+        );
+        createdServiceRequests.push(serviceRequest);
+      }
+
+      // Update the contract with service request IDs
+      amcContract.serviceRequests = createdServiceRequests.map((sr) => sr._id);
+      await amcContract.save({ session });
+
+      // Commit the transaction
+      await session.commitTransaction();
+      session.endSession();
+
+      // Send quotation emails for services that have quoted prices
+      const frontendUrl = process.env.FRONTEND_URL || "https://zushh.com";
+      for (const sr of createdServiceRequests) {
+        if (sr.status === "Quoted" && sr.quotedPrice > 0) {
+          try {
+            const reviewLink = `${frontendUrl}/orders?contractId=${amcContract._id}&srId=${sr._id}`;
+            if (emailService.isValidEmail(sr.user_email)) {
+              await emailService.sendQuotationPriceEmail(
+                sr.user_email,
+                { ...sr.toObject(), reviewLink },
+                Number(sr.quotedPrice),
+                sr.quotationNotes || null
+              );
+            }
+          } catch (emailError) {
+            console.error("Failed to send quotation email for SR:", sr._id, emailError.message);
+          }
+        }
+      }
+
+      // Send admin notification email (non-blocking)
+      try {
+        const adminEmail = process.env.ADMIN_EMAIL || "info@zushh.com";
+        if (emailService.isValidEmail(adminEmail)) {
+          await emailService.sendAdminNotificationEmail(adminEmail, {
+            ...createdServiceRequests[0].toObject(),
+            service_name: `AMC Contract (Admin): ${amcContract.contractNumber} (${createdServiceRequests.length} services) for ${targetUser.name}`,
+          });
+        }
+      } catch (emailError) {
+        console.error("Failed to send admin notification email:", emailError.message);
+      }
+
+      // Populate service requests for the response
+      const populatedContract = await AMCContract.findById(amcContract._id)
+        .populate({
+          path: "serviceRequests",
+          select:
+            "service_name service_id category_name status requested_date number_of_units durationType duration numberOfPersons selectedSubServices numberOfTimes scheduledDates quotedPrice quotationNotes",
+        });
+
+      return sendCreated(res, "AMC contract submitted successfully on behalf of user", {
+        amcContract: populatedContract,
+      });
+    } catch (transactionError) {
+      await session.abortTransaction();
+      session.endSession();
+      throw transactionError;
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Get a single AMC contract by ID
 // @route   GET /api/amc-contracts/:id
 // @access  Public
@@ -893,6 +1221,7 @@ const respondToQuotation = async (req, res, next) => {
 
 module.exports = {
   submitAMCContract,
+  adminSubmitAMCContract,
   getAMCContract,
   getUserAMCContracts,
   getAllAMCContracts,
