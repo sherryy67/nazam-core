@@ -4,6 +4,7 @@ const Service = require("../models/Service");
 const mongoose = require("mongoose");
 const { sendSuccess, sendError, sendCreated } = require("../utils/response");
 const emailService = require("../utils/emailService");
+const smsService = require("../utils/smsService");
 
 // @desc    Submit an AMC contract with multiple services
 // @route   POST /api/amc-contracts
@@ -596,6 +597,29 @@ const adminSubmitAMCContract = async (req, res, next) => {
       await session.commitTransaction();
       session.endSession();
 
+      // Send order confirmation email to user for each service request
+      for (const sr of createdServiceRequests) {
+        try {
+          if (emailService.isValidEmail(sr.user_email)) {
+            await emailService.sendOrderConfirmationEmail(
+              sr.user_email,
+              sr
+            );
+          }
+        } catch (emailError) {
+          console.error("Failed to send order confirmation email for SR:", sr._id, emailError.message);
+        }
+
+        // Send SMS confirmation to user
+        try {
+          if (sr.user_phone && smsService.isValidUAEPhoneNumber(sr.user_phone)) {
+            await smsService.sendOrderConfirmation(sr.user_phone, sr);
+          }
+        } catch (smsError) {
+          console.error("Failed to send order confirmation SMS for SR:", sr._id, smsError.message);
+        }
+      }
+
       // Send quotation emails for services that have quoted prices
       const frontendUrl = process.env.FRONTEND_URL || "https://zushh.com";
       for (const sr of createdServiceRequests) {
@@ -717,7 +741,7 @@ const getUserAMCContracts = async (req, res, next) => {
         .populate({
           path: "serviceRequests",
           select:
-            "service_name service_id category_name status requested_date total_price paymentType milestones numberOfTimes scheduledDates number_of_units isCustomService customServiceName quotedPrice quotationNotes quotationRespondedAt",
+            "service_name service_id category_name status requested_date total_price paymentStatus paymentMethod paymentType milestones numberOfTimes scheduledDates number_of_units isCustomService customServiceName quotedPrice quotationNotes quotationRespondedAt",
         })
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -770,7 +794,7 @@ const getAllAMCContracts = async (req, res, next) => {
       AMCContract.find(query)
         .populate({
           path: "serviceRequests",
-          select: "service_name status total_price requested_date",
+          select: "service_name status total_price requested_date paymentStatus paymentMethod paymentType milestones",
         })
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -1193,6 +1217,14 @@ const respondToQuotation = async (req, res, next) => {
 
     serviceRequest.status = action === "accept" ? "Accepted" : "Rejected";
     serviceRequest.quotationRespondedAt = new Date();
+
+    // When accepted, set total_price from quotedPrice and enable online payment
+    if (action === "accept" && serviceRequest.quotedPrice) {
+      serviceRequest.total_price = serviceRequest.quotedPrice;
+      serviceRequest.paymentMethod = "Online Payment";
+      serviceRequest.paymentStatus = "Pending";
+    }
+
     await serviceRequest.save();
 
     // Notify admin about the response
