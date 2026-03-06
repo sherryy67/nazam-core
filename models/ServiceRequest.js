@@ -59,7 +59,7 @@ const serviceRequestSchema = new mongoose.Schema({
   // Status and assignment
   status: {
     type: String,
-    enum: ["Pending", "Quoted", "Assigned", "Accepted", "InProgress", "Completed", "Cancelled"],
+    enum: ["Pending", "Quoted", "Assigned", "Accepted", "InProgress", "Completed", "Cancelled", "Rejected"],
     default: "Pending"
   },
   vendor: { type: mongoose.Schema.Types.ObjectId, ref: "Vendor" }, // assigned later
@@ -161,6 +161,11 @@ const serviceRequestSchema = new mongoose.Schema({
     questionType: { type: String, trim: true }
   }],
   
+  // Quotation pricing (for Quotation-type requests)
+  quotedPrice: { type: Number, default: null },
+  quotationNotes: { type: String, trim: true, default: "" },
+  quotationRespondedAt: { type: Date, default: null },
+
   // AMC Contract link (optional - only for AMC service requests)
   amcContract: { type: mongoose.Schema.Types.ObjectId, ref: "AMCContract", default: null },
 

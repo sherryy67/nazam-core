@@ -378,7 +378,7 @@ const updatePassword = async (req, res, next) => {
 const getUserOrderHistory = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { status, request_type, page = 1, limit = 10 } = req.query;
+    const { status, request_type, page = 1, limit = 10, startDate, endDate } = req.query;
 
     // Get authenticated user's email and phone number
     const user = await User.findById(userId);
@@ -396,6 +396,13 @@ const getUserOrderHistory = async (req, res, next) => {
         { user_phone: user.phoneNumber }
       ]
     };
+
+    // Date range filter
+    if (startDate || endDate) {
+      query.requested_date = {};
+      if (startDate) query.requested_date.$gte = new Date(startDate);
+      if (endDate) query.requested_date.$lte = new Date(endDate);
+    }
 
     // Apply optional filters
     if (status) {

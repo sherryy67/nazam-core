@@ -17,7 +17,7 @@ const createCategory = async (req, res, next) => {
         res,
         400,
         "Category name is required",
-        "MISSING_REQUIRED_FIELDS"
+        "MISSING_REQUIRED_FIELDS",
       );
     }
 
@@ -31,7 +31,7 @@ const createCategory = async (req, res, next) => {
         res,
         409,
         "Category with this name already exists",
-        "CATEGORY_EXISTS"
+        "CATEGORY_EXISTS",
       );
     }
 
@@ -151,7 +151,7 @@ const getCategoryById = async (req, res, next) => {
 
     const category = await Category.findById(id).populate(
       "createdBy",
-      "name email"
+      "name email",
     );
 
     if (!category) {
@@ -211,7 +211,7 @@ const updateCategory = async (req, res, next) => {
           res,
           409,
           "Category with this name already exists",
-          "CATEGORY_EXISTS"
+          "CATEGORY_EXISTS",
         );
       }
     }
@@ -278,7 +278,7 @@ const deleteCategory = async (req, res, next) => {
         res,
         400,
         `Cannot delete category. It is being used by ${servicesUsingCategory} service(s)`,
-        "CATEGORY_IN_USE"
+        "CATEGORY_IN_USE",
       );
     }
 
@@ -364,7 +364,7 @@ const getHomeCategories = async (req, res, next) => {
           category: transformedCategory,
           service: transformedService,
         };
-      })
+      }),
     );
 
     // Return ALL categories (with or without services)
@@ -407,7 +407,7 @@ const getMobileHomeContent = async (req, res, next) => {
 
     // Daily seed → same result whole day
     const seed = Number(
-      new Date().toISOString().slice(0, 10).replace(/-/g, "")
+      new Date().toISOString().slice(0, 10).replace(/-/g, ""),
     );
 
     /* ---------------- Transform helper ---------------- */
@@ -462,7 +462,7 @@ const getMobileHomeContent = async (req, res, next) => {
 
       if (serviceType === "commercial") {
         commercialBanner.push(bannerObj);
-      } else if (serviceType === "residential") {
+      } else if (serviceType === "residential" || !serviceType) {
         residentialBanner.push(bannerObj);
       }
     });
@@ -481,11 +481,15 @@ const getMobileHomeContent = async (req, res, next) => {
       .slice(0, 9)
       .map(transformService);
 
-    /* ---------------- Residential services ---------------- */
+    /* ---------------- Residential services (include null/missing serviceType) ---------------- */
 
     const residentialServicesData = await Service.find({
       isActive: true,
-      serviceType: "residential",
+      $or: [
+        { serviceType: "residential" },
+        { serviceType: { $exists: false } },
+        { serviceType: null },
+      ],
     })
       .populate("category_id", "_id name")
       .sort({ name: 1 })
@@ -542,7 +546,7 @@ const updateCategorySortOrder = async (req, res, next) => {
         res,
         400,
         "Categories array is required and must not be empty",
-        "MISSING_REQUIRED_FIELDS"
+        "MISSING_REQUIRED_FIELDS",
       );
     }
 
@@ -553,7 +557,7 @@ const updateCategorySortOrder = async (req, res, next) => {
           res,
           400,
           "Category ID is required for each category",
-          "MISSING_CATEGORY_ID"
+          "MISSING_CATEGORY_ID",
         );
       }
       if (!mongoose.Types.ObjectId.isValid(category.id)) {
@@ -561,7 +565,7 @@ const updateCategorySortOrder = async (req, res, next) => {
           res,
           400,
           `Invalid category ID format: ${category.id}`,
-          "INVALID_CATEGORY_ID"
+          "INVALID_CATEGORY_ID",
         );
       }
       if (category.sortOrder === undefined || category.sortOrder === null) {
@@ -569,7 +573,7 @@ const updateCategorySortOrder = async (req, res, next) => {
           res,
           400,
           "sortOrder is required for each category",
-          "MISSING_SORT_ORDER"
+          "MISSING_SORT_ORDER",
         );
       }
       if (
@@ -580,7 +584,7 @@ const updateCategorySortOrder = async (req, res, next) => {
           res,
           400,
           "sortOrder must be an integer",
-          "INVALID_SORT_ORDER"
+          "INVALID_SORT_ORDER",
         );
       }
       if (category.sortOrder < 0) {
@@ -588,7 +592,7 @@ const updateCategorySortOrder = async (req, res, next) => {
           res,
           400,
           "sortOrder must be a non-negative integer",
-          "INVALID_SORT_ORDER"
+          "INVALID_SORT_ORDER",
         );
       }
     }
@@ -606,7 +610,7 @@ const updateCategorySortOrder = async (req, res, next) => {
         res,
         404,
         `Categories not found: ${invalidIds.join(", ")}`,
-        "CATEGORIES_NOT_FOUND"
+        "CATEGORIES_NOT_FOUND",
       );
     }
 
@@ -705,9 +709,16 @@ module.exports = {
       // Helper function to process services by serviceType
       const processServicesByType = async (serviceType) => {
         // Build serviceType filter — include documents with missing/null serviceType as "residential"
-        const typeFilter = serviceType === "residential"
-          ? { $or: [{ serviceType: "residential" }, { serviceType: { $exists: false } }, { serviceType: null }] }
-          : { serviceType: serviceType };
+        const typeFilter =
+          serviceType === "residential"
+            ? {
+                $or: [
+                  { serviceType: "residential" },
+                  { serviceType: { $exists: false } },
+                  { serviceType: null },
+                ],
+              }
+            : { serviceType: serviceType };
 
         const results = await Promise.all(
           categories.map(async (category) => {
@@ -738,7 +749,7 @@ module.exports = {
               totalServices,
               services: services.map(transformService),
             };
-          })
+          }),
         );
 
         // Filter out categories with no services and sort
@@ -771,7 +782,7 @@ module.exports = {
         {
           residential,
           commercial,
-        }
+        },
       );
     } catch (error) {
       return next(error);
