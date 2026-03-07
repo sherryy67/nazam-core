@@ -14,9 +14,15 @@ module.exports = {
   PLATFORM_ADMIN: 10,
   SUPER_ADMIN: 11,
 
+  // Extended external roles
+  PROPERTY_OWNER: 12,
+  ORGANIZATION: 13,
+
   // Helpers
-  isStaffRole: (role) => role >= 3,
+  isStaffRole: (role) => role >= 3 && role <= 11,
   isSuperAdmin: (role) => role === 11,
+  isPropertyOwner: (role) => role === 12,
+  isOrganization: (role) => role === 13,
 
   // Deprecated alias — kept for backward compatibility
   ADMIN: 3,

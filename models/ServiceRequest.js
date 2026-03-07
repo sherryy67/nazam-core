@@ -173,6 +173,17 @@ const serviceRequestSchema = new mongoose.Schema({
   numberOfTimes: { type: Number, default: 1 },
   scheduledDates: [{ type: Date }],
 
+  // Property tracking (for building owner visibility)
+  propertyId: { type: mongoose.Schema.Types.ObjectId, ref: "Property", default: null },
+  unitId: { type: mongoose.Schema.Types.ObjectId, ref: "Unit", default: null },
+
+  // Organization tracking
+  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: "Organization", default: null },
+
+  // Created on behalf of (when property owner submits for a tenant)
+  createdOnBehalfOf: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  createdByPropertyOwner: { type: mongoose.Schema.Types.ObjectId, ref: "PropertyOwner", default: null },
+
   // Admin created order tracking
   createdByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
 

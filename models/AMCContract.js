@@ -14,6 +14,10 @@ const amcContractSchema = new mongoose.Schema({
   // Linked user (if they have an account)
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
 
+  // Property tracking (for building owner visibility)
+  propertyId: { type: mongoose.Schema.Types.ObjectId, ref: "Property", default: null },
+  unitId: { type: mongoose.Schema.Types.ObjectId, ref: "Unit", default: null },
+
   // Contract period
   startDate: { type: Date, default: null },
   endDate: { type: Date, default: null },

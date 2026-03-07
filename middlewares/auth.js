@@ -35,7 +35,19 @@ const protect = async (req, res, next) => {
       }
     } else if (decoded.role === ROLES.VENDOR) {
       user = await Vendor.findById(decoded.id);
-    } else if (decoded.role >= 3) {
+    } else if (decoded.role === ROLES.PROPERTY_OWNER) {
+      const PropertyOwner = require('../models/PropertyOwner');
+      user = await PropertyOwner.findById(decoded.id);
+      if (user && !user.isActive) {
+        return sendError(res, 403, 'Your account is deactivated, please contact support', 'OWNER_DEACTIVATED');
+      }
+    } else if (decoded.role === ROLES.ORGANIZATION) {
+      const Organization = require('../models/Organization');
+      user = await Organization.findById(decoded.id);
+      if (user && !user.isActive) {
+        return sendError(res, 403, 'Your organization account is deactivated, please contact support', 'ORG_DEACTIVATED');
+      }
+    } else if (ROLES.isStaffRole(decoded.role)) {
       // Staff roles (3-11) — try Staff first, then legacy Admin fallback
       user = await Staff.findById(decoded.id);
       if (!user) {
@@ -58,7 +70,7 @@ const protect = async (req, res, next) => {
     };
 
     // For staff users, resolve and attach permissions
-    if (decoded.role >= 3) {
+    if (ROLES.isStaffRole(decoded.role)) {
       if (user.roleRef) {
         const roleDoc = await Role.findById(user.roleRef).lean();
         let perms = roleDoc ? roleDoc.permissions : [];
