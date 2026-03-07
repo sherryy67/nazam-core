@@ -807,6 +807,10 @@ const sendTokenResponse = async (user, statusCode, res) => {
         }
         userData.permissions = perms;
       }
+    } else {
+      // Legacy Admin users (no roleRef) — grant full access
+      userData.permissions = ['*'];
+      userData.staffRole = 'admin';
     }
   } else if (user.role === ROLES.USER) {
     // For users (role 1), include all user fields for consistent response
