@@ -703,6 +703,7 @@ module.exports = {
           price: perHourPrice !== null ? perHourPrice : svc.basePrice,
           unitType: svc.unitType,
           termsCondition: svc.termsCondition ?? "",
+          urlSlug: svc.urlSlug ?? "",
         };
       };
 
@@ -738,6 +739,7 @@ module.exports = {
                   imageUri: 1,
                   thumbnailUri: 1,
                   termsCondition: 1,
+                  urlSlug: 1,
                 })
                 .lean(),
             ]);

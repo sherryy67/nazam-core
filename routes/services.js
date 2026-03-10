@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 const { protect } = require('../middlewares/auth');
 const { authorize, isAdmin, hasPermission } = require('../middlewares/roleAuth');
 const ROLES = require('../constants/roles');
-const { createService, getServices, getServicesPaginated, getServiceById, deleteService, toggleServiceStatus, getAllActiveServices, getServiceSubServices, getRelatedServices, setFeaturedServices, getFeaturedServices, getResidentialServices, getCommercialServices, getHomeCategoryServices, getPopularServices, searchActiveServicesForAsset, upload } = require('../controllers/serviceController');
+const { createService, getServices, getServicesPaginated, getServiceById, getServiceBySlug, deleteService, toggleServiceStatus, getAllActiveServices, getServiceSubServices, getRelatedServices, setFeaturedServices, getFeaturedServices, getResidentialServices, getCommercialServices, getHomeCategoryServices, getPopularServices, searchActiveServicesForAsset, upload } = require('../controllers/serviceController');
 
 const router = express.Router();
 
@@ -1009,6 +1009,28 @@ router.get('/popular', getPopularServices);
  *       404:
  *         description: Service not found
  */
+/**
+ * @swagger
+ * /api/services/slug/{slug}:
+ *   get:
+ *     summary: Get a service by its URL slug (Public)
+ *     tags: [Services]
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The URL slug of the service
+ *         example: "ac-cleaning-residential"
+ *     responses:
+ *       200:
+ *         description: Service retrieved successfully
+ *       404:
+ *         description: Service not found
+ */
+router.get('/slug/:slug', getServiceBySlug);
+
 router.get('/:id/related', getRelatedServices);
 
 /**

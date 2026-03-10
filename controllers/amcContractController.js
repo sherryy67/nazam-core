@@ -794,7 +794,7 @@ const getAllAMCContracts = async (req, res, next) => {
       AMCContract.find(query)
         .populate({
           path: "serviceRequests",
-          select: "service_name status total_price requested_date paymentStatus paymentMethod paymentType milestones",
+          select: "service_name status total_price requested_date paymentStatus paymentMethod paymentType milestones quotedPrice quotationNotes quotationRespondedAt user_name user_phone user_email address request_type message category_id category_name",
         })
         .sort({ createdAt: -1 })
         .skip(skip)
