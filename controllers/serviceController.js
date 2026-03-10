@@ -2127,6 +2127,7 @@ const getRelatedServices = async (req, res, next) => {
       imageUri: svc.imageUri,
       service_icon: svc.service_icon,
       thumbnailUri: svc.thumbnailUri,
+      urlSlug: svc.urlSlug,
       category_id: svc.category_id,
       createdAt: svc.createdAt?.toISOString(),
       updatedAt: svc.updatedAt?.toISOString(),

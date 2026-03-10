@@ -7,6 +7,7 @@ const { sendSuccess, sendError, sendCreated } = require('../utils/response');
 const emailService = require('../utils/emailService');
 const smsService = require('../utils/smsService');
 const Admin = require('../models/Admin');
+const { generateRevenueFromServiceRequest } = require('../utils/revenueHelper');
 
 const resolveTimeBasedTier = (service, units) => {
   if (!Array.isArray(service.timeBasedPricing) || service.timeBasedPricing.length === 0) {
@@ -1119,6 +1120,18 @@ const updateServiceRequestStatus = async (req, res, next) => {
         console.error('Failed to send status update SMS:', smsError.message);
         notificationResults.sms = { success: false, error: smsError.message };
       }
+    }
+
+    // Generate revenue transaction when status changes to Completed
+    if (newStatus === 'Completed' && oldStatus !== 'Completed' && updatedRequest.total_price > 0) {
+      await generateRevenueFromServiceRequest({
+        serviceRequestId: updatedRequest._id,
+        totalAmount: updatedRequest.total_price,
+        vendorId: updatedRequest.vendor?._id || updatedRequest.vendor || null,
+        organizationId: updatedRequest.organizationId || null,
+        propertyId: updatedRequest.propertyId || null,
+        source: 'status_completed'
+      });
     }
 
     // Transform response

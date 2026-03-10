@@ -1,10 +1,8 @@
 const Task = require('../models/Task');
 const ServiceRequest = require('../models/ServiceRequest');
 const Vendor = require('../models/Vendor');
-const RevenueTransaction = require('../models/RevenueTransaction');
-const Organization = require('../models/Organization');
-const PropertyOwner = require('../models/PropertyOwner');
 const { sendSuccess, sendError, sendNotFoundError } = require('../utils/response');
+const { generateRevenueFromServiceRequest } = require('../utils/revenueHelper');
 
 /**
  * @desc    Create task from service request (Admin only)
@@ -277,7 +275,15 @@ const completeTask = async (req, res, next) => {
 
     // Generate revenue transaction
     if (task.taskAmount > 0) {
-      await generateRevenueTransaction(task);
+      await generateRevenueFromServiceRequest({
+        serviceRequestId: task.serviceRequest,
+        totalAmount: task.taskAmount,
+        vendorId: task.vendor,
+        taskId: task._id,
+        organizationId: task.organization || null,
+        propertyId: task.property || null,
+        source: 'task_completion'
+      });
     }
 
     sendSuccess(res, 200, 'Task completed successfully', { task });
@@ -286,57 +292,6 @@ const completeTask = async (req, res, next) => {
   }
 };
 
-/**
- * Generate revenue transaction when a task is completed
- */
-const generateRevenueTransaction = async (task) => {
-  try {
-    const totalAmount = task.taskAmount;
-    let orgCommissionPercent = 0;
-    let orgShare = 0;
-    let ownerCommissionPercent = 0;
-    let ownerShare = 0;
-
-    // Calculate organization commission
-    if (task.organization) {
-      const org = await Organization.findById(task.organization);
-      if (org) {
-        orgCommissionPercent = org.commissionPercentage;
-        orgShare = (totalAmount * orgCommissionPercent) / 100;
-      }
-    }
-
-    // Calculate property owner commission
-    if (task.property) {
-      const Property = require('../models/Property');
-      const property = await Property.findById(task.property).populate('owner');
-      if (property && property.owner) {
-        ownerCommissionPercent = property.owner.commissionPercentage;
-        ownerShare = (totalAmount * ownerCommissionPercent) / 100;
-      }
-    }
-
-    const vendorShare = totalAmount - orgShare - ownerShare;
-
-    await RevenueTransaction.create({
-      task: task._id,
-      serviceRequest: task.serviceRequest,
-      vendor: task.vendor,
-      organization: task.organization || null,
-      propertyOwner: task.property ? (await require('../models/Property').findById(task.property))?.owner : null,
-      totalAmount,
-      organizationCommissionPercent: orgCommissionPercent,
-      organizationShare: orgShare,
-      propertyOwnerCommissionPercent: ownerCommissionPercent,
-      propertyOwnerShare: ownerShare,
-      vendorShare: Math.max(vendorShare, 0),
-      platformShare: 0,
-      paymentStatus: 'Pending'
-    });
-  } catch (error) {
-    console.error('Error generating revenue transaction:', error);
-  }
-};
 
 /**
  * @desc    Get task by ID

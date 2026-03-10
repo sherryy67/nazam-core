@@ -1,11 +1,11 @@
 const mongoose = require("mongoose");
 
 const revenueTransactionSchema = new mongoose.Schema({
-  // Linked task
+  // Linked task (optional - not all revenue comes from tasks)
   task: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Task",
-    required: true
+    default: null
   },
 
   // Linked service request
@@ -14,11 +14,28 @@ const revenueTransactionSchema = new mongoose.Schema({
     ref: "ServiceRequest"
   },
 
+  // Revenue source
+  source: {
+    type: String,
+    enum: ["task_completion", "payment_received", "status_completed"],
+    default: "payment_received"
+  },
+
+  // Milestone tracking (for milestone/chunk payments)
+  milestoneId: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: null
+  },
+  milestoneName: {
+    type: String,
+    default: null
+  },
+
   // Parties involved
   vendor: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Vendor",
-    required: true
+    default: null
   },
   organization: {
     type: mongoose.Schema.Types.ObjectId,
@@ -43,7 +60,7 @@ const revenueTransactionSchema = new mongoose.Schema({
   propertyOwnerShare: { type: Number, default: 0 },
 
   // Vendor share (what vendor receives after all commissions)
-  vendorShare: { type: Number, required: true },
+  vendorShare: { type: Number, default: 0 },
 
   // Platform share (Zushh cut if any)
   platformShare: { type: Number, default: 0 },
@@ -66,5 +83,6 @@ const revenueTransactionSchema = new mongoose.Schema({
 revenueTransactionSchema.index({ vendor: 1, paymentStatus: 1 });
 revenueTransactionSchema.index({ organization: 1, paymentStatus: 1 });
 revenueTransactionSchema.index({ propertyOwner: 1, paymentStatus: 1 });
+revenueTransactionSchema.index({ serviceRequest: 1, source: 1 });
 
 module.exports = mongoose.model("RevenueTransaction", revenueTransactionSchema);
