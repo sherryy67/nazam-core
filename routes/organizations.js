@@ -9,6 +9,7 @@ const {
   createVendorForOrganization,
   getOrganizationVendors,
   getOrganizationDashboard,
+  getOrganizationDashboardById,
   organizationLogin
 } = require('../controllers/organizationController');
 
@@ -25,6 +26,7 @@ router.post('/vendors', protect, isOrganization, createVendorForOrganization);
 // Admin routes
 router.post('/', protect, isAdmin, createOrganization);
 router.get('/', protect, isAdmin, getAllOrganizations);
+router.get('/:id/dashboard', protect, isAdmin, getOrganizationDashboardById);
 router.get('/:id', protect, isOrganizationOrAdmin, getOrganizationById);
 router.put('/:id', protect, isAdmin, updateOrganization);
 

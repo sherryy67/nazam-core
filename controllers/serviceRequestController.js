@@ -1434,7 +1434,43 @@ const getOrderDetails = async (req, res, next) => {
         id: serviceRequest.vendor._id?.toString(),
         name: `${serviceRequest.vendor.firstName || ''} ${serviceRequest.vendor.lastName || ''}`.trim(),
         coveredCity: serviceRequest.vendor.coveredCity
-      } : null
+      } : null,
+      // Payment link info
+      paymentLink: serviceRequest.paymentLink && serviceRequest.paymentLink.token ? {
+        url: serviceRequest.paymentLink.url,
+        generatedAt: serviceRequest.paymentLink.generatedAt,
+        expiresAt: serviceRequest.paymentLink.expiresAt,
+        isExpired: serviceRequest.paymentLink.isExpired || (serviceRequest.paymentLink.expiresAt && new Date() > serviceRequest.paymentLink.expiresAt),
+        isUsed: serviceRequest.paymentLink.isUsed
+      } : null,
+      // Milestone info
+      paymentType: serviceRequest.paymentType || 'full',
+      milestones: (serviceRequest.milestones || []).map(m => ({
+        _id: m._id?.toString(),
+        name: m.name,
+        description: m.description,
+        amount: m.amount,
+        percentage: m.percentage,
+        order: m.order,
+        paymentStatus: m.paymentStatus,
+        completionStatus: m.completionStatus,
+        completedAt: m.completedAt,
+        dueDate: m.dueDate,
+        isRequired: m.isRequired,
+        paymentLink: m.paymentLink && m.paymentLink.token ? {
+          url: m.paymentLink.url,
+          generatedAt: m.paymentLink.generatedAt,
+          expiresAt: m.paymentLink.expiresAt,
+          isExpired: m.paymentLink.isExpired || (m.paymentLink.expiresAt && new Date() > m.paymentLink.expiresAt),
+          isUsed: m.paymentLink.isUsed
+        } : null
+      })),
+      requireSequentialPayment: serviceRequest.requireSequentialPayment,
+      // Quotation info
+      quotedPrice: serviceRequest.quotedPrice,
+      quotationNotes: serviceRequest.quotationNotes,
+      quotationRespondedAt: serviceRequest.quotationRespondedAt,
+      questionAnswers: serviceRequest.questionAnswers || []
     };
 
     const response = {

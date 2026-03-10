@@ -718,7 +718,7 @@ router.put('/updatepassword', protect, updatePasswordValidation, updatePassword)
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/admin/create-vendor', protect, hasPermission('vendors:write'), upload.single('profilePic'), vendorRegisterValidation, adminCreateVendor);
+router.post('/admin/create-vendor', protect, hasPermission('vendors:write'), upload.fields([{ name: 'profilePic', maxCount: 1 }, { name: 'idDocument', maxCount: 1 }]), vendorRegisterValidation, adminCreateVendor);
 
 /**
  * @swagger

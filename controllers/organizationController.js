@@ -274,6 +274,67 @@ const organizationLogin = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get organization dashboard by ID (Admin only)
+ * @route   GET /api/organizations/:id/dashboard
+ * @access  Private (Admin)
+ */
+const getOrganizationDashboardById = async (req, res, next) => {
+  try {
+    const orgId = req.params.id;
+
+    const org = await Organization.findById(orgId);
+    if (!org) {
+      return sendNotFoundError(res, 'Organization not found');
+    }
+
+    const [
+      totalVendors,
+      activeVendors,
+      totalTasks,
+      completedTasks,
+      currentTasks,
+      revenueData
+    ] = await Promise.all([
+      Vendor.countDocuments({ organizationId: orgId }),
+      Vendor.countDocuments({ organizationId: orgId, approved: true }),
+      Task.countDocuments({ organization: orgId }),
+      Task.countDocuments({ organization: orgId, status: 'Completed' }),
+      Task.countDocuments({ organization: orgId, status: { $in: ['Created', 'Notified', 'Accepted', 'InProgress'] } }),
+      RevenueTransaction.aggregate([
+        { $match: { organization: require('mongoose').Types.ObjectId.createFromHexString(orgId) } },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: '$totalAmount' },
+            organizationShare: { $sum: '$organizationShare' },
+            vendorShare: { $sum: '$vendorShare' },
+            pendingPayments: {
+              $sum: { $cond: [{ $eq: ['$paymentStatus', 'Pending'] }, '$organizationShare', 0] }
+            },
+            completedPayments: {
+              $sum: { $cond: [{ $eq: ['$paymentStatus', 'Completed'] }, '$organizationShare', 0] }
+            }
+          }
+        }
+      ])
+    ]);
+
+    const revenue = revenueData[0] || {
+      totalRevenue: 0, organizationShare: 0, vendorShare: 0,
+      pendingPayments: 0, completedPayments: 0
+    };
+
+    sendSuccess(res, 200, 'Organization dashboard retrieved successfully', {
+      vendors: { total: totalVendors, active: activeVendors },
+      tasks: { total: totalTasks, completed: completedTasks, current: currentTasks },
+      revenue
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createOrganization,
   getAllOrganizations,
@@ -282,5 +343,6 @@ module.exports = {
   createVendorForOrganization,
   getOrganizationVendors,
   getOrganizationDashboard,
+  getOrganizationDashboardById,
   organizationLogin
 };
