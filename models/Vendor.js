@@ -33,6 +33,15 @@ const vendorSchema = new mongoose.Schema({
   country: { type: String },
   city: { type: String },
   pinCode: { type: String },
+  idDocument: { type: String }, // uploaded ID card image/document URL
+
+  // Organization link (if vendor belongs to an organization)
+  organizationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Organization",
+    default: null
+  },
+
   serviceAvailability: { type: String, enum: ["Full-time", "Part-time"], default: "Full-time" },
   vatRegistration: { type: Boolean, default: false },
   collectTax: { type: Boolean, default: false },

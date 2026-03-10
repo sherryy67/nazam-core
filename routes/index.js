@@ -21,6 +21,11 @@ const milestoneRoutes = require("./milestones");
 const amcContractRoutes = require("./amcContracts");
 const roleRoutes = require("./roles");
 const staffRoutes = require("./staff");
+const organizationRoutes = require("./organizations");
+const propertyRoutes = require("./properties");
+const referralCodeRoutes = require("./referralCodes");
+const taskRoutes = require("./tasks");
+const revenueRoutes = require("./revenue");
 const { sendSuccess } = require("../utils/response");
 const {
   getCategoryServiceSummary,
@@ -51,6 +56,11 @@ router.use("/milestones", milestoneRoutes);
 router.use("/amc-contracts", amcContractRoutes);
 router.use("/roles", roleRoutes);
 router.use("/staff", staffRoutes);
+router.use("/organizations", organizationRoutes);
+router.use("/properties", propertyRoutes);
+router.use("/referral-codes", referralCodeRoutes);
+router.use("/tasks", taskRoutes);
+router.use("/revenue", revenueRoutes);
 router.use("/", paymentLinkRoutes);
 router.use("/", bannerRoutes);
 

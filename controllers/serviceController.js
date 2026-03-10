@@ -888,21 +888,20 @@ const createService = async (req, res, next) => {
       serviceData.ogDescription = "";
     }
 
-    // Handle urlSlug - auto-generate from name if not provided
+    // Handle urlSlug - auto-generate from name + serviceType if not provided
+    const slugify = (str) => String(str).trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+
     if (urlSlug !== undefined && urlSlug !== null && String(urlSlug).trim().length > 0) {
-      serviceData.urlSlug = String(urlSlug).trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
+      serviceData.urlSlug = slugify(urlSlug);
     } else if (name) {
-      serviceData.urlSlug = String(name).trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
+      // Include serviceType in slug for uniqueness (same name, different type)
+      const svcType = serviceData.serviceType || existingService?.serviceType || 'residential';
+      serviceData.urlSlug = slugify(`${name}-${svcType}`);
     }
 
     // Ensure urlSlug uniqueness
@@ -1759,6 +1758,101 @@ const getServiceById = async (req, res, next) => {
   }
 };
 
+// @desc    Get service by URL slug (Public)
+// @route   GET /api/services/slug/:slug
+// @access  Public
+const getServiceBySlug = async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+
+    // Try slug first, then fall back to ID lookup
+    let service = await Service.findOne({ urlSlug: slug, isActive: true })
+      .populate("createdBy", "name email")
+      .populate("category_id", "name description");
+
+    if (!service && /^[a-f0-9]{24}$/i.test(slug)) {
+      service = await Service.findOne({ _id: slug, isActive: true })
+        .populate("createdBy", "name email")
+        .populate("category_id", "name description");
+    }
+
+    if (!service) {
+      return sendError(res, 404, "Service not found", "SERVICE_NOT_FOUND");
+    }
+
+    // Check for active banner with discount for this service
+    const activeBanner = await Banner.findOne({
+      service: service._id,
+      isActive: true,
+    }).lean();
+
+    const discount =
+      service.discount ?? activeBanner?.discountPercentage ?? null;
+
+    const transformedService = {
+      _id: service._id,
+      name: service.name,
+      description: service.description,
+      basePrice: service.basePrice,
+      unitType: service.unitType,
+      imageUri: service.imageUri,
+      service_icon: service.service_icon,
+      thumbnailUri: service.thumbnailUri,
+      category_id: service.category_id,
+      minAdvanceHours: service.minAdvanceHours || 0,
+      availability: service.availability,
+      job_service_type: service.job_service_type,
+      price_type: service.price_type,
+      subservice_type: service.subservice_type,
+      timeBasedPricing: service.timeBasedPricing || [],
+      isFeatured: service.isFeatured,
+      isMarketingService: service.isMarketingService,
+      serviceType: service.serviceType,
+      badge: service.badge || "",
+      termsCondition: service.termsCondition || "",
+      subServices: service.subServices || [],
+      quotationQuestions: service.quotationQuestions || [],
+      contentSections: service.contentSections || [],
+      benefitsTitle: service.benefitsTitle || "",
+      benefits: service.benefits || [],
+      whyChooseUs: service.whyChooseUs || { heading: "", description: "" },
+      whereWeOffer: service.whereWeOffer || { heading: "", description: "" },
+      youtubeLink: service.youtubeLink || "",
+      faqs: service.faqs || [],
+      testimonials: service.testimonials || [],
+      metaTitle: service.metaTitle || "",
+      metaDescription: service.metaDescription || "",
+      urlSlug: service.urlSlug || "",
+      socialImage: service.socialImage || "",
+      ogTitle: service.ogTitle || "",
+      ogDescription: service.ogDescription || "",
+      isActive: service.isActive,
+      createdBy: service.createdBy,
+      createdAt: service.createdAt?.toISOString(),
+      updatedAt: service.updatedAt?.toISOString(),
+      discount: discount,
+    };
+
+    if (
+      !transformedService.subServices ||
+      !Array.isArray(transformedService.subServices)
+    ) {
+      transformedService.subServices = [];
+    }
+
+    res.status(200).json({
+      success: true,
+      exception: null,
+      description: "Service retrieved successfully",
+      content: {
+        service: transformedService,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Toggle service active status (Admin only)
 // @route   PATCH /api/services/:id/status
 // @access  Admin only
@@ -2527,6 +2621,7 @@ module.exports = {
   getServices,
   getServicesPaginated,
   getServiceById,
+  getServiceBySlug,
   deleteService,
   toggleServiceStatus,
   getAllActiveServices,
@@ -2616,6 +2711,7 @@ module.exports = {
           service_icon: 1,
           thumbnailUri: 1,
           serviceType: 1,
+          urlSlug: 1,
         })
         .lean();
 
@@ -2624,6 +2720,7 @@ module.exports = {
         name: svc.name,
         icon: svc.service_icon || null,
         thumbnail: svc.thumbnailUri || null,
+        urlSlug: svc.urlSlug || "",
       });
 
       const commercialServices = services

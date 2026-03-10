@@ -129,6 +129,42 @@ const hasPermission = (...requiredPermissions) => {
   };
 };
 
+// Check if user is an organization
+const isOrganization = (req, res, next) => {
+  if (req.user && req.user.role === ROLES.ORGANIZATION) {
+    next();
+  } else {
+    return sendError(res, 403, 'Organization access required', 'ORGANIZATION_REQUIRED');
+  }
+};
+
+// Check if user is a property owner
+const isPropertyOwner = (req, res, next) => {
+  if (req.user && req.user.role === ROLES.PROPERTY_OWNER) {
+    next();
+  } else {
+    return sendError(res, 403, 'Property owner access required', 'PROPERTY_OWNER_REQUIRED');
+  }
+};
+
+// Check if user is property owner or admin/staff
+const isPropertyOwnerOrAdmin = (req, res, next) => {
+  if (req.user && (req.user.role === ROLES.PROPERTY_OWNER || ROLES.isStaffRole(req.user.role))) {
+    next();
+  } else {
+    return sendError(res, 403, 'Property owner or Admin access required', 'OWNER_OR_ADMIN_REQUIRED');
+  }
+};
+
+// Check if user is organization or admin/staff
+const isOrganizationOrAdmin = (req, res, next) => {
+  if (req.user && (req.user.role === ROLES.ORGANIZATION || ROLES.isStaffRole(req.user.role))) {
+    next();
+  } else {
+    return sendError(res, 403, 'Organization or Admin access required', 'ORG_OR_ADMIN_REQUIRED');
+  }
+};
+
 module.exports = {
   authorize,
   isAdmin,
@@ -138,4 +174,8 @@ module.exports = {
   isVendorOrAdmin,
   isApprovedVendor,
   hasPermission,
+  isOrganization,
+  isPropertyOwner,
+  isPropertyOwnerOrAdmin,
+  isOrganizationOrAdmin,
 };

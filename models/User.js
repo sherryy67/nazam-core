@@ -12,7 +12,20 @@ const userSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   isOTPVerified: { type: Boolean, default: false },
   profilePic: { type: String, default: "" },
-  address: { type: String, default: "" }
+  address: { type: String, default: "" },
+
+  // Property linking (tenant in a building)
+  propertyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Property",
+    default: null
+  },
+  unitId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Unit",
+    default: null
+  },
+  referralCode: { type: String, default: null } // code used to link to property
 }, { timestamps: true });
 
 // Hash password before saving
