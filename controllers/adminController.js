@@ -399,38 +399,44 @@ const getAdminDashboard = async (req, res, next) => {
   try {
     const { limit = 10 } = req.query;
 
+    // Date boundaries
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // 6 months ago for trend
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+
     // Execute all queries in parallel for better performance
     const [
       totalUsers,
       totalOrders,
       totalVendors,
       revenueResult,
-      recentOrders
+      recentOrders,
+      ordersByStatus,
+      revenueByPeriod,
+      monthlyTrend,
+      topServices,
+      revenueByPaymentMethod
     ] = await Promise.all([
       // Total users count
       User.countDocuments(),
-      
+
       // Total orders (service requests) count
       ServiceRequest.countDocuments(),
-      
+
       // Total vendors count
       Vendor.countDocuments(),
-      
+
       // Total revenue - sum of total_price from all completed orders
       ServiceRequest.aggregate([
-        {
-          $match: {
-            status: 'Completed'
-          }
-        },
-        {
-          $group: {
-            _id: null,
-            totalRevenue: { $sum: '$total_price' }
-          }
-        }
+        { $match: { status: 'Completed' } },
+        { $group: { _id: null, totalRevenue: { $sum: '$total_price' } } }
       ]),
-      
+
       // Recent orders with their status
       ServiceRequest.find()
         .populate('service_id', 'name description')
@@ -438,7 +444,80 @@ const getAdminDashboard = async (req, res, next) => {
         .populate('vendor', 'firstName lastName email mobileNumber')
         .sort({ createdAt: -1 })
         .limit(parseInt(limit))
-        .lean()
+        .lean(),
+
+      // Orders count by status
+      ServiceRequest.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 } } }
+      ]),
+
+      // Revenue by period (today, this week, this month)
+      ServiceRequest.aggregate([
+        { $match: { status: 'Completed' } },
+        {
+          $facet: {
+            today: [
+              { $match: { updatedAt: { $gte: startOfToday } } },
+              { $group: { _id: null, total: { $sum: '$total_price' } } }
+            ],
+            thisWeek: [
+              { $match: { updatedAt: { $gte: startOfWeek } } },
+              { $group: { _id: null, total: { $sum: '$total_price' } } }
+            ],
+            thisMonth: [
+              { $match: { updatedAt: { $gte: startOfMonth } } },
+              { $group: { _id: null, total: { $sum: '$total_price' } } }
+            ]
+          }
+        }
+      ]),
+
+      // Monthly revenue trend (last 6 months)
+      ServiceRequest.aggregate([
+        {
+          $match: {
+            status: 'Completed',
+            updatedAt: { $gte: sixMonthsAgo }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$updatedAt' },
+              month: { $month: '$updatedAt' }
+            },
+            revenue: { $sum: '$total_price' },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } }
+      ]),
+
+      // Top 5 services by revenue
+      ServiceRequest.aggregate([
+        { $match: { status: 'Completed' } },
+        {
+          $group: {
+            _id: '$service_name',
+            revenue: { $sum: '$total_price' },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { revenue: -1 } },
+        { $limit: 5 }
+      ]),
+
+      // Revenue by payment method
+      ServiceRequest.aggregate([
+        { $match: { status: 'Completed' } },
+        {
+          $group: {
+            _id: '$payment_method',
+            revenue: { $sum: '$total_price' },
+            count: { $sum: 1 }
+          }
+        }
+      ])
     ]);
 
     // Extract total revenue from aggregation result
@@ -468,20 +547,37 @@ const getAdminDashboard = async (req, res, next) => {
       updatedAt: order.updatedAt ? order.updatedAt.toISOString() : null
     }));
 
-    // Get orders count by status
-    const ordersByStatus = await ServiceRequest.aggregate([
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 }
-        }
-      }
-    ]);
-
     // Transform status counts into object
     const statusCounts = {};
     ordersByStatus.forEach(item => {
       statusCounts[item._id] = item.count;
+    });
+
+    // Extract period revenue
+    const periodData = revenueByPeriod[0] || { today: [], thisWeek: [], thisMonth: [] };
+
+    // Build monthly trend with labels (fill gaps with 0)
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const trendMap = {};
+    monthlyTrend.forEach(item => {
+      trendMap[`${item._id.year}-${item._id.month}`] = { revenue: item.revenue, count: item.count };
+    });
+    const formattedTrend = [];
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
+      const entry = trendMap[key] || { revenue: 0, count: 0 };
+      formattedTrend.push({
+        month: `${monthNames[d.getMonth()]} ${d.getFullYear()}`,
+        revenue: entry.revenue,
+        orders: entry.count
+      });
+    }
+
+    // Transform payment method data
+    const paymentMethodData = {};
+    revenueByPaymentMethod.forEach(item => {
+      paymentMethodData[item._id || 'Unknown'] = { revenue: item.revenue, count: item.count };
     });
 
     sendSuccess(res, 200, 'Dashboard data retrieved successfully', {
@@ -497,6 +593,15 @@ const getAdminDashboard = async (req, res, next) => {
           Completed: statusCounts.Completed || 0,
           Cancelled: statusCounts.Cancelled || 0
         }
+      },
+      revenue: {
+        total: totalRevenue || 0,
+        today: periodData.today[0]?.total || 0,
+        thisWeek: periodData.thisWeek[0]?.total || 0,
+        thisMonth: periodData.thisMonth[0]?.total || 0,
+        monthlyTrend: formattedTrend,
+        topServices: topServices.map(s => ({ name: s._id, revenue: s.revenue, count: s.count })),
+        byPaymentMethod: paymentMethodData
       },
       recentOrders: transformedOrders
     });

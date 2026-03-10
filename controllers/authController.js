@@ -496,20 +496,24 @@ const adminCreateVendor = async (req, res, next) => {
       vatRegistration: req.body.vatRegistration === 'true',
       collectTax: req.body.collectTax === 'true',
       availabilitySchedule: req.body.availabilitySchedule || [],
-      unavailableDates: req.body.unavailableDates || []
+      unavailableDates: req.body.unavailableDates || [],
+      organizationId: req.body.organizationId || null
     };
 
-    // Handle profile picture upload to S3
-    if (req.file) {
+    // Handle file uploads to S3 (profilePic and idDocument)
+    const profilePicFile = req.files && req.files['profilePic'] ? req.files['profilePic'][0] : (req.file || null);
+    const idDocumentFile = req.files && req.files['idDocument'] ? req.files['idDocument'][0] : null;
+
+    if (profilePicFile) {
       try {
         console.log('Starting vendor profile picture upload...');
-        console.log('File size:', req.file.size);
-        console.log('File mimetype:', req.file.mimetype);
-        console.log('File originalname:', req.file.originalname);
+        console.log('File size:', profilePicFile.size);
+        console.log('File mimetype:', profilePicFile.mimetype);
+        console.log('File originalname:', profilePicFile.originalname);
 
         // Upload to S3 using the same approach as service controller
-        const fileContent = req.file.buffer; // Using buffer from memory storage
-        const key = `vendor-profiles/${req.user.id}/${Date.now()}-${req.file.originalname}`;
+        const fileContent = profilePicFile.buffer; // Using buffer from memory storage
+        const key = `vendor-profiles/${req.user.id}/${Date.now()}-${profilePicFile.originalname}`;
 
         // Try to use AWS SDK v3, fallback to v2 if needed
         let s3Client, PutObjectCommand;
@@ -545,7 +549,7 @@ const adminCreateVendor = async (req, res, next) => {
           Bucket: process.env.AWS_S3_BUCKET_NAME,
           Key: key,
           Body: fileContent,
-          ContentType: req.file.mimetype
+          ContentType: profilePicFile.mimetype
         };
 
         console.log('Vendor profile upload params:', {
@@ -582,6 +586,55 @@ const adminCreateVendor = async (req, res, next) => {
           requestId: s3Error.requestId
         });
         return sendError(res, 500, `Failed to upload profile picture: ${s3Error.message}`, 'S3_UPLOAD_FAILED');
+      }
+    }
+
+    // Handle ID document upload to S3
+    if (idDocumentFile) {
+      try {
+        const fileContent = idDocumentFile.buffer;
+        const key = `vendor-id-documents/${req.user.id}/${Date.now()}-${idDocumentFile.originalname}`;
+
+        let s3Client, PutObjectCommand;
+        try {
+          const awsS3 = require('@aws-sdk/client-s3');
+          s3Client = new awsS3.S3Client({
+            region: process.env.AWS_REGION || 'us-east-1',
+            credentials: {
+              accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+              secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+            }
+          });
+          PutObjectCommand = awsS3.PutObjectCommand;
+        } catch (error) {
+          const AWS = require('aws-sdk');
+          s3Client = new AWS.S3({
+            accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+            region: process.env.AWS_REGION || 'us-east-1'
+          });
+        }
+
+        const uploadParams = {
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: key,
+          Body: fileContent,
+          ContentType: idDocumentFile.mimetype
+        };
+
+        if (PutObjectCommand) {
+          const command = new PutObjectCommand(uploadParams);
+          await s3Client.send(command);
+        } else {
+          await s3Client.upload(uploadParams).promise();
+        }
+
+        const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+        vendorData.idDocument = s3Url;
+        console.log('Vendor ID document S3 URL:', s3Url);
+      } catch (s3Error) {
+        console.error('Vendor ID document S3 upload error:', s3Error.message);
+        return sendError(res, 500, `Failed to upload ID document: ${s3Error.message}`, 'S3_UPLOAD_FAILED');
       }
     }
 
@@ -647,7 +700,7 @@ const adminCreateVendor = async (req, res, next) => {
 // @access  Private (Admin only)
 const getAllVendors = async (req, res, next) => {
   try {
-    const { page = 1, limit = 10, search, type, coveredCity } = req.query;
+    const { page = 1, limit = 10, search, type, coveredCity, organizationId } = req.query;
 
     // Build query
     const query = {};
@@ -672,6 +725,11 @@ const getAllVendors = async (req, res, next) => {
       query.coveredCity = { $regex: coveredCity, $options: 'i' };
     }
 
+    // Add organizationId filter
+    if (organizationId) {
+      query.organizationId = organizationId;
+    }
+
     // Calculate pagination
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
@@ -686,6 +744,7 @@ const getAllVendors = async (req, res, next) => {
     const [vendors, totalCount, totalVendors, currentMonthVendors, individualVendors, corporateVendors] = await Promise.all([
       Vendor.find(query)
         .populate('serviceId', 'name description basePrice unitType timeBasedPricing')
+        .populate('organizationId', 'name email')
         .select('-password') // Exclude password
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -733,6 +792,7 @@ const getAllVendors = async (req, res, next) => {
       country: vendor.country,
       city: vendor.city,
       pinCode: vendor.pinCode,
+      organizationId: vendor.organizationId,
       serviceAvailability: vendor.serviceAvailability,
       vatRegistration: vendor.vatRegistration,
       collectTax: vendor.collectTax,

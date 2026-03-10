@@ -3,6 +3,7 @@ const ccavenueService = require('../utils/ccavenueService');
 const { sendSuccess, sendError } = require('../utils/response');
 const emailService = require('../utils/emailService');
 const mongoose = require('mongoose');
+const { generateRevenueFromServiceRequest } = require('../utils/revenueHelper');
 
 /**
  * @desc    Initiate CCAvenue payment for a service request
@@ -291,6 +292,24 @@ const handlePaymentCallback = async (req, res, next) => {
     }
 
     await serviceRequest.save();
+
+    // Generate revenue transaction on successful payment
+    if (paymentStatus === 'Success') {
+      const paidAmount = isMilestonePayment && milestone
+        ? milestone.amount
+        : serviceRequest.total_price;
+
+      await generateRevenueFromServiceRequest({
+        serviceRequestId: serviceRequest._id,
+        totalAmount: paidAmount,
+        vendorId: serviceRequest.vendor || null,
+        organizationId: serviceRequest.organizationId || null,
+        propertyId: serviceRequest.propertyId || null,
+        source: 'payment_received',
+        milestoneId: isMilestonePayment && milestone ? milestone._id : null,
+        milestoneName: isMilestonePayment && milestone ? milestone.name : null
+      });
+    }
 
     // Send payment confirmation/failure email to customer
     if (serviceRequest.user_email) {
