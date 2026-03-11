@@ -1,6 +1,10 @@
 const Role = require('../models/Role');
+const ROLES = require('../constants/roles');
 const { sendSuccess, sendError } = require('../utils/response');
 const { ALL_PERMISSIONS, PERMISSION_GROUPS } = require('../constants/permissions');
+
+// Reserved role codes that cannot be used for staff roles
+const RESERVED_CODES = [ROLES.USER, ROLES.VENDOR, ROLES.PROPERTY_OWNER, ROLES.ORGANIZATION];
 
 // @desc    Get all roles
 // @route   GET /api/roles
@@ -67,6 +71,12 @@ const createRole = async (req, res, next) => {
 
     if (!name || !slug || code === undefined) {
       return sendError(res, 400, 'Name, slug, and code are required', 'MISSING_REQUIRED_FIELDS');
+    }
+
+    // Validate code is a valid staff role code (>= 3 and not a reserved non-staff code)
+    const codeNum = parseInt(code);
+    if (isNaN(codeNum) || codeNum < 3 || RESERVED_CODES.includes(codeNum)) {
+      return sendError(res, 400, `Role code must be >= 3 and cannot be a reserved code (${RESERVED_CODES.join(', ')})`, 'INVALID_ROLE_CODE');
     }
 
     // Validate permissions are valid strings
