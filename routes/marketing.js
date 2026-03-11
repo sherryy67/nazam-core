@@ -6,6 +6,8 @@ const {
   setMarketingServices,
   getMarketingServices,
   getAllServicesForMarketing,
+  getServiceMarketingContent,
+  updateServiceMarketingContent,
 } = require('../controllers/marketingController');
 
 const router = express.Router();
@@ -320,5 +322,229 @@ router.get('/services', getMarketingServices);
  *         description: Server error
  */
 router.get('/services/all', protect, hasPermission('marketing:read'), getAllServicesForMarketing);
+
+/**
+ * @swagger
+ * /api/marketing/services/{id}/content:
+ *   get:
+ *     summary: Get marketing content for a specific service
+ *     description: Returns only marketing-related content fields for a service (content sections, benefits, FAQs, testimonials, SEO fields)
+ *     tags: [Marketing]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Service ID
+ *         example: "64a1b2c3d4e5f6789abcdef0"
+ *     responses:
+ *       200:
+ *         description: Service marketing content retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 description:
+ *                   type: string
+ *                   example: "Service marketing content retrieved successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     service:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         contentSections:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                         benefitsTitle:
+ *                           type: string
+ *                         benefits:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                         whyChooseUs:
+ *                           type: object
+ *                         whereWeOffer:
+ *                           type: object
+ *                         youtubeLink:
+ *                           type: string
+ *                         faqs:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                         testimonials:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                         metaTitle:
+ *                           type: string
+ *                         metaDescription:
+ *                           type: string
+ *                         urlSlug:
+ *                           type: string
+ *                         ogTitle:
+ *                           type: string
+ *                         ogDescription:
+ *                           type: string
+ *       400:
+ *         description: Bad request - invalid service ID
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - marketing:read permission required
+ *       404:
+ *         description: Service not found
+ */
+router.get('/services/:id/content', protect, hasPermission('marketing:read'), getServiceMarketingContent);
+
+/**
+ * @swagger
+ * /api/marketing/services/{id}/content:
+ *   put:
+ *     summary: Update marketing content for a specific service
+ *     description: Allows marketing team to update only marketing-related content fields (content sections, benefits, FAQs, testimonials, SEO fields) without full service access
+ *     tags: [Marketing]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Service ID
+ *         example: "64a1b2c3d4e5f6789abcdef0"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               contentSections:
+ *                 type: array
+ *                 description: Up to 2 content sections with heading, description, and includedServices
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     heading:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                     includedServices:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           icon:
+ *                             type: string
+ *                           heading:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *               benefitsTitle:
+ *                 type: string
+ *               benefits:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     icon:
+ *                       type: string
+ *                     heading:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *               whyChooseUs:
+ *                 type: object
+ *                 properties:
+ *                   heading:
+ *                     type: string
+ *                   description:
+ *                     type: string
+ *               whereWeOffer:
+ *                 type: object
+ *                 properties:
+ *                   heading:
+ *                     type: string
+ *                   description:
+ *                     type: string
+ *               youtubeLink:
+ *                 type: string
+ *               faqs:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     question:
+ *                       type: string
+ *                     answer:
+ *                       type: string
+ *               testimonials:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     name:
+ *                       type: string
+ *                     designation:
+ *                       type: string
+ *                     rating:
+ *                       type: integer
+ *                       minimum: 1
+ *                       maximum: 5
+ *                     description:
+ *                       type: string
+ *               metaTitle:
+ *                 type: string
+ *               metaDescription:
+ *                 type: string
+ *               urlSlug:
+ *                 type: string
+ *               ogTitle:
+ *                 type: string
+ *               ogDescription:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Service marketing content updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 description:
+ *                   type: string
+ *                   example: "Service marketing content updated successfully"
+ *                 content:
+ *                   type: object
+ *                   properties:
+ *                     service:
+ *                       type: object
+ *       400:
+ *         description: Bad request - invalid input, parse error, duplicate slug, or no fields provided
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - marketing:write permission required
+ *       404:
+ *         description: Service not found
+ */
+router.put('/services/:id/content', protect, hasPermission('marketing:write'), updateServiceMarketingContent);
 
 module.exports = router;

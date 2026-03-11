@@ -310,8 +310,276 @@ const getAllServicesForMarketing = async (req, res, next) => {
   }
 };
 
+// @desc    Get marketing content for a specific service
+// @route   GET /api/marketing/services/:id/content
+// @access  Marketing team (marketing:read)
+const getServiceMarketingContent = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, "Invalid service ID format", "INVALID_SERVICE_ID");
+    }
+
+    const service = await Service.findById(id).select(
+      "_id name contentSections benefitsTitle benefits whyChooseUs whereWeOffer youtubeLink faqs testimonials metaTitle metaDescription urlSlug socialImage ogTitle ogDescription"
+    );
+
+    if (!service) {
+      return sendError(res, 404, "Service not found", "SERVICE_NOT_FOUND");
+    }
+
+    return sendSuccess(res, 200, "Service marketing content retrieved successfully", {
+      service,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update marketing content for a specific service
+// @route   PUT /api/marketing/services/:id/content
+// @access  Marketing team (marketing:write)
+const updateServiceMarketingContent = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return sendError(res, 400, "Invalid service ID format", "INVALID_SERVICE_ID");
+    }
+
+    const service = await Service.findById(id);
+    if (!service) {
+      return sendError(res, 404, "Service not found", "SERVICE_NOT_FOUND");
+    }
+
+    const {
+      contentSections,
+      benefitsTitle,
+      benefits,
+      whyChooseUs,
+      whereWeOffer,
+      youtubeLink,
+      faqs,
+      testimonials,
+      metaTitle,
+      metaDescription,
+      urlSlug,
+      ogTitle,
+      ogDescription,
+    } = req.body;
+
+    const updateData = {};
+
+    // Handle contentSections
+    if (contentSections !== undefined && contentSections !== null) {
+      try {
+        const parsed =
+          typeof contentSections === "string"
+            ? JSON.parse(contentSections)
+            : contentSections;
+        if (Array.isArray(parsed)) {
+          updateData.contentSections = parsed.slice(0, 2).map((section) => ({
+            heading: section.heading || "",
+            description: section.description || "",
+            includedServices: Array.isArray(section.includedServices)
+              ? section.includedServices.map((item) => ({
+                  icon: item.icon || "",
+                  heading: item.heading || "",
+                  description: item.description || "",
+                }))
+              : [],
+          }));
+        }
+      } catch (e) {
+        return sendError(res, 400, "Invalid contentSections format", "PARSE_ERROR");
+      }
+    }
+
+    // Handle benefitsTitle
+    if (benefitsTitle !== undefined && benefitsTitle !== null) {
+      updateData.benefitsTitle = String(benefitsTitle).trim();
+    }
+
+    // Handle benefits
+    if (benefits !== undefined && benefits !== null) {
+      try {
+        const parsed =
+          typeof benefits === "string" ? JSON.parse(benefits) : benefits;
+        if (Array.isArray(parsed)) {
+          updateData.benefits = parsed
+            .filter(
+              (b) =>
+                b &&
+                typeof b === "object" &&
+                (b.heading || b.description || b.icon),
+            )
+            .map((b) => ({
+              icon: b.icon || "",
+              heading: b.heading || "",
+              description: b.description || "",
+            }));
+        }
+      } catch (e) {
+        return sendError(res, 400, "Invalid benefits format", "PARSE_ERROR");
+      }
+    }
+
+    // Handle whyChooseUs
+    if (whyChooseUs !== undefined && whyChooseUs !== null) {
+      try {
+        const parsed =
+          typeof whyChooseUs === "string"
+            ? JSON.parse(whyChooseUs)
+            : whyChooseUs;
+        if (parsed && typeof parsed === "object") {
+          updateData.whyChooseUs = {
+            heading: parsed.heading || "",
+            description: parsed.description || "",
+          };
+        }
+      } catch (e) {
+        return sendError(res, 400, "Invalid whyChooseUs format", "PARSE_ERROR");
+      }
+    }
+
+    // Handle whereWeOffer
+    if (whereWeOffer !== undefined && whereWeOffer !== null) {
+      try {
+        const parsed =
+          typeof whereWeOffer === "string"
+            ? JSON.parse(whereWeOffer)
+            : whereWeOffer;
+        if (parsed && typeof parsed === "object") {
+          updateData.whereWeOffer = {
+            heading: parsed.heading || "",
+            description: parsed.description || "",
+          };
+        }
+      } catch (e) {
+        return sendError(res, 400, "Invalid whereWeOffer format", "PARSE_ERROR");
+      }
+    }
+
+    // Handle youtubeLink
+    if (youtubeLink !== undefined && youtubeLink !== null) {
+      updateData.youtubeLink = String(youtubeLink).trim();
+    }
+
+    // Handle faqs
+    if (faqs !== undefined && faqs !== null) {
+      try {
+        const parsed = typeof faqs === "string" ? JSON.parse(faqs) : faqs;
+        if (Array.isArray(parsed)) {
+          updateData.faqs = parsed
+            .filter((f) => f && f.question && f.question.trim().length > 0)
+            .map((f) => ({
+              question: f.question.trim(),
+              answer: f.answer || "",
+            }));
+        }
+      } catch (e) {
+        return sendError(res, 400, "Invalid faqs format", "PARSE_ERROR");
+      }
+    }
+
+    // Handle testimonials
+    if (testimonials !== undefined && testimonials !== null) {
+      try {
+        const parsed =
+          typeof testimonials === "string"
+            ? JSON.parse(testimonials)
+            : testimonials;
+        if (Array.isArray(parsed)) {
+          updateData.testimonials = parsed
+            .filter(
+              (t) => t && typeof t === "object" && (t.name || t.description),
+            )
+            .map((t) => ({
+              name: t.name || "",
+              designation: t.designation || "",
+              rating: Math.min(5, Math.max(1, Number(t.rating) || 5)),
+              description: t.description || "",
+            }));
+        }
+      } catch (e) {
+        return sendError(res, 400, "Invalid testimonials format", "PARSE_ERROR");
+      }
+    }
+
+    // Handle SEO fields
+    if (metaTitle !== undefined && metaTitle !== null) {
+      updateData.metaTitle = String(metaTitle).trim();
+    }
+    if (metaDescription !== undefined && metaDescription !== null) {
+      updateData.metaDescription = String(metaDescription).trim();
+    }
+    if (ogTitle !== undefined && ogTitle !== null) {
+      updateData.ogTitle = String(ogTitle).trim();
+    }
+    if (ogDescription !== undefined && ogDescription !== null) {
+      updateData.ogDescription = String(ogDescription).trim();
+    }
+
+    // Handle urlSlug
+    if (urlSlug !== undefined && urlSlug !== null && String(urlSlug).trim().length > 0) {
+      const slugify = (str) =>
+        String(str)
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, "")
+          .replace(/\s+/g, "-")
+          .replace(/-+/g, "-")
+          .replace(/^-|-$/g, "");
+
+      updateData.urlSlug = slugify(urlSlug);
+
+      // Check uniqueness excluding current service
+      const slugExists = await Service.findOne({
+        urlSlug: updateData.urlSlug,
+        _id: { $ne: id },
+      });
+      if (slugExists) {
+        return sendError(
+          res,
+          400,
+          "URL slug already in use by another service",
+          "DUPLICATE_SLUG"
+        );
+      }
+    }
+
+    // Check if any fields were provided
+    if (Object.keys(updateData).length === 0) {
+      return sendError(
+        res,
+        400,
+        "No marketing content fields provided to update",
+        "NO_FIELDS_PROVIDED"
+      );
+    }
+
+    const marketingFields =
+      "_id name contentSections benefitsTitle benefits whyChooseUs whereWeOffer youtubeLink faqs testimonials metaTitle metaDescription urlSlug socialImage ogTitle ogDescription";
+
+    const updatedService = await Service.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      { new: true }
+    ).select(marketingFields);
+
+    return sendSuccess(res, 200, "Service marketing content updated successfully", {
+      service: updatedService,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   setMarketingServices,
   getMarketingServices,
   getAllServicesForMarketing,
+  getServiceMarketingContent,
+  updateServiceMarketingContent,
 };
