@@ -17,7 +17,7 @@ const propertyOwnerSchema = new mongoose.Schema({
   commissionPercentage: { type: Number, required: true, min: 0, max: 100, default: 0 },
 
   // ID verification
-  idType: { type: String, enum: ["Passport", "EmiratesID", "NationalID"] },
+  idType: { type: String, enum: ["Passport", "EmiratesID", "NationalID", ""] },
   idNumber: { type: String },
 
   isActive: { type: Boolean, default: true },

@@ -1,235 +1,587 @@
-# Organization & Property Owner Portal Dashboards
+# Nazam Platform — System Architecture & Flow Documentation
 
-## Overview
-
-The system has **three portal types** each with their own login and dashboard:
-
-| Portal | URL Prefix | Role | Login URL |
-|--------|-----------|------|-----------|
-| **Admin** | `/admin` | Staff (3-11) | `/admin/login` |
-| **Organization** | `/organization` | Organization (13) | `/organization/login` |
-| **Property Owner** | `/property-owner` | Property Owner (12) | `/property-owner/login` |
+> **Version:** 1.0
+> **Last Updated:** March 2026
+> **Audience:** Stakeholders, Product Team, Client
 
 ---
 
-## 1. Organization Portal
+## Table of Contents
 
-### 1.1 How Organizations Are Created
-- **Admin only** — via Admin Dashboard → Organizations page
-- Admin fills: Name, Email, Password, Phone, City, Address, Commission %
-- Backend creates both an `Organization` document and a `User` with `role: 13`
-- The organization can then login independently
-
-### 1.2 Organization Login Flow
-```
-POST /api/organizations/login
-Body: { email, password }
-Response: { token, organization: { _id, name, email, ... } }
-```
-- Frontend stores token via `useAuth().login(token, { _id, name, email, role: 13 })`
-- Redirects to `/organization` (dashboard)
-- Layout checks `user.role === 13` to render sidebar
-
-### 1.3 Organization Dashboard (`/organization`)
-Shows stat cards fetched from `GET /api/organizations/dashboard`:
-- **Vendors**: Total count, Active (approved) count
-- **Tasks**: Total, Completed, Current (in-progress)
-- **Revenue**: Total revenue, Organization share, Pending payments, Completed payments
-
-### 1.4 Vendor Management (`/organization/vendors`)
-Organizations can create and manage their own vendors.
-
-**List Vendors**: `GET /api/organizations/vendors?page=1&limit=10`
-- Shows: Name, Email, Phone, Assigned Service, Approval Status, Date
-- Paginated table
-
-**Create Vendor**: `POST /api/organizations/vendors`
-- Fields: firstName, lastName, email, mobileNumber, password
-- Vendor is **auto-approved** (no admin review needed)
-- Vendor is **auto-linked** to the organization (organizationId set automatically)
-- Vendor inherits the organization's commission percentage for revenue splits
-
-### 1.5 Revenue Tracking (`/organization/revenue`)
-`GET /api/revenue/organization?page=1&limit=10&paymentStatus=`
-
-Shows:
-- **Summary cards**: Total revenue, Organization share, Pending payments, Completed payments
-- **Transactions table**: Vendor, Task, Total Amount, Org Share, Vendor Share, Status, Date
-- **Filter**: By payment status (All, Pending, Completed)
-
-### 1.6 How Organization Commission Works
-When a vendor under an organization completes work:
-1. Revenue transaction is generated (on payment received or task completion)
-2. Commission split: Organization gets `commissionPercentage`% of total
-3. Vendor gets the remainder (after org + property owner shares)
-4. Organization can track their earnings in real-time
+1. [Platform Overview](#1-platform-overview)
+2. [Role Architecture](#2-role-architecture)
+3. [Vendor System](#3-vendor-system)
+4. [Organization System](#4-organization-system)
+5. [Property Owner System](#5-property-owner-system)
+6. [AMC (Annual Maintenance Contract) System](#6-amc-annual-maintenance-contract-system)
+7. [Task Lifecycle](#7-task-lifecycle)
+8. [Revenue & Commission System](#8-revenue--commission-system)
+9. [System Connectivity Map](#9-system-connectivity-map)
+10. [Portal Access Summary](#10-portal-access-summary)
 
 ---
 
-## 2. Property Owner Portal
+## 1. Platform Overview
 
-### 2.1 How Property Owners Are Created
-- **Admin only** — via Admin Dashboard → Properties page → Owners tab
-- Admin fills: Name, Email, Password, Phone, City, Commission %, ID Type, ID Number
-- Backend creates a `PropertyOwner` document and a `User` with `role: 12`
-- Admin then creates Properties and Units under the owner
+Nazam is a service marketplace platform connecting **customers** (individuals and building tenants) with **service vendors** through an admin-managed workflow. The platform supports:
 
-### 2.2 Property Owner Login Flow
-```
-POST /api/properties/owners/login
-Body: { email, password }
-Response: { token, owner: { _id, name, email, ... } }
-```
-- Frontend stores token via `useAuth().login(token, { _id, name, email, role: 12 })`
-- Redirects to `/property-owner` (dashboard)
-- Layout checks `user.role === 12`
+- **Web Application** — Customer-facing service booking, admin panel, organization portal, property owner portal
+- **Mobile Application** — Vendor-facing task management (accept, start, complete jobs)
+- **Backend API** — Node.js + Express.js with MongoDB, AWS S3 for storage, CCAvenue for payments
 
-### 2.3 Property Owner Dashboard (`/property-owner`)
-Shows comprehensive stats from `GET /api/properties/owner/dashboard`:
-- **Properties**: Total count, list of properties (name, city, type)
-- **Units**: Total, Occupied, Vacant
-- **Tenants**: Total unique tenants, list with unit/property mapping
-- **Service Requests**: Total, Pending, Completed, Recent 10 requests
-- **AMC Contracts**: Count
+### Key Portals
 
-### 2.4 Properties Management (`/property-owner/properties`)
-`GET /api/properties?page=1&limit=10` (scoped to owner's properties)
-
-Shows property cards with expandable unit details:
-- Property: Name, City, Type badge
-- Units (expandable): Unit Number, Type, Floor, Status (Occupied/Vacant), Tenant name
-- Click property to load detailed unit data via `GET /api/properties/:id`
-
-### 2.5 Service Requests (`/property-owner/service-requests`)
-`GET /api/properties/owner/service-requests?page=1&limit=10&status=&propertyId=`
-
-**View Requests**:
-- Table: User Name, Service, Status badge, Date, Amount, Vendor
-- Filters: Status dropdown, Property dropdown
-- Paginated
-
-**Create Request on Behalf of Tenant**:
-`POST /api/properties/owner/service-requests`
-- Select: Tenant (from tenants list), Unit, Service Name, Description, Price, Date
-- Useful when property owner wants to request maintenance for a tenant
-
-### 2.6 Referral Codes (`/property-owner/referral-codes`)
-Property owners generate codes to link tenants to their properties/units.
-
-**Generate Code**: `POST /api/referral-codes`
-- Fields: Property (required), Unit (optional), Expiry Days (default 7), Max Uses (default 1)
-- Returns a unique code the tenant can redeem
-
-**View Codes**: `GET /api/referral-codes`
-- Table: Code (copyable), Property, Unit, Expires, Max Uses, Used Count, Status badge
-- Expandable row showing who redeemed the code
-- Deactivate action: `PUT /api/referral-codes/:id/deactivate`
-
-**Tenant Redemption Flow**:
-1. Owner generates referral code for a property/unit
-2. Owner shares code with tenant (via any channel)
-3. Tenant logs into the app and redeems code: `POST /api/referral-codes/redeem`
-4. Tenant is linked to the property/unit
-5. Owner can now see tenant's service requests and create requests on their behalf
-
-### 2.7 Revenue Tracking (`/property-owner/revenue`)
-`GET /api/revenue/property-owner?page=1&limit=10`
-
-Shows:
-- **Summary cards**: Total Revenue, Property Owner Share, Pending Payments, Completed Payments
-- **Transactions table**: Vendor, Task, Total Amount, Owner Share, Status, Date
-- Paginated
-
-### 2.8 How Property Owner Commission Works
-When service requests linked to their properties generate revenue:
-1. Revenue transaction is auto-generated on payment/completion
-2. Commission split: Owner gets `commissionPercentage`% of total (after org share if applicable)
-3. Property owner can track earnings per transaction
+| Portal                | URL Path          | Users                                  |
+| --------------------- | ----------------- | -------------------------------------- |
+| Customer Website      | `/`               | End users booking services             |
+| Admin Panel           | `/admin`          | Super admin + staff with permissions   |
+| Organization Portal   | `/organization`   | Organizations managing their vendors   |
+| Property Owner Portal | `/property-owner` | Building owners managing tenants       |
+| Vendor Mobile App     | Native App        | Vendors accepting and completing tasks |
 
 ---
 
-## 3. Inter-linking of Roles
+## 2. Role Architecture
 
-### Revenue Commission Split Order
+| Role           | Code | Description               | Access                                   |
+| -------------- | ---- | ------------------------- | ---------------------------------------- |
+| User           | 1    | End customer / tenant     | Web app — book services, manage orders   |
+| Vendor         | 2    | Service provider          | Mobile app — accept tasks, complete work |
+| Staff          | 3–10 | Admin team members        | Admin panel — permission-based access    |
+| Super Admin    | 11   | Full system access        | Admin panel — unrestricted access        |
+| Property Owner | 12   | Building/property manager | Property owner portal                    |
+| Organization   | 13   | Vendor aggregator company | Organization portal                      |
+
+**Permission System:** Staff members (roles 3–10) have granular permissions (e.g., `services:read`, `orders:write`, `vendors:delete`). Super Admin bypasses all permission checks.
+
+---
+
+## 3. Vendor System
+
+### 3.1 Three Ways to Create a Vendor
+
+#### Method 1: Self-Registration (Mobile App / Web)
+
+- Vendor registers via `POST /api/auth/register`
+- Status: **Pending Approval** (`approved: false`)
+- Cannot login until admin approves
+- Fields: name, email, password, phone, service, covered city, ID verification
+
+#### Method 2: Admin Creates Vendor
+
+- Admin uses the Add Vendor form in admin panel (`/admin/vendors/add-vendor`)
+- Status: **Auto-Approved** (`approved: true`) — can login immediately
+- Can optionally assign to an Organization via dropdown
+- 3-step form: Basic Info → Work Info → Verification
+
+#### Method 3: Organization Creates Vendor
+
+- Organization creates vendor from their portal (`/organization/vendors`)
+- Status: **Auto-Approved** (`approved: true`)
+- **Automatically linked** to the creating organization
+- Simplified form: first name, last name, email, phone, password
+
+### 3.2 Vendor Profile Fields
+
+| Category     | Fields                                                               |
+| ------------ | -------------------------------------------------------------------- |
+| Identity     | Type (corporate/individual), name, email, phone, gender              |
+| Service      | Primary service, covered city, experience, privilege level           |
+| Verification | ID type (Passport/EmiratesID/NationalID), ID number, document upload |
+| Banking      | Bank name, branch, account number, IBAN                              |
+| Availability | Weekly schedule (day + start/end times), unavailable dates           |
+| Organization | Organization link (optional — nullable reference)                    |
+| Tax          | VAT registration status, tax collection flag                         |
+
+### 3.3 Vendor Approval Flow
+
 ```
-Total Amount
-  ├─ Organization Share (org.commissionPercentage %)  [if vendor has org]
-  ├─ Property Owner Share (owner.commissionPercentage %)  [if linked to property]
-  └─ Vendor Share (remainder)
+Self-Registered Vendor                Admin/Org Created Vendor
+        │                                      │
+   approved: false                        approved: true
+        │                                      │
+   Login blocked                          Can login immediately
+        │                                      │
+   Admin approves ──→ approved: true           │
+        │                                      │
+   Can now login via mobile app          Active on mobile app
 ```
 
-### Vendor Creation Methods
-| Method | Created By | Organization | Approval | Route |
-|--------|-----------|-------------|----------|-------|
-| Self-register | Vendor | None (independent) | Needs admin approval | App registration |
-| Admin creates | Admin | Optional (dropdown) | Auto-approved | Admin → Add Vendor |
-| Org creates | Organization | Auto-linked | Auto-approved | Org Portal → Add Vendor |
+### 3.4 Admin Vendor Management (`/admin/vendors`)
 
-### Data Flow
+- **List View:** All vendors with search, filter by type (corporate/individual), filter by organization
+- **Statistics:** Total vendors, current month registrations, individual vs corporate counts
+- **Detail View:** Full vendor profile, service assignments, task history
+- **Add Vendor:** 3-step form with organization dropdown showing `"Name (X% commission)"`
+- **Pre-selection:** Supports `?organizationId=` query param when navigating from organization detail page
+
+---
+
+## 4. Organization System
+
+Organizations are companies that manage a fleet of vendors and earn a commission from their work.
+
+### 4.1 Organization Creation (Admin Only)
+
+Admin creates an organization from `/admin/organizations` with:
+
+| Field        | Required | Description            |
+| ------------ | -------- | ---------------------- |
+| Name         | Yes      | Organization name      |
+| Email        | Yes      | Unique login email     |
+| Password     | Yes      | Hashed with bcrypt     |
+| Phone        | Yes      | Contact number         |
+| City         | No       | Operating city         |
+| Commission % | No       | Revenue share (0–100%) |
+| Address      | No       | Physical address       |
+| Country      | No       | Country                |
+
+On creation, the system generates a login-capable entity with `role: 13`.
+
+### 4.2 Organization Portal (`/organization`)
+
+#### Dashboard
+
+Displays 8 stat cards in real-time:
+
+| Metric             | Description                         |
+| ------------------ | ----------------------------------- |
+| Total Vendors      | All vendors under this organization |
+| Active Vendors     | Approved vendors only               |
+| Total Tasks        | All tasks assigned to org's vendors |
+| Completed Tasks    | Successfully completed tasks        |
+| Total Revenue      | Sum of all revenue transactions     |
+| Organization Share | Org's commission earnings           |
+| Pending Payments   | Unpaid org share                    |
+| Completed Payments | Paid out org share                  |
+
+#### Vendors Page (`/organization/vendors`)
+
+- Table: Name, Email, Phone, Service, Status (Approved/Pending), Date
+- Add Vendor button with modal (first name, last name, email, phone, password)
+- Vendors created here are auto-approved and auto-linked to the organization
+- Pagination (10 per page)
+
+#### Revenue Page (`/organization/revenue`)
+
+- 4 summary cards: Total Revenue, Organization Share, Pending Payments, Completed Payments
+- Transactions table: Vendor, Task, Total Amount, Org Share, Vendor Share, Status, Date
+- Filter by payment status (All / Pending / Completed)
+- All amounts in AED
+
+### 4.3 Admin Organization Management
+
+#### List Page (`/admin/organizations`)
+
+- Table: Name, Email, Phone, Commission %, Status, Created Date, Actions
+- Search by name or email
+- Create/Edit modal
+- Activate/Deactivate toggle
+
+#### Detail Page (`/admin/organizations/[id]`)
+
+- **Header:** Name, email, status badge, activate/deactivate button
+- **Info Cards:** Email, Phone, Location, Commission %
+- **Dashboard Stats:** Same 8 metrics as org portal (vendor count, tasks, revenue, payments)
+- **Tabs:**
+  - Overview — full org details
+  - Vendors — searchable list with "Add Vendor" link (pre-fills organizationId)
+
+### 4.4 How Organization Reflects in Vendor Creation
+
+When creating a vendor from the admin panel:
+
+1. Step 1 (Basic Info) shows an **"Organization (Optional)"** dropdown
+2. Lists all organizations as: `"Organization Name (X% commission)"`
+3. Default option: **"No Organization (Independent)"**
+4. If an organization is selected, `vendor.organizationId` is set
+5. Revenue splits will automatically include the org's commission
+
+---
+
+## 5. Property Owner System
+
+Property owners are building managers who onboard their tenants via referral codes and track service usage across their properties.
+
+### 5.1 Property Owner Creation (Admin Only)
+
+Admin creates a property owner with: **Name, Email, Password, Phone, Commission %**
+
+Then admin creates:
+
+- **Properties** (buildings): name, address, city, type (residential/commercial/mixed)
+- **Units** (flats/shops): unit number, type (flat/shop/office), floor — with unique constraint per property
+
+### 5.2 Referral Code Flow (Tenant Linking)
+
+This is the core mechanism connecting building tenants to their property:
+
 ```
-Admin creates Organization (with commission %)
-  └─ Organization creates Vendors (auto-linked, auto-approved)
-       └─ Vendors complete Tasks
-            └─ Revenue Transaction generated
-                 ├─ Organization gets their %
-                 ├─ Property Owner gets their % (if property linked)
-                 └─ Vendor gets remainder
+Step 1: Property owner generates a referral code
+        ├── Selects a property (required)
+        ├── Optionally selects a specific unit
+        ├── Sets expiry (default: 7 days)
+        └── Sets max uses (default: 1)
+        → System generates unique 8-character hex code (e.g., "A1B2C3D4")
 
-Admin creates Property Owner (with commission %)
-  └─ Admin creates Properties & Units under owner
-       └─ Owner generates Referral Codes
-            └─ Tenants redeem codes (linked to property/unit)
-                 └─ Tenants request services (or owner requests on behalf)
-                      └─ Service Request → Payment → Revenue Transaction
-                           └─ Property Owner gets their commission %
+Step 2: Owner shares the code with tenant
+        (via SMS, email, in-person, etc.)
+
+Step 3: Tenant redeems the code in the app
+        POST /api/referral-codes/redeem { code: "A1B2C3D4" }
+        → System validates: not expired, not maxed out, active
+        → Links user to property: user.propertyId = property
+        → If unit specified: links tenant to unit, marks unit as occupied
+        → Records usage (who, when)
+
+Step 4: Owner can now track tenant activity
+        ├── See tenant in their properties/units list
+        ├── View tenant's service requests
+        ├── Create service requests on behalf of tenant
+        └── Track revenue from tenant-related work
+```
+
+**Validation Rules:**
+
+- User cannot redeem if already linked to a property
+- Code must be active, not expired, and not at max uses
+- Code is case-insensitive (auto-uppercased)
+
+### 5.3 Property Owner Portal (`/property-owner`)
+
+#### Dashboard
+
+9 stat cards:
+
+| Metric             | Description                  |
+| ------------------ | ---------------------------- |
+| Total Properties   | Number of buildings owned    |
+| Total Units        | All units across properties  |
+| Occupied Units     | Units with linked tenants    |
+| Vacant Units       | Units without tenants        |
+| Total Tenants      | All linked tenants           |
+| Service Requests   | Total requests from tenants  |
+| Pending Requests   | Open/in-progress requests    |
+| Completed Requests | Finished requests            |
+| AMC Contracts      | Active maintenance contracts |
+
+Plus: Recent service requests table and properties grid.
+
+#### Properties Page (`/property-owner/properties`)
+
+- List of all owned properties with type badges
+- Expandable rows showing units with: Unit #, Type, Floor, Status, Tenant Name
+- Pagination (12 per page)
+
+#### Referral Codes Page (`/property-owner/referral-codes`)
+
+- **Generate Code:** Modal with property dropdown, unit dropdown (optional), expiry days, max uses
+- **Codes Table:** Code (with copy button), Property, Unit, Expires, Max Uses/Used, Status
+- **Status Badges:** Valid (green), Expired (red), Inactive (red)
+- **Expandable Usage:** Shows who used the code (name, email, date)
+- **Deactivate:** Instantly invalidate a code
+
+#### Service Requests Page (`/property-owner/service-requests`)
+
+- View all tenant service requests across properties
+- Filter by status or property
+- **Create on behalf:** Modal to create a service request for a tenant
+  - Select tenant, optionally select unit
+  - Enter service name, description, price, date
+  - Recorded with `createdByPropertyOwner` reference
+
+#### Revenue Page (`/property-owner/revenue`)
+
+- 4 summary cards: Total Revenue, Owner Share, Pending Payments, Completed Payments
+- Transactions table with vendor name, task, amounts, status, date
+
+---
+
+## 6. AMC (Annual Maintenance Contract) System
+
+AMC contracts are long-term service agreements, typically for buildings or commercial clients.
+
+### 6.1 AMC Submission Flow
+
+```
+Customer/Admin submits AMC request
+    ├── Company info (name, contact, email, address)
+    ├── Cart of services (platform services + custom services)
+    │   ├── Each item can have: numberOfTimes, scheduledDates
+    │   ├── Duration type, number of persons
+    │   └── Selected sub-services, questionnaire answers
+    └── Creates:
+        ├── AMCContract (status: Pending, auto-generated contract number)
+        └── Individual ServiceRequest per cart item (type: Quotation)
+
+Admin reviews and manages:
+    ├── Sets totalContractValue (after negotiation)
+    ├── Updates status: Draft → Pending → Active → Completed
+    ├── Creates milestones for phased payments
+    ├── Sends payment links (full amount or per milestone)
+    └── Assigns vendors via Task creation
+```
+
+### 6.2 Contract Number Format
+
+Auto-generated: `AMC-YYYYMMDD-XXXX` (e.g., `AMC-20260312-0001`)
+
+### 6.3 AMC + Property Link
+
+AMC contracts have `propertyId` and `unitId` fields, connecting them to the property owner's buildings. This allows property owners to see AMC activity for their properties.
+
+### 6.4 AMC Admin Management (`/admin/orders/amc/[contractId]`)
+
+- View/edit contract details: dates, value, admin notes
+- Manage individual service requests within the contract
+- Upload assets and link services
+- Set quotation prices per service request
+- Milestone management modal
+- Payment link generation
+- Status lifecycle management
+
+---
+
+## 7. Task Lifecycle
+
+Tasks are the operational unit connecting service requests to vendors.
+
+### 7.1 Task Flow
+
+```
+Admin Creates Task
+    ├── Links: service request + vendor
+    ├── Sets: title, description, location, date/time, amount
+    ├── Optional: isAMC flag, AMC contract link
+    └── Status: Created
+
+        │
+        ▼
+    Vendor Notified (status: Notified)
+        │
+    ┌───┴───┐
+    ▼       ▼
+ Accepted  Cancelled (with reason)
+    │
+    ▼
+ InProgress (vendor starts work)
+    │
+    ▼
+ Completed (vendor finishes)
+    │
+    ▼
+ Revenue Transaction Generated
+```
+
+### 7.2 Task Properties
+
+| Field           | Description                                                      |
+| --------------- | ---------------------------------------------------------------- |
+| serviceRequest  | The customer's order                                             |
+| vendor          | Assigned service provider                                        |
+| organization    | Vendor's org (auto-populated)                                    |
+| isAMC           | Whether this is an AMC task                                      |
+| amcContract     | Linked AMC contract (if applicable)                              |
+| property / unit | Building reference (if applicable)                               |
+| taskAmount      | Payment amount for this task                                     |
+| status          | Created → Notified → Accepted/Cancelled → InProgress → Completed |
+
+### 7.3 AMC Tasks
+
+- AMC tasks are **manually assigned only** by admin (no auto-assignment)
+- Set `isAMC: true` when creating the task
+- Links to both the service request and the AMC contract
+
+---
+
+## 8. Revenue & Commission System
+
+### 8.1 Revenue Generation Triggers
+
+Revenue transactions are created automatically at three points:
+
+| Trigger            | When It Fires                            | Payment Status |
+| ------------------ | ---------------------------------------- | -------------- |
+| `payment_received` | Customer pays via CCAvenue payment link  | **Completed**  |
+| `task_completion`  | Vendor marks task as completed           | Pending        |
+| `status_completed` | Admin marks service request as completed | Pending        |
+
+**Why multiple triggers?** A customer may pay before a vendor is assigned (via admin-sent payment link). The payment trigger ensures revenue is tracked even without a task.
+
+### 8.2 Commission Split Calculation
+
+```
+Total Amount (e.g., 1,000 AED)
+    │
+    ├── Organization Share = totalAmount × org.commissionPercentage%
+    │   (e.g., 15% → 150 AED)
+    │
+    ├── Property Owner Share = totalAmount × owner.commissionPercentage%
+    │   (e.g., 10% → 100 AED)
+    │
+    └── Vendor Share = totalAmount - orgShare - ownerShare
+        (e.g., 1,000 - 150 - 100 = 750 AED)
+```
+
+**Rules:**
+
+- If vendor has no organization → orgShare = 0
+- If service request has no property link → ownerShare = 0
+- Vendor share never goes below 0
+- Independent vendor with no property = vendor gets 100%
+
+### 8.3 Milestone Payments
+
+For AMC or large contracts, payments can be split into milestones:
+
+- Each milestone payment creates a **separate** revenue transaction
+- Duplicate prevention via `{ serviceRequest, source, milestoneId }` compound check
+- Each milestone records its name and amount independently
+
+### 8.4 Revenue Visibility
+
+| User               | What They See                                                           |
+| ------------------ | ----------------------------------------------------------------------- |
+| **Admin**          | All revenue transactions across the platform, with full breakdown       |
+| **Organization**   | Revenue from their vendors' tasks (total, org share, pending/completed) |
+| **Property Owner** | Revenue from service requests linked to their properties                |
+| **Vendor**         | Their earnings visible in the mobile app                                |
+
+### 8.5 Payout Tracking
+
+The system tracks individual payout dates:
+
+- `vendorPaidAt` — when vendor was paid
+- `organizationPaidAt` — when org was paid
+- `propertyOwnerPaidAt` — when property owner was paid
+
+---
+
+## 9. System Connectivity Map
+
+```
+                         ┌─────────────────────┐
+                         │     ADMIN PANEL      │
+                         │  (Super Admin/Staff) │
+                         └──────────┬───────────┘
+                Creates & manages everything
+           ┌────────────────┼────────────────────┐
+           ▼                ▼                    ▼
+   ┌───────────────┐ ┌──────────────┐  ┌─────────────────┐
+   │ ORGANIZATION  │ │  PROPERTY    │  │     SERVICE      │
+   │  (role=13)    │ │ OWNER(role=12│  │   CATALOGUE      │
+   │               │ │              │  │                   │
+   │ Portal:       │ │ Portal:      │  │ Categories →      │
+   │ /organization │ │ /property-   │  │ Services →        │
+   │               │ │  owner       │  │ Sub-services      │
+   └───────┬───────┘ └──────┬───────┘  └────────┬──────────┘
+           │                │                    │
+     Creates vendors   Generates referral    Customers browse
+     (auto-approved)   codes for tenants     & book services
+           │                │                    │
+           ▼                ▼                    ▼
+   ┌───────────────┐ ┌──────────────┐  ┌─────────────────┐
+   │   VENDORS     │ │   TENANTS    │  │ SERVICE REQUEST  │
+   │  (role=2)     │ │ (linked via  │  │ (customer order) │
+   │               │ │ referral code│  │                   │
+   │ Mobile App:   │ │              │  │ Regular / AMC /   │
+   │ Accept tasks  │ │ Can book     │  │ On-behalf-of      │
+   │ Complete work │ │ services     │  │                   │
+   └───────┬───────┘ └──────┬───────┘  └────────┬──────────┘
+           │                │                    │
+           │         Service requests      Admin assigns
+           │         (direct or            vendor to request
+           │          on-behalf)                 │
+           │                │                    │
+           └────────────────┴────────┬───────────┘
+                                     ▼
+                            ┌─────────────────┐
+                            │      TASK        │
+                            │                  │
+                            │ Links:           │
+                            │ • Service Request│
+                            │ • Vendor         │
+                            │ • Organization   │
+                            │ • AMC Contract   │
+                            │ • Property/Unit  │
+                            └────────┬─────────┘
+                                     │
+                              On completion
+                                     │
+                                     ▼
+                            ┌─────────────────┐
+                            │    REVENUE       │
+                            │  TRANSACTION     │
+                            │                  │
+                            │ Splits:          │
+                            │ • Org Share      │
+                            │ • Owner Share    │
+                            │ • Vendor Share   │
+                            └──────────────────┘
+```
+
+### Data Flow Example: End-to-End
+
+```
+ 1. Admin creates Organization "CleanCo" with 15% commission
+ 2. Admin creates Property Owner "Mr. Ahmed" with 10% commission
+ 3. Admin creates Property "Sunrise Tower" under Mr. Ahmed
+ 4. Admin creates 20 units in Sunrise Tower
+ 5. CleanCo creates Vendor "Ali" from their portal (auto-approved)
+ 6. Mr. Ahmed generates referral code for Unit A-101
+ 7. Tenant "Sara" redeems code → linked to Sunrise Tower, Unit A-101
+ 8. Sara books "AC Cleaning" service (500 AED)
+ 9. Admin creates Task → assigns to Vendor Ali
+10. Ali accepts task via mobile app → starts work → completes
+11. Revenue generated:
+    • CleanCo (org) gets: 500 × 15% = 75 AED
+    • Mr. Ahmed (owner) gets: 500 × 10% = 50 AED
+    • Ali (vendor) gets: 500 - 75 - 50 = 375 AED
 ```
 
 ---
 
-## 4. API Reference
+## 10. Portal Access Summary
 
-### Organization Portal Endpoints
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/api/organizations/login` | Public | Organization login |
-| GET | `/api/organizations/dashboard` | Organization | Dashboard stats |
-| GET | `/api/organizations/vendors` | Organization | List vendors |
-| POST | `/api/organizations/vendors` | Organization | Create vendor |
-| GET | `/api/revenue/organization` | Organization | Revenue data |
+### Organization Portal (`/organization/login`)
 
-### Property Owner Portal Endpoints
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/api/properties/owners/login` | Public | Owner login |
-| GET | `/api/properties/owner/dashboard` | Owner | Dashboard stats |
-| GET | `/api/properties` | Owner/Admin | List properties |
-| GET | `/api/properties/:id` | Owner/Admin | Property detail with units |
-| GET | `/api/properties/owner/service-requests` | Owner | Service requests |
-| POST | `/api/properties/owner/service-requests` | Owner | Create request on behalf |
-| POST | `/api/referral-codes` | Owner | Generate referral code |
-| GET | `/api/referral-codes` | Owner | List referral codes |
-| PUT | `/api/referral-codes/:id/deactivate` | Owner | Deactivate code |
-| GET | `/api/revenue/property-owner` | Owner | Revenue data |
+| Page          | Features                                          |
+| ------------- | ------------------------------------------------- |
+| **Dashboard** | 8 stat cards (vendors, tasks, revenue, payments)  |
+| **Vendors**   | List vendors, add new vendors, view status        |
+| **Revenue**   | Transaction list, filter by status, summary cards |
+
+### Property Owner Portal (`/property-owner/login`)
+
+| Page                 | Features                                                 |
+| -------------------- | -------------------------------------------------------- |
+| **Dashboard**        | 9 stat cards (properties, units, tenants, requests, AMC) |
+| **Properties**       | Expandable list with units and tenant info               |
+| **Referral Codes**   | Generate, copy, track usage, deactivate                  |
+| **Service Requests** | View tenant requests, create on-behalf-of                |
+| **Revenue**          | Transaction list, owner share summary                    |
+
+### Admin Panel (`/admin`)
+
+| Section             | Features                                                |
+| ------------------- | ------------------------------------------------------- |
+| **Organizations**   | CRUD, dashboard per org, vendor list per org            |
+| **Vendors**         | List, add (3-step form), approve, org assignment        |
+| **Property Owners** | Create owners, properties, units                        |
+| **Orders**          | Service requests, AMC contracts, task management        |
+| **Tasks**           | Create, assign vendors, track lifecycle                 |
+| **Revenue**         | All transactions, source tracking, commission breakdown |
+| **Services**        | CRUD, categories, featured management                   |
+| **Staff**           | Role-based access with granular permissions             |
+
+### Vendor Mobile App
+
+| Feature           | Description                         |
+| ----------------- | ----------------------------------- |
+| **My Tasks**      | View assigned tasks                 |
+| **Accept/Cancel** | Respond to task assignments         |
+| **Start Work**    | Mark task as in-progress            |
+| **Complete**      | Mark task as done, triggers revenue |
+| **Profile**       | View/update vendor information      |
 
 ---
-
-## 5. Frontend File Structure
-
-```
-src/app/
-├── organization/
-│   ├── layout.tsx          # Layout with sidebar + navbar (role 13 guard)
-│   ├── login/page.tsx      # Organization login
-│   ├── page.tsx            # Dashboard (stats cards)
-│   ├── vendors/page.tsx    # Vendor list + create modal
-│   └── revenue/page.tsx    # Revenue summary + transactions table
-│
-├── property-owner/
-│   ├── layout.tsx          # Layout with sidebar + navbar (role 12 guard)
-│   ├── login/page.tsx      # Property owner login
-│   ├── page.tsx            # Dashboard (properties, units, tenants, requests)
-│   ├── properties/page.tsx # Properties with expandable units
-│   ├── service-requests/page.tsx  # Requests table + create on behalf
-│   ├── referral-codes/page.tsx    # Code generation + management
-│   └── revenue/page.tsx    # Revenue summary + transactions table
-```

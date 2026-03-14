@@ -28,7 +28,8 @@ const createPropertyOwner = async (req, res, next) => {
     const owner = await PropertyOwner.create({
       name, email, password, phone, address, city, country,
       commissionPercentage: commissionPercentage || 0,
-      idType, idNumber,
+      ...(idType && { idType }),
+      ...(idNumber && { idNumber }),
       createdBy: req.user.id
     });
 
