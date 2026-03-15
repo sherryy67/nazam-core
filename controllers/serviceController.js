@@ -160,6 +160,8 @@ const createService = async (req, res, next) => {
       urlSlug,
       ogTitle,
       ogDescription,
+      robotsTag,
+      canonical,
     } = req.body;
 
     // Check if this is an update operation
@@ -888,6 +890,18 @@ const createService = async (req, res, next) => {
       serviceData.ogDescription = "";
     }
 
+    if (robotsTag !== undefined && robotsTag !== null) {
+      serviceData.robotsTag = String(robotsTag).trim();
+    } else if (!existingService) {
+      serviceData.robotsTag = "";
+    }
+
+    if (canonical !== undefined && canonical !== null) {
+      serviceData.canonical = String(canonical).trim();
+    } else if (!existingService) {
+      serviceData.canonical = "";
+    }
+
     // Handle urlSlug - auto-generate from name + serviceType if not provided
     const slugify = (str) => String(str).trim()
       .toLowerCase()
@@ -1489,6 +1503,8 @@ const getServices = async (req, res, next) => {
       socialImage: service.socialImage || "",
       ogTitle: service.ogTitle || "",
       ogDescription: service.ogDescription || "",
+      robotsTag: service.robotsTag || "",
+      canonical: service.canonical || "",
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -1636,6 +1652,8 @@ const getServicesPaginated = async (req, res, next) => {
       socialImage: service.socialImage || "",
       ogTitle: service.ogTitle || "",
       ogDescription: service.ogDescription || "",
+      robotsTag: service.robotsTag || "",
+      canonical: service.canonical || "",
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -1728,6 +1746,8 @@ const getServiceById = async (req, res, next) => {
       socialImage: service.socialImage || "",
       ogTitle: service.ogTitle || "",
       ogDescription: service.ogDescription || "",
+      robotsTag: service.robotsTag || "",
+      canonical: service.canonical || "",
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -1826,6 +1846,8 @@ const getServiceBySlug = async (req, res, next) => {
       socialImage: service.socialImage || "",
       ogTitle: service.ogTitle || "",
       ogDescription: service.ogDescription || "",
+      robotsTag: service.robotsTag || "",
+      canonical: service.canonical || "",
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -2047,6 +2069,8 @@ const getAllActiveServices = async (req, res, next) => {
       socialImage: service.socialImage || "",
       ogTitle: service.ogTitle || "",
       ogDescription: service.ogDescription || "",
+      robotsTag: service.robotsTag || "",
+      canonical: service.canonical || "",
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -2462,6 +2486,8 @@ const getResidentialServices = async (req, res, next) => {
       socialImage: service.socialImage || "",
       ogTitle: service.ogTitle || "",
       ogDescription: service.ogDescription || "",
+      robotsTag: service.robotsTag || "",
+      canonical: service.canonical || "",
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),
@@ -2574,6 +2600,8 @@ const getCommercialServices = async (req, res, next) => {
       socialImage: service.socialImage || "",
       ogTitle: service.ogTitle || "",
       ogDescription: service.ogDescription || "",
+      robotsTag: service.robotsTag || "",
+      canonical: service.canonical || "",
       isActive: service.isActive,
       createdBy: service.createdBy,
       createdAt: service.createdAt?.toISOString(),

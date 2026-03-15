@@ -322,7 +322,7 @@ const getServiceMarketingContent = async (req, res, next) => {
     }
 
     const service = await Service.findById(id).select(
-      "_id name contentSections benefitsTitle benefits whyChooseUs whereWeOffer youtubeLink faqs testimonials metaTitle metaDescription urlSlug socialImage ogTitle ogDescription"
+      "_id name description contentSections benefitsTitle benefits whyChooseUs whereWeOffer youtubeLink faqs testimonials metaTitle metaDescription urlSlug socialImage ogTitle ogDescription robotsTag canonical"
     );
 
     if (!service) {
@@ -367,6 +367,10 @@ const updateServiceMarketingContent = async (req, res, next) => {
       urlSlug,
       ogTitle,
       ogDescription,
+      robotsTag,
+      canonical,
+      name,
+      description,
     } = req.body;
 
     const updateData = {};
@@ -549,6 +553,26 @@ const updateServiceMarketingContent = async (req, res, next) => {
       }
     }
 
+    // Handle robotsTag
+    if (robotsTag !== undefined && robotsTag !== null) {
+      updateData.robotsTag = String(robotsTag).trim();
+    }
+
+    // Handle canonical
+    if (canonical !== undefined && canonical !== null) {
+      updateData.canonical = String(canonical).trim();
+    }
+
+    // Handle name
+    if (name !== undefined && name !== null && String(name).trim().length > 0) {
+      updateData.name = String(name).trim();
+    }
+
+    // Handle description
+    if (description !== undefined && description !== null) {
+      updateData.description = String(description).trim();
+    }
+
     // Check if any fields were provided
     if (Object.keys(updateData).length === 0) {
       return sendError(
@@ -560,7 +584,7 @@ const updateServiceMarketingContent = async (req, res, next) => {
     }
 
     const marketingFields =
-      "_id name contentSections benefitsTitle benefits whyChooseUs whereWeOffer youtubeLink faqs testimonials metaTitle metaDescription urlSlug socialImage ogTitle ogDescription";
+      "_id name description contentSections benefitsTitle benefits whyChooseUs whereWeOffer youtubeLink faqs testimonials metaTitle metaDescription urlSlug socialImage ogTitle ogDescription robotsTag canonical";
 
     const updatedService = await Service.findByIdAndUpdate(
       id,

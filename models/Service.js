@@ -275,6 +275,8 @@ const serviceSchema = new mongoose.Schema(
     socialImage: { type: String, default: "" },
     ogTitle: { type: String, trim: true, default: "" },
     ogDescription: { type: String, trim: true, default: "" },
+    robotsTag: { type: String, trim: true, default: "" },
+    canonical: { type: String, trim: true, default: "" },
   },
   { timestamps: true },
 );
